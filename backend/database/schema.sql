@@ -1,0 +1,2 @@
+-- Database schema for OCR Platform
+-- This file will be populated in future tasks
