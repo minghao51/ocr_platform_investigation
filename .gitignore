@@ -29,7 +29,6 @@ data/
 *~
 
 # Docker
-.dockerignore
 
 # Logs
 *.log
