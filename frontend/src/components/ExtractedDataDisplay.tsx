@@ -24,7 +24,7 @@ export default function ExtractedDataDisplay({ result, fileName }: ExtractedData
       json = JSON.stringify(json, null, 2);
     }
 
-    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match: string) => {
       let cls = 'text-purple-600 font-medium'; // number
       if (/^"/.test(match)) {
         if (/:$/.test(match)) {
