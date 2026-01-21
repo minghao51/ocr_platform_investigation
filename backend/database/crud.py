@@ -152,3 +152,35 @@ async def delete_job(job_id: int) -> bool:
         await db.execute("DELETE FROM processing_jobs WHERE id = ?", (job_id,))
         await db.commit()
         return True
+
+async def create_uploaded_file(
+    file_id: str,
+    original_filename: str,
+    file_extension: str,
+    file_path: str,
+    file_size: int,
+    content_type: str
+) -> int:
+    """Create a new uploaded file record"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO uploaded_files
+               (file_id, original_filename, file_extension, file_path, file_size, content_type)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (file_id, original_filename, file_extension, file_path, file_size, content_type)
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+async def get_uploaded_file(file_id: str) -> Optional[Dict[str, Any]]:
+    """Get uploaded file by file_id"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM uploaded_files WHERE file_id = ?",
+            (file_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        return None

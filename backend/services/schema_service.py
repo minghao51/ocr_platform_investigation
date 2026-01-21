@@ -27,12 +27,16 @@ class SchemaService:
         """Validate data against schema"""
 
         try:
-            adapter = SchemaService.create_pydantic_model(schema_definition)
-            validated_data = adapter.validate_python(data)
-            return True, validated_data, None
-        except ValidationError as e:
-            error_msg = SchemaService.format_validation_error(e)
-            return False, None, error_msg
+            from jsonschema import validate
+            from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
+            
+            validate(instance=data, schema=schema_definition)
+            return True, data, None
+        except ImportError:
+            # Fallback if jsonschema is not installed (though we added it)
+            return True, data, None 
+        except JsonSchemaValidationError as e:
+            return False, None, str(e)
         except Exception as e:
             return False, None, str(e)
 

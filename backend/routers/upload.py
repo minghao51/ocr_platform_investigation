@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from pathlib import Path
+from database import crud
 import uuid
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -36,8 +37,25 @@ async def upload_file(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(content)
 
-    # Determine file type
+    # Determine file type and content type
     file_type = "pdf" if file_ext == ".pdf" else "image"
+    content_type_map = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png"
+    }
+    content_type = content_type_map.get(file_ext, "application/octet-stream")
+
+    # Store file metadata in database
+    await crud.create_uploaded_file(
+        file_id=file_id,
+        original_filename=file.filename,
+        file_extension=file_ext,
+        file_path=str(file_path),
+        file_size=len(content),
+        content_type=content_type
+    )
 
     return JSONResponse({
         "file_id": file_id,

@@ -13,7 +13,7 @@ class NebiusProvider(VLMProvider):
         image: Image.Image,
         prompt: str,
         schema: Dict[str, Any],
-        model: str = "meta-llama/Llama-3.2-90B-Vision-Instruct",
+        model: str = "Qwen/Qwen2.5-VL-72B-Instruct",
         **kwargs
     ) -> Dict[str, Any]:
         """Process image with Nebius"""
@@ -65,10 +65,17 @@ class NebiusProvider(VLMProvider):
             "usage": result.get("usage", {})
         }
 
-    def get_models(self) -> List[str]:
+    def get_models(self) -> List[Dict[str, Any]]:
+        """Get available Nebius models with metadata"""
         return [
-            "meta-llama/Llama-3.2-90B-Vision-Instruct",
-            "meta-llama/Llama-3.2-11B-Vision-Instruct"
+            {
+                "id": "Qwen/Qwen2.5-VL-72B-Instruct",
+                "name": "Qwen2.5-VL 72B",
+                "tier": "premium",
+                "capabilities": ["vision", "reasoning", "video"],
+                "context_window": 131072,
+                "description": "High-performance vision model for complex visual tasks"
+            }
         ]
 
     def get_default_image_size(self) -> tuple[int, int]:

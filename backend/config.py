@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     max_file_size: int = 10 * 1024 * 1024  # 10MB
 
     class Config:
-        env_file = ".env"
+        env_file = "../.env"
 
 @lru_cache
 def get_settings():

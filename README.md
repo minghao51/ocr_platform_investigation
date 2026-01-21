@@ -31,12 +31,33 @@ A modern OCR (Optical Character Recognition) platform that uses Vision Language 
 - **Docker**: Multi-stage builds for optimized images
 - **Docker Compose**: Local development and deployment
 
+## 📚 Documentation
+
+**Comprehensive guides available in the `docs/` directory:**
+
+| Document | Description | Link |
+|----------|-------------|------|
+| **Setup Guide** | Complete setup instructions for Docker and local development | [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) |
+| **User Guide** | How to use the platform, create schemas, understand results | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
+| **Testing Guide** | Manual and automated testing procedures | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
+| **Troubleshooting** | Diagnose and fix common issues | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+| **Schema Guide** | Create custom JSON schemas for extraction | [SCHEMA_GUIDE.md](SCHEMA_GUIDE.md) |
+| **Implementation Report** | Technical implementation details | [docs/IMPLEMENTATION_COMPLETE.md](docs/IMPLEMENTATION_COMPLETE.md) |
+
+**New users**: Start with the [Setup Guide](docs/SETUP_GUIDE.md)
+
 ## Quick Start
 
 ### Prerequisites
 
-- Docker and Docker Compose installed
+- Docker and Docker Compose installed (or Python 3.11+ and Node 18+ for local development)
 - API keys for at least one VLM provider
+
+### Step-by-Step Setup
+
+📖 **For detailed instructions, see [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md)**
+
+#### 1. Configure Environment
 
 ### Configuration
 
@@ -52,11 +73,11 @@ OPENROUTER_API_KEY=your_openrouter_key
 GEMINI_API_KEY=your_gemini_key
 ```
 
-### Running with Docker
+### Running with Docker (Recommended)
 
 ```bash
 # Build and start the application
-docker-compose up --build
+docker compose up --build
 
 # The application will be available at http://localhost:8000
 ```
@@ -92,59 +113,116 @@ npm run dev
 # Frontend available at http://localhost:5173
 ```
 
-## Usage
+## 🚀 Usage
 
-### 1. Upload Document
+📖 **For detailed usage instructions, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md)**
 
-Navigate to the **Process** page and upload a document:
-- Drag and drop or click to browse
-- Supports images (JPEG, PNG, GIF, WebP) and PDFs
-- Maximum file size: 10MB
+### Basic Workflow
 
-### 2. Select Model
+1. **Upload Document** (JPEG, PNG, GIF, WebP, or PDF)
+2. **Select Model** (Nebius, OpenRouter, or Gemini)
+3. **Choose Schema** (Invoice, Receipt, ID Card, Generic, or custom)
+4. **Process** and view extracted structured data
+5. **Review History** of all processing jobs
 
-Choose your VLM provider and model:
-- **Nebius**: Llama 3.2 11B Vision
-- **OpenRouter**: Claude 3.5 Sonnet, GPT-4o, Gemini 1.5, Llama 3.2
-- **Gemini**: Gemini 1.5 Pro, Gemini 1.5 Flash
+### Example: Processing an Invoice
 
-### 3. Define Schema
+1. Navigate to http://localhost:8000
+2. Upload invoice image/PDF
+3. Select provider: **Gemini**
+4. Select model: **gemini-1.5-flash**
+5. Select schema: **Invoice**
+6. Click **Process Document**
+7. View extracted data:
+   ```json
+   {
+     "invoice_number": "INV-2024-001",
+     "vendor_name": "Acme Corp",
+     "total_amount": 150.00,
+     "line_items": [...]
+   }
+   ```
 
-Select a built-in template or create a custom JSON schema:
+## 🧪 Testing
 
-**Built-in Templates:**
-- **Invoice**: Extract invoice number, date, vendor, line items, totals
-- **Receipt**: Extract merchant, date, items, total, payment method
-- **ID Card**: Extract document type, name, DOB, document number, address
-- **Generic**: Extract raw text and entities
+📖 **For comprehensive testing procedures, see [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)**
 
-**Custom Schema Example:**
-```json
-{
-  "type": "object",
-  "properties": {
-    "title": {"type": "string"},
-    "author": {"type": "string"},
-    "content": {"type": "string"}
-  },
-  "required": ["title", "content"]
-}
+### Running Tests
+
+```bash
+# Install test dependencies
+cd backend
+pip install -r requirements-test.txt
+
+# Run unit tests
+pytest tests/
+
+# Run with coverage report
+pytest --cov=services --cov-report=html
+
+# Run integration tests (requires running backend)
+pytest tests/test_integration.py
 ```
 
-### 4. Process and Review
+### Manual Testing Checklist
 
-Click **Process Document** to start extraction:
-- Real-time status updates (pending → processing → success/error)
-- View extracted structured data
-- Copy JSON results
-- Track processing time
+- [ ] Application starts without errors
+- [ ] Health check returns success
+- [ ] File upload works (JPG, PNG, PDF)
+- [ ] Can select providers and models
+- [ ] Can select built-in schemas
+- [ ] Can create custom schemas
+- [ ] Processing completes successfully
+- [ ] Results display correctly
+- [ ] History shows past jobs
+- [ ] Can filter and delete jobs
 
-### 5. History
+## ❓ Troubleshooting
 
-View all past jobs on the **History** page:
-- Filter by status and provider
-- View detailed results
-- Delete old jobs
+📖 **For detailed troubleshooting, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**
+
+### Common Issues
+
+**Port 8000 already in use**:
+```bash
+# Find and kill process
+lsof -i :8000
+kill -9 <PID>
+```
+
+**Docker won't start**:
+```bash
+# Check Docker is running
+docker info
+
+# Rebuild without cache
+docker compose build --no-cache
+docker compose up
+```
+
+**API key errors**:
+- Verify `.env` file exists
+- Check API keys are correct (no extra quotes or spaces)
+- Ensure at least one provider key is configured
+
+**Database errors**:
+```bash
+# Reinitialize database
+cd backend
+python -m database.migrations
+```
+
+## 📖 Additional Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[Setup Guide](docs/SETUP_GUIDE.md)** | Detailed setup instructions for Docker and local development |
+| **[User Guide](docs/USER_GUIDE.md)** | Complete usage guide with examples and best practices |
+| **[Testing Guide](docs/TESTING_GUIDE.md)** | Manual and automated testing procedures |
+| **[Troubleshooting](docs/TROUBLESHOOTING.md)** | Common issues and solutions |
+| **[Schema Guide](SCHEMA_GUIDE.md)** | Creating custom JSON schemas |
+| **[Implementation Report](docs/IMPLEMENTATION_COMPLETE.md)** | Technical implementation details |
+| **[Testing & Documentation Summary](docs/TESTING_AND_DOCUMENTATION_SUMMARY.md)** | Overview of all documentation and tests |
 
 ## API Documentation
 

@@ -64,12 +64,41 @@ class OpenRouterProvider(VLMProvider):
             "usage": result.get("usage", {})
         }
 
-    def get_models(self) -> List[str]:
+    def get_models(self) -> List[Dict[str, Any]]:
+        """Get available OpenRouter models with metadata"""
         return [
-            "anthropic/claude-3.5-sonnet",
-            "google/gemini-pro-1.5",
-            "openai/gpt-4o",
-            "meta-llama/llama-3.2-90b-vision-preview"
+            {
+                "id": "anthropic/claude-3.5-sonnet",
+                "name": "Claude 3.5 Sonnet",
+                "tier": "premium",
+                "capabilities": ["vision", "reasoning"],
+                "context_window": 200000,
+                "description": "Advanced reasoning with vision"
+            },
+            {
+                "id": "google/gemini-pro-1.5",
+                "name": "Gemini Pro 1.5",
+                "tier": "balanced",
+                "capabilities": ["vision", "reasoning"],
+                "context_window": 2800000,
+                "description": "Large context window with vision"
+            },
+            {
+                "id": "openai/gpt-4o",
+                "name": "GPT-4o",
+                "tier": "premium",
+                "capabilities": ["vision", "reasoning"],
+                "context_window": 128000,
+                "description": "OpenAI's latest multimodal model"
+            },
+            {
+                "id": "meta-llama/llama-3.2-90b-vision-preview",
+                "name": "Llama 3.2 90B Vision",
+                "tier": "balanced",
+                "capabilities": ["vision", "reasoning"],
+                "context_window": 131072,
+                "description": "Large open-source vision model"
+            }
         ]
 
     def get_default_image_size(self) -> tuple[int, int]:

@@ -9,6 +9,18 @@ CREATE TABLE IF NOT EXISTS schemas (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Uploaded files table
+CREATE TABLE IF NOT EXISTS uploaded_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id TEXT NOT NULL UNIQUE,
+    original_filename TEXT NOT NULL,
+    file_extension TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    content_type TEXT NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Processing jobs table
 CREATE TABLE IF NOT EXISTS processing_jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,3 +44,4 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status ON processing_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_provider ON processing_jobs(provider);
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON processing_jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_schemas_is_template ON schemas(is_template);
+CREATE INDEX IF NOT EXISTS idx_uploaded_files_file_id ON uploaded_files(file_id);

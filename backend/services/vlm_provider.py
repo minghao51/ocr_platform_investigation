@@ -10,7 +10,8 @@ class VLMProvider(ABC):
 
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.client = httpx.AsyncClient(timeout=60.0)
+        # Increase timeout to 300 seconds (5 minutes) for VLM processing
+        self.client = httpx.AsyncClient(timeout=300.0)
 
     @abstractmethod
     async def process_image(
@@ -36,6 +37,12 @@ class VLMProvider(ABC):
     def encode_image(self, image: Image.Image, format: str = "JPEG") -> str:
         """Encode image to base64"""
         buffer = BytesIO()
+        # Convert RGBA to RGB if needed for JPEG format
+        if format == "JPEG" and image.mode == "RGBA":
+            # Create white background
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[3])  # Use alpha channel as mask
+            image = background
         image.save(buffer, format=format)
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
 

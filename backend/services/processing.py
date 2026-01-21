@@ -80,12 +80,27 @@ class ProcessingService:
         # Process with VLM
         result = await provider.process_image(image, prompt, schema_definition, model, **kwargs)
 
+        # Check for provider-level errors
+        if "error" in result:
+            return {
+                "success": False,
+                "error": f"Provider error: {result['error']}",
+                "raw_response": result
+            }
+
         # Validate result
         content = result.get("content", "{}")
 
         try:
             import json
+            import json
             data = json.loads(content)
+            # Handle double-encoded JSON (if the model returns a JSON string wrapped in a string)
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    pass  # Keep as string if it's not valid JSON
             is_valid, validated_data, error = self.schema_service.validate_data(
                 data, schema_definition
             )
@@ -134,6 +149,11 @@ class ProcessingService:
             # Process
             result = await provider.process_image(resized, prompt, schema_definition, model, **kwargs)
 
+            # Check for provider-level errors
+            if "error" in result:
+                errors.append(f"Page {i+1}: {result['error']}")
+                continue
+
             # Validate
             content = result.get("content", "{}")
             try:
@@ -158,7 +178,7 @@ class ProcessingService:
             "successful_pages": len(results)
         }
 
-async def run_processing_job(job_id: int) -> None:
+async def run_processing_job(job_id: int, file_path: str) -> None:
     """Run a processing job (called asynchronously)"""
 
     from config import get_settings
@@ -171,10 +191,6 @@ async def run_processing_job(job_id: int) -> None:
 
     # Update status to processing
     await crud.update_job_status(job_id, "processing")
-
-    # Get file path
-    file_path = f"./data/uploads/{job['file_id']}"
-    file_ext = Path(file_path).suffix
 
     # Determine file type from job record
     file_type = job['file_type']
@@ -195,9 +211,14 @@ async def run_processing_job(job_id: int) -> None:
     start_time = time.time()
 
     try:
+        print(f"Starting processing for job {job_id}")
+        print(f"  File: {file_path}")
+        print(f"  Provider: {job['provider']}")
+        print(f"  Model: {job['model']}")
+
         result = await service.process_file(
-            file_id=job['file_id'],
-            file_path=file_path,
+            file_id=str(job_id),  # Use job_id as file_id reference
+            file_path=file_path,  # Use the provided file_path
             file_type=file_type,
             provider_name=job['provider'],
             model=job['model'],
@@ -206,6 +227,9 @@ async def run_processing_job(job_id: int) -> None:
             temperature=0.1,
             max_tokens=4096
         )
+
+        print(f"Processing completed for job {job_id}")
+        print(f"  Result: {result.get('success')}")
 
         processing_time = time.time() - start_time
 
@@ -226,9 +250,13 @@ async def run_processing_job(job_id: int) -> None:
 
     except Exception as e:
         processing_time = time.time() - start_time
+        import traceback
+        error_details = f"{type(e).__name__}: {str(e)}"
+        print(f"ERROR processing job {job_id}: {error_details}")
+        print(f"Traceback: {traceback.format_exc()}")
         await crud.update_job_status(
             job_id,
             "error",
-            error_message=str(e),
+            error_message=error_details,
             processing_time=processing_time
         )
