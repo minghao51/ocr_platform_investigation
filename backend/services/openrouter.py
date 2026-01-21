@@ -64,6 +64,64 @@ class OpenRouterProvider(VLMProvider):
             "usage": result.get("usage", {})
         }
 
+    async def process_text(
+        self,
+        text: str,
+        prompt: str,
+        schema_definition: Dict[str, Any],
+        model: str,
+        temperature: float = 0.1,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Process text with OpenRouter text-only model"""
+        import json
+
+        system_prompt = f"""You are a document data extraction assistant. Extract information from the following text according to this JSON schema:
+
+{json.dumps(schema_definition, indent=2)}
+
+Return ONLY valid JSON. No explanations, no markdown formatting."""
+
+        try:
+            response = await self.client.post(
+                f"{self.BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"{prompt}\n\nDocument text:\n{text}"}
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                }
+            )
+
+            response.raise_for_status()
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
+
+            return {
+                "content": content,
+                "model": model,
+                "usage": {
+                    "prompt_tokens": result["usage"]["prompt_tokens"],
+                    "completion_tokens": result["usage"]["completion_tokens"],
+                    "total_tokens": result["usage"]["total_tokens"]
+                }
+            }
+
+        except Exception as e:
+            return {
+                "error": str(e),
+                "content": None,
+                "model": model
+            }
+
     def get_models(self) -> List[Dict[str, Any]]:
         """Get available OpenRouter models with metadata"""
         return [

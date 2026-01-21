@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     result TEXT,               -- JSON string of extracted data
     error_message TEXT,
     processing_time_seconds REAL,
+    processing_method TEXT DEFAULT 'vision',  -- 'vision' or 'text'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP,
     FOREIGN KEY (schema_id) REFERENCES schemas(id) ON DELETE SET NULL
@@ -43,5 +44,6 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON processing_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_provider ON processing_jobs(provider);
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON processing_jobs(created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_processing_method ON processing_jobs(processing_method);
 CREATE INDEX IF NOT EXISTS idx_schemas_is_template ON schemas(is_template);
 CREATE INDEX IF NOT EXISTS idx_uploaded_files_file_id ON uploaded_files(file_id);

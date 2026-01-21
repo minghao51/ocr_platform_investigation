@@ -34,6 +34,7 @@ export interface Job {
   created_at: string;
   updated_at: string;
   processing_time?: number;
+  processing_method?: 'vision' | 'text';
   result?: any;
   error?: string;
 }
@@ -88,13 +89,51 @@ export async function processDocument(request: ProcessRequest): Promise<ProcessR
   return response.json();
 }
 
+// Text Extraction
+export async function processTextDocument(
+  fileId: string,
+  provider: string,
+  model: string,
+  schemaId?: number
+): Promise<{ job_id: number }> {
+  const response = await fetch(`${API_BASE}/text/process`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      file_id: fileId,
+      provider,
+      model,
+      schema_id: schemaId
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to process text document');
+  }
+
+  return response.json();
+}
+
 export async function getJobStatus(jobId: number): Promise<Job> {
   const response = await fetch(`${API_BASE}/process/status/${jobId}`);
-  
+
   if (!response.ok) {
     throw new Error('Failed to get job status');
   }
-  
+
+  return response.json();
+}
+
+export async function pollJobStatus(jobId: number): Promise<Job> {
+  const response = await fetch(`${API_BASE}/text/status/${jobId}`);
+
+  if (!response.ok) {
+    throw new Error('Failed to get job status');
+  }
+
   return response.json();
 }
 

@@ -118,6 +118,107 @@ class GeminiProvider(VLMProvider):
             "usage": result.get("usageMetadata", {})
         }
 
+    async def process_text(
+        self,
+        text: str,
+        prompt: str,
+        schema_definition: Dict[str, Any],
+        model: str,
+        temperature: float = 0.1,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Process text with Gemini text-only model"""
+        # Prepare content (text-only, no image)
+        content = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": f"{prompt}\n\nDocument text:\n{text}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema_definition, indent=2)}"
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+                "responseMimeType": "application/json"
+            }
+        }
+
+        try:
+            # Make API call
+            response = await self.client.post(
+                f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
+                headers={"Content-Type": "application/json"},
+                json=content
+            )
+
+            response.raise_for_status()
+            result = response.json()
+
+            # Extract content with error handling
+            if "candidates" not in result or len(result["candidates"]) == 0:
+                return {
+                    "error": "No candidates in response",
+                    "content": None,
+                    "model": model
+                }
+
+            candidate = result["candidates"][0]
+
+            if "content" not in candidate:
+                return {
+                    "error": "No content in candidate",
+                    "content": None,
+                    "model": model
+                }
+
+            content_obj = candidate["content"]
+
+            if "parts" not in content_obj or len(content_obj["parts"]) == 0:
+                return {
+                    "error": "No parts in content",
+                    "content": None,
+                    "model": model
+                }
+
+            part = content_obj["parts"][0]
+
+            if "text" not in part:
+                return {
+                    "error": f"No text in part. Available keys: {list(part.keys())}",
+                    "content": None,
+                    "model": model
+                }
+
+            content_text = part["text"]
+
+            if not content_text or content_text.strip() == "":
+                return {
+                    "error": "Empty content received",
+                    "content": None,
+                    "model": model
+                }
+
+            return {
+                "content": content_text,
+                "model": model,
+                "usage": {
+                    "prompt_tokens": result.get("usageMetadata", {}).get("promptTokenCount", 0),
+                    "completion_tokens": result.get("usageMetadata", {}).get("candidatesTokenCount", 0),
+                    "total_tokens": result.get("usageMetadata", {}).get("totalTokenCount", 0)
+                }
+            }
+
+        except Exception as e:
+            return {
+                "error": str(e),
+                "content": None,
+                "model": model
+            }
+
     def get_models(self) -> List[Dict[str, Any]]:
         """Get available Gemini models with metadata"""
         return [

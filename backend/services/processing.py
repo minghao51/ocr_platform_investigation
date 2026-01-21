@@ -260,3 +260,149 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
             error_message=error_details,
             processing_time=processing_time
         )
+
+async def run_text_processing_job(job_id: int, file_path: str) -> None:
+    """Run text extraction job (called asynchronously)"""
+
+    from config import get_settings
+    from services.text_extraction import TextExtractionService
+    from database import crud
+    from services.schema_service import SchemaService
+    import time
+    import json
+
+    settings = get_settings()
+
+    # Get job details
+    job = await crud.get_job(job_id)
+    if not job:
+        return
+
+    # Update status to processing
+    await crud.update_job_status(job_id, "processing")
+
+    # Get schema
+    if job['schema_id']:
+        schema_record = await crud.get_schema(job['schema_id'])
+        if schema_record:
+            schema_definition = json.loads(schema_record['definition'])
+        else:
+            schema_definition = SchemaService.get_builtin_templates()["Generic"]
+    else:
+        schema_definition = SchemaService.get_builtin_templates()["Generic"]
+
+    # Get API key
+    provider_name = job['provider']
+    api_key = getattr(settings, f"{provider_name}_api_key")
+    if not api_key:
+        await crud.update_job_status(
+            job_id,
+            "error",
+            error_message=f"No API key configured for {provider_name}"
+        )
+        return
+
+    # Process
+    start_time = time.time()
+
+    try:
+        print(f"Starting TEXT processing for job {job_id}")
+        print(f"  File: {file_path}")
+        print(f"  Provider: {job['provider']}")
+        print(f"  Model: {job['model']}")
+
+        # Step 1: Extract text using pdfplumber
+        text_service = TextExtractionService()
+        extracted_text = text_service.extract_text_from_pdf(file_path)
+
+        if not extracted_text:
+            await crud.update_job_status(
+                job_id,
+                "error",
+                error_message="This PDF appears to be image-based. Please use the Vision Extraction tab instead.",
+                processing_time=time.time() - start_time
+            )
+            return
+
+        print(f"  Extracted {len(extracted_text)} characters")
+
+        # Step 2: Get provider and process text
+        providers = {
+            "nebius": NebiusProvider,
+            "openrouter": OpenRouterProvider,
+            "gemini": GeminiProvider
+        }
+
+        provider_class = providers.get(provider_name)
+        if not provider_class:
+            raise ValueError(f"Unknown provider: {provider_name}")
+
+        async with provider_class(api_key) as provider:
+            result = await provider.process_text(
+                text=extracted_text,
+                prompt="Extract all information from this document",
+                schema_definition=schema_definition,
+                model=job['model'],
+                temperature=0.1,
+                max_tokens=4096
+            )
+
+        # Check for errors
+        if "error" in result:
+            await crud.update_job_status(
+                job_id,
+                "error",
+                error_message=f"Provider error: {result['error']}",
+                processing_time=time.time() - start_time
+            )
+            return
+
+        # Validate result
+        content = result.get("content", "{}")
+        try:
+            data = json.loads(content)
+            if isinstance(data, str):
+                data = json.loads(data)
+
+            schema_service = SchemaService()
+            is_valid, validated_data, error = schema_service.validate_data(
+                data, schema_definition
+            )
+
+            if is_valid:
+                await crud.update_job_status(
+                    job_id,
+                    "success",
+                    result=validated_data,
+                    processing_time=time.time() - start_time
+                )
+                print(f"Processing completed for job {job_id}")
+            else:
+                await crud.update_job_status(
+                    job_id,
+                    "error",
+                    error_message=f"Validation failed: {error}",
+                    processing_time=time.time() - start_time
+                )
+
+        except json.JSONDecodeError as e:
+            await crud.update_job_status(
+                job_id,
+                "error",
+                error_message=f"Invalid JSON response: {str(e)}",
+                processing_time=time.time() - start_time
+            )
+
+    except Exception as e:
+        processing_time = time.time() - start_time
+        import traceback
+        error_details = f"{type(e).__name__}: {str(e)}"
+        print(f"ERROR processing job {job_id}: {error_details}")
+        print(f"Traceback: {traceback.format_exc()}")
+        await crud.update_job_status(
+            job_id,
+            "error",
+            error_message=error_details,
+            processing_time=processing_time
+        )
+

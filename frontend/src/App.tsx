@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import ProcessingPage from './pages/ProcessingPage';
+import TextExtractionPage from './pages/TextExtractionPage';
 import HistoryPage from './pages/HistoryPage';
 
-type Page = 'processing' | 'history';
+type Page = 'processing' | 'text-extraction' | 'history';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('processing');
@@ -26,7 +27,17 @@ function App() {
                       : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                     )}
                 >
-                  Process
+                  Vision Extract
+                </button>
+                <button
+                  onClick={() => setCurrentPage('text-extraction')}
+                  className={'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ' +
+                    (currentPage === 'text-extraction'
+                      ? 'border-blue-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    )}
+                >
+                  Text Extract
                 </button>
                 <button
                   onClick={() => setCurrentPage('history')}
@@ -47,6 +58,7 @@ function App() {
       {/* Page Content */}
       <main className="bg-gray-50">
         {currentPage === 'processing' && <ProcessingPage />}
+        {currentPage === 'text-extraction' && <TextExtractionPage />}
         {currentPage === 'history' && <HistoryPage />}
       </main>
     </div>

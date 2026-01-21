@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from routers import upload, processing, schemas, jobs, providers
+from routers import upload, processing, schemas, jobs, providers, text_processing
 
 app = FastAPI(title="OCR Platform")
 
@@ -25,6 +25,7 @@ app.include_router(processing.router)
 app.include_router(schemas.router)
 app.include_router(jobs.router)
 app.include_router(providers.router)
+app.include_router(text_processing.router)
 
 # Mount static files for frontend assets
 import os

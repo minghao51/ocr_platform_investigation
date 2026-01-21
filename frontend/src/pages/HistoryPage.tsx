@@ -142,9 +142,20 @@ export default function HistoryPage() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium truncate">{job.file_name}</span>
-                      <span className={'px-2 py-1 rounded-full text-xs ' + getStatusColor(job.status)}>
-                        {job.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {job.processing_method && (
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            job.processing_method === 'text'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {job.processing_method}
+                          </span>
+                        )}
+                        <span className={'px-2 py-1 rounded-full text-xs ' + getStatusColor(job.status)}>
+                          {job.status}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-xs text-gray-500">
                       {new Date(job.created_at).toLocaleString()}

@@ -61,15 +61,16 @@ async def create_job(
     provider: str,
     model: str,
     schema_id: Optional[int],
-    schema_name: Optional[str]
+    schema_name: Optional[str],
+    processing_method: str = "vision"
 ) -> int:
     """Create a new processing job"""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """INSERT INTO processing_jobs
-               (file_name, file_type, provider, model, schema_id, schema_name, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (file_name, file_type, provider, model, schema_id, schema_name, "pending")
+               (file_name, file_type, provider, model, schema_id, schema_name, status, processing_method)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (file_name, file_type, provider, model, schema_id, schema_name, "pending", processing_method)
         )
         await db.commit()
         return cursor.lastrowid

@@ -25,6 +25,34 @@ class VLMProvider(ABC):
         pass
 
     @abstractmethod
+    async def process_text(
+        self,
+        text: str,
+        prompt: str,
+        schema_definition: Dict[str, Any],
+        model: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Process extracted text with text-only LLM
+
+        Args:
+            text: Extracted text content
+            prompt: Extraction prompt
+            schema_definition: JSON schema for validation
+            model: Model name
+            **kwargs: Additional parameters (temperature, max_tokens, etc.)
+
+        Returns:
+            Dict with keys:
+                - content (str): Extracted JSON content
+                - model (str): Model used
+                - usage (dict): Token usage stats
+                - error (str, optional): Error message if failed
+        """
+        pass
+
+    @abstractmethod
     def get_models(self) -> List[str]:
         """Get list of available models"""
         pass
