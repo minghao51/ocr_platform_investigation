@@ -22,7 +22,10 @@ export default function ResultsDisplay({ job }: ResultsDisplayProps) {
 
       {/* Extracted data display */}
       {job.status === 'success' && job.result && (
-        <ExtractedDataDisplay result={job.result} fileName={job.file_name} />
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Extracted Data</h2>
+          <ExtractedDataDisplay result={job.result} fileName={job.file_name} />
+        </section>
       )}
     </div>
   );
