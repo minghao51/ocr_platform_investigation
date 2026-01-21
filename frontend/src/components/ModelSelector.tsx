@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listProviders, Provider, Model } from '../lib/api';
+import { listProviders, Provider } from '../lib/api';
 
 interface ModelSelectorProps {
   provider: string;
@@ -26,13 +26,28 @@ export default function ModelSelector({
     try {
       setLoading(true);
       const data = await listProviders();
-      setProviders(data);
 
-      // Auto-select first provider and model if not set
-      if (data.length > 0 && !provider) {
-        onProviderChange(data[0].name);
-        if (data[0].models.length > 0 && !model) {
-          onModelChange(data[0].models[0].id);
+      // Sort providers: Gemini first, then enabled providers, then disabled providers
+      const sortedProviders = data.sort((a, b) => {
+        // Gemini first
+        if (a.name === 'gemini') return -1;
+        if (b.name === 'gemini') return 1;
+
+        // Enabled providers before disabled
+        if (a.has_api_key && !b.has_api_key) return -1;
+        if (!a.has_api_key && b.has_api_key) return 1;
+
+        return 0;
+      });
+
+      setProviders(sortedProviders);
+
+      // Auto-select first available provider and model if not set
+      const firstAvailableProvider = sortedProviders.find(p => p.has_api_key && p.models.length > 0);
+      if (firstAvailableProvider && !provider) {
+        onProviderChange(firstAvailableProvider.name);
+        if (!model) {
+          onModelChange(firstAvailableProvider.models[0].id);
         }
       }
     } catch (err) {
@@ -99,8 +114,14 @@ export default function ModelSelector({
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {providers.map((p) => (
-            <option key={p.name} value={p.name}>
-              {p.display_name}
+            <option
+              key={p.name}
+              value={p.name}
+              disabled={!p.has_api_key}
+              className={!p.has_api_key ? 'text-gray-400 bg-gray-50' : ''}
+              title={!p.has_api_key ? 'No API key configured' : undefined}
+            >
+              {p.display_name} {!p.has_api_key && '(No key)'}
             </option>
           ))}
         </select>

@@ -4,6 +4,7 @@ export interface Provider {
   name: string;
   display_name: string;
   models: Model[];
+  has_api_key: boolean;
 }
 
 export interface Model {
@@ -54,36 +55,36 @@ export interface ProcessResponse {
 }
 
 // Upload
-export async function uploadFile(file: File): Promise<{ file_id: string }> {
+export async function uploadFile(file: File): Promise<{ file_id: string; file_name: string; file_type: string; file_path: string; file_size: number }> {
   const formData = new FormData();
   formData.append('file', file);
-  
-  const response = await fetch(`${API_BASE}/upload`, {
+
+  const response = await fetch(`${API_BASE}/upload/`, {
     method: 'POST',
     body: formData,
   });
-  
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Upload failed');
   }
-  
+
   return response.json();
 }
 
 // Process
 export async function processDocument(request: ProcessRequest): Promise<ProcessResponse> {
-  const response = await fetch(`${API_BASE}/process`, {
+  const response = await fetch(`${API_BASE}/process/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
-  
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Processing failed');
   }
-  
+
   return response.json();
 }
 
@@ -167,6 +168,6 @@ export async function deleteJob(jobId: number): Promise<void> {
 
 // Providers
 export async function listProviders(): Promise<Provider[]> {
-  const response = await fetch(`${API_BASE}/providers`);
+  const response = await fetch(`${API_BASE}/providers/`);
   return response.json();
 }

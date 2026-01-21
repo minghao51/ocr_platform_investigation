@@ -6,6 +6,7 @@ export default function HistoryPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState({ status: '', provider: '' });
 
   useEffect(() => {
@@ -15,6 +16,7 @@ export default function HistoryPage() {
   const loadJobs = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await listJobs(
         filter.status || undefined,
         filter.provider || undefined,
@@ -22,7 +24,9 @@ export default function HistoryPage() {
       );
       setJobs(data);
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs';
       console.error('Failed to load jobs:', err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -115,6 +119,16 @@ export default function HistoryPage() {
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-16 bg-gray-200 rounded"></div>
                 ))}
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <p className="text-sm text-red-800 mb-3">{error}</p>
+                <button
+                  onClick={loadJobs}
+                  className="w-full px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : jobs.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">No jobs found</p>
