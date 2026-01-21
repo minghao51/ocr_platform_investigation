@@ -28,6 +28,10 @@ data/
 *.swo
 *~
 
+# Git Worktrees
+.worktrees/
+worktrees/
+
 # Docker
 
 # Logs
