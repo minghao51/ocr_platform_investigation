@@ -96,9 +96,9 @@ async def update_job_status(
             completed_at = datetime.now().isoformat()
             await db.execute(
                 """UPDATE processing_jobs
-                   SET status = ?, error_message = ?, completed_at = ?
+                   SET status = ?, error_message = ?, completed_at = ?, processing_time_seconds = ?
                    WHERE id = ?""",
-                (status, error_message, completed_at, job_id)
+                (status, error_message, completed_at, processing_time, job_id)
             )
         else:
             await db.execute(

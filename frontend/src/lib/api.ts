@@ -31,10 +31,10 @@ export interface Job {
   provider: string;
   model: string;
   schema_name: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   processing_time?: number;
-  processing_method?: 'vision' | 'text';
+  processing_method?: 'vision' | 'text' | 'hybrid';
   result?: any;
   error?: string;
 }
@@ -48,6 +48,7 @@ export interface ProcessRequest {
   prompt?: string;
   temperature?: number;
   max_tokens?: number;
+  extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid';  // NEW: Auto-detection support
 }
 
 export interface ProcessResponse {

@@ -27,8 +27,9 @@ async def list_jobs(
                 "model": j["model"],
                 "schema_name": j["schema_name"],
                 "created_at": j["created_at"],
-                "updated_at": j.get("completed_at") or j["updated_at"] or j["created_at"],
+                "updated_at": j.get("completed_at") or j.get("updated_at") or j["created_at"],
                 "processing_time": j.get("processing_time_seconds"),
+                "processing_method": j.get("processing_method"),
                 "result": json.loads(j["result"]) if j.get("result") else None,
                 "error": j.get("error_message")
             }
@@ -53,8 +54,9 @@ async def get_job(job_id: int):
         "model": job["model"],
         "schema_name": job["schema_name"],
         "created_at": job["created_at"],
-        "updated_at": job.get("completed_at") or job["updated_at"] or job["created_at"],
+        "updated_at": job.get("completed_at") or job.get("updated_at") or job["created_at"],
         "processing_time": job.get("processing_time_seconds"),
+        "processing_method": job.get("processing_method"),
         "result": json.loads(job["result"]) if job.get("result") else None,
         "error": job.get("error_message")
     }

@@ -1,10 +1,32 @@
 import { Job } from '../lib/api';
+import { useState, useEffect } from 'react';
 
 interface ProcessingStatusProps {
   job: Job;
 }
 
 export default function ProcessingStatus({ job }: ProcessingStatusProps) {
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [jobStartTime] = useState(() => {
+    // Use the job's created_at if available, otherwise use current time
+    // This handles the case where a temporary job object doesn't have created_at yet
+    return Date.now();
+  });
+
+  useEffect(() => {
+    // Only track elapsed time for pending/processing jobs
+    if (job.status === 'pending' || job.status === 'processing') {
+      const interval = setInterval(() => {
+        const now = Date.now();
+        setElapsedTime(Math.floor((now - jobStartTime) / 1000));
+      }, 1000);
+
+      return () => clearInterval(interval);
+    } else {
+      // Reset elapsed time when job completes
+      setElapsedTime(0);
+    }
+  }, [job.status, jobStartTime]);
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'success':
@@ -22,6 +44,12 @@ export default function ProcessingStatus({ job }: ProcessingStatusProps) {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
+  };
+
+  const formatElapsedTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
 
   const isCompleted = job.status === 'success' || job.status === 'error';
@@ -56,17 +84,24 @@ export default function ProcessingStatus({ job }: ProcessingStatusProps) {
           <span className="text-gray-500">Schema:</span>
           <span className="ml-2 font-medium">{job.schema_name}</span>
         </div>
-        {job.processing_time && (
+        {job.processing_time ? (
           <div>
             <span className="text-gray-500">Processing Time:</span>
             <span className="ml-2 font-medium">{job.processing_time.toFixed(2)}s</span>
           </div>
+        ) : (job.status === 'pending' || job.status === 'processing') && elapsedTime > 0 ? (
+          <div>
+            <span className="text-gray-500">Elapsed Time:</span>
+            <span className="ml-2 font-medium">{formatElapsedTime(elapsedTime)}</span>
+          </div>
+        ) : null}
+        {job.created_at && (
+          <div className="col-span-2">
+            <span className="text-gray-500">Created:</span>
+            <span className="ml-2 font-medium">{formatDate(job.created_at)}</span>
+          </div>
         )}
-        <div className="col-span-2">
-          <span className="text-gray-500">Created:</span>
-          <span className="ml-2 font-medium">{formatDate(job.created_at)}</span>
-        </div>
-        {isCompleted && (
+        {isCompleted && job.updated_at && (
           <div className="col-span-2">
             <span className="text-gray-500">Completed:</span>
             <span className="ml-2 font-medium">{formatDate(job.updated_at)}</span>

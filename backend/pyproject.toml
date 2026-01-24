@@ -16,6 +16,11 @@ dependencies = [
     "pillow==11.0.0",
     "jsonschema>=4.26.0",
     "pdfplumber>=0.11.0",
+    "pymupdf>=1.26.7",
+    # Note: PaddlePaddle/PaddleOCR temporarily removed due to ARM64 compatibility issues
+    # These will be re-added in Phase 2 when hybrid pipeline is implemented
+    # "paddlepaddle>=3.3.0",
+    # "paddleocr>=3.3.3",
 ]
 
 [project.optional-dependencies]

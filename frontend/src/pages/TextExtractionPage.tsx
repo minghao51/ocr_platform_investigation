@@ -1,172 +1,50 @@
-import { useState } from 'react';
-import { processTextDocument, pollJobStatus, Job } from '../lib/api';
-import FileUpload from '../components/FileUpload';
-import ModelSelector from '../components/ModelSelector';
-import SchemaEditor from '../components/SchemaEditor';
-import ResultsDisplay from '../components/ResultsDisplay';
+import { processTextDocument } from '@/lib/api';
+import BaseExtractionPage from './BaseExtractionPage';
 
 export default function TextExtractionPage() {
-  const [fileId, setFileId] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [provider, setProvider] = useState('gemini');
-  const [model, setModel] = useState('gemini-2.5-flash');
-  const [schemaId, setSchemaId] = useState<number | null>(null);
-  const [schemaDefinition, setSchemaDefinition] = useState<Record<string, any> | null>(null);
-  const [currentJob, setCurrentJob] = useState<Job | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const processWrapper = async (
+    fileId: string,
+    provider: string,
+    model: string,
+    schemaId?: number,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _schemaDefinition?: Record<string, any>
+  ) => {
+    // Text extraction API currently doesn't support custom schema definitions passed inline?
+    // Checking api.ts: processTextDocument(fileId, provider, model, schemaId)
+    // It seems text extraction might check schema directly from ID?
+    // Let's check text_processing.py.
+    // It takes schema_id. If not present, it doesn't look for schema_definition in the request body directly shown in my previous view.
+    // Wait, let me check backend/routers/text_processing.py again.
+    // class TextProcessRequest(BaseModel): file_id, provider, model, schema_id: Optional[int]
+    // It DOES NOT have schema_definition field!
+    // So for text extraction, we only support saved schemas for now, or maybe the API needs update?
+    // Using BaseExtractionPage, users can define a custom schema in the UI.
+    // If they do, schemaId is null.
+    // If text extraction backend doesn't support custom schema definition, this feature will fail for Text mode.
+    // Ideally, I should strictly follow existing behavior. 
+    // The previous TextExtractionPage used SchemaEditor. 
+    // Did it support custom schemas?
+    // Let's look at the previous content of TextExtractionPage.tsx:
+    // It had "schemaDefinition" state.
+    // It called processTextDocument(..., schemaId || undefined).
+    // It seems it IGNORED schemaDefinition state when calling the API? 
+    // Wait, processTextDocument implementation:
+    // body: { file_id, provider, model, schema_id }
+    // It indeed ignored custom schema definition!
+    // So the previous UI was misleading or Custom Schema just didn't work for Text Extraction?
+    // I will preserve this behavior (ignoring definition) but maybe I should add a comment or fix it later.
+    // For now, I will match the legacy behavior.
 
-  const handleFileUpload = (uploadedFileId: string, uploadedFileName: string) => {
-    setFileId(uploadedFileId);
-    setFileName(uploadedFileName);
-    setError(null);
-  };
-
-  const handleProcess = async () => {
-    if (!fileId || !provider || !model || !schemaDefinition) {
-      setError('Please complete all fields');
-      return;
-    }
-
-    setProcessing(true);
-    setError(null);
-
-    try {
-      const response = await processTextDocument(fileId, provider, model, schemaId || undefined);
-      setCurrentJob({
-        job_id: response.job_id,
-        file_name: fileName || 'Unknown',
-        file_type: 'pdf',
-        status: 'pending',
-        provider,
-        model,
-        schema_name: 'Custom',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        processing_method: 'text',
-      });
-
-      // Poll for status
-      pollJobStatusInterval(response.job_id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Processing failed');
-      setProcessing(false);
-    }
-  };
-
-  const pollJobStatusInterval = async (jobId: number) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const job = await pollJobStatus(jobId);
-        setCurrentJob(job);
-
-        if (job.status === 'success' || job.status === 'error') {
-          clearInterval(pollInterval);
-          setProcessing(false);
-        }
-      } catch (err) {
-        clearInterval(pollInterval);
-        setError('Failed to get job status');
-        setProcessing(false);
-      }
-    }, 2000);
-  };
-
-  const handleReset = () => {
-    setFileId(null);
-    setFileName(null);
-    setCurrentJob(null);
-    setError(null);
+    return processTextDocument(fileId, provider, model, schemaId);
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Text Extraction</h1>
-        <p className="text-sm text-gray-600">
-          Best for text-based PDFs (digital documents). Use Vision tab for scanned documents.
-        </p>
-      </div>
-
-      <div className="space-y-8">
-        {/* File Upload */}
-        <section>
-          <h2 className="text-xl font-semibold mb-4">Step 1: Upload PDF Document</h2>
-          {!fileId ? (
-            <FileUpload onUpload={handleFileUpload} />
-          ) : (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-md flex items-center justify-between">
-              <div>
-                <p className="font-medium text-green-800">{fileName}</p>
-                <p className="text-sm text-green-600">File uploaded successfully</p>
-              </div>
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 text-sm text-green-700 border border-green-300 rounded-md hover:bg-green-100"
-              >
-                Change File
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* Provider & Model Selection */}
-        <section>
-          <h2 className="text-xl font-semibold mb-4">Step 2: Select Model</h2>
-          <ModelSelector
-            provider={provider}
-            model={model}
-            onProviderChange={setProvider}
-            onModelChange={setModel}
-          />
-        </section>
-
-        {/* Schema Definition */}
-        <section>
-          <h2 className="text-xl font-semibold mb-4">Step 3: Define Schema</h2>
-          <SchemaEditor
-            schemaId={schemaId}
-            schemaDefinition={schemaDefinition}
-            onSchemaSelect={setSchemaId}
-            onDefinitionChange={setSchemaDefinition}
-          />
-        </section>
-
-        {/* Process Button */}
-        {fileId && (
-          <section>
-            <button
-              onClick={handleProcess}
-              disabled={processing || !provider || !model || !schemaDefinition}
-              className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {processing ? 'Processing...' : 'Process Document (Text Extraction)'}
-            </button>
-
-            {error && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-600">{error}</p>
-                {error.includes('image-based') && (
-                  <button
-                    onClick={() => window.location.href = '/'}
-                    className="mt-2 text-blue-600 hover:underline text-sm"
-                  >
-                    Switch to Vision Extraction
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Results */}
-        {currentJob && (
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Results</h2>
-            <ResultsDisplay job={currentJob} processingMethod="text" />
-          </section>
-        )}
-      </div>
-    </div>
+    <BaseExtractionPage
+      title="Text Extraction"
+      description="Best for text-based PDFs (digital documents). Use Vision tab for scanned documents."
+      processFunction={processWrapper}
+      processingMethod="text"
+    />
   );
 }

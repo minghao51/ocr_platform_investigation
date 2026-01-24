@@ -179,7 +179,10 @@ class ProcessingService:
         }
 
 async def run_processing_job(job_id: int, file_path: str) -> None:
-    """Run a processing job (called asynchronously)"""
+    """
+    Run vision extraction job (processes images/PDFs as images using VLMs).
+    Best for: Scanned documents, images, PDFs with visual elements.
+    """
 
     from config import get_settings
     from pathlib import Path
@@ -262,7 +265,10 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
         )
 
 async def run_text_processing_job(job_id: int, file_path: str) -> None:
-    """Run text extraction job (called asynchronously)"""
+    """
+    Run text extraction job (extracts text from PDFs using pdfplumber, then processes with LLM).
+    Best for: Digital PDFs with extractable text (faster & more cost-effective).
+    """
 
     from config import get_settings
     from services.text_extraction import TextExtractionService

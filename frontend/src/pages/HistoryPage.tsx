@@ -158,7 +158,7 @@ export default function HistoryPage() {
                       </div>
                     </div>
                     <div className="text-xs text-gray-500">
-                      {new Date(job.created_at).toLocaleString()}
+                      {job.created_at ? new Date(job.created_at).toLocaleString() : 'N/A'}
                     </div>
                   </div>
                 ))}

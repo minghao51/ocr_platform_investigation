@@ -20,6 +20,7 @@ async def process_text_document(
     Start text extraction job
 
     Processes PDF using pdfplumber text extraction + text-only LLM
+    Note: Only supports PDF files. For images and scanned documents, use Vision Extraction.
     """
     # Import here to avoid circular dependency
     from services.processing import run_text_processing_job
@@ -28,6 +29,20 @@ async def process_text_document(
     file_info = await crud.get_uploaded_file(request.file_id)
     if not file_info:
         raise HTTPException(status_code=404, detail="File not found")
+
+    # Validate file type - text extraction only supports PDFs
+    file_type = file_info.get("file_type", "").lower()
+    if file_type != "pdf":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Text Extraction only supports PDF files",
+                "message": f"File type '{file_type}' is not supported by Text Extraction. "
+                          f"Please use Vision Extraction for images and scanned documents.",
+                "file_type": file_type,
+                "suggestion": "Try using the Smart Extraction (auto-detection) or Vision Extraction tab instead."
+            }
+        )
 
     # Get schema info if provided
     schema_name = None
@@ -62,7 +77,30 @@ async def process_text_document(
 @router.get("/status/{job_id}")
 async def get_text_job_status(job_id: int):
     """Get job status (reuses existing jobs table)"""
+    import json
     job = await crud.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return job
+
+    result = job.get("result")
+    if result and isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except json.JSONDecodeError:
+            pass
+
+    return {
+        "job_id": job["id"],
+        "file_name": job["file_name"],
+        "file_type": job["file_type"],
+        "status": job["status"],
+        "provider": job["provider"],
+        "model": job["model"],
+        "schema_name": job["schema_name"],
+        "created_at": job["created_at"],
+        "updated_at": job.get("completed_at") or job.get("updated_at") or job["created_at"],
+        "result": result,
+        "error": job.get("error_message"),
+        "processing_time": job.get("processing_time_seconds"),
+        "processing_method": job.get("processing_method")
+    }
