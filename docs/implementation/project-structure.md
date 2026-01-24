@@ -69,14 +69,14 @@ ocr_platform_testdrive/
 │   │   ├── troubleshooting.md     # Common issues
 │   │   └── api.md                 # API reference
 │   ├── development/               # Developer documentation
-│   │   ├── testing-guide.md       # Testing procedures
-│   │   ├── backend-testing.md     # Backend-specific testing
-│   │   └── test-report.md         # Test results
+│   │   ├── testing-guide.md           # Testing procedures
+│   │   ├── backend-testing.md         # Backend-specific testing
+│   │   └── auto-routing-test-report.md # Test results
 │   ├── implementation/            # Technical details
-│   │   ├── overview.md            # Project summary
-│   │   ├── mvp-complete.md        # MVP implementation report
-│   │   ├── auto-routing.md        # Auto-routing feature
-│   │   └── project-structure.md   # This file
+│   │   ├── implementation-summary.md # Project summary
+│   │   ├── mvp-implementation.md     # MVP implementation report
+│   │   ├── auto-routing.md            # Auto-routing feature
+│   │   └── project-structure.md       # This file
 │   ├── plans/                     # Design documents
 │   ├── progress/                  # Project tracking
 │   └── reports/                   # Historical records

@@ -32,17 +32,16 @@ docs/
 ├── development/         # Development workflows
 │   ├── testing-guide.md    # Testing procedures
 │   ├── backend-testing.md  # Backend-specific testing
-│   └── test-report.md      # Test results
+│   └── auto-routing-test-report.md # Test results
 │
 ├── implementation/      # Technical implementation details
-│   ├── overview.md       # Project summary
-│   ├── mvp-complete.md    # MVP implementation
-│   └── auto-routing.md    # Auto-routing feature
+│   ├── implementation-summary.md # Project summary
+│   ├── mvp-implementation.md    # MVP implementation
+│   └── auto-routing.md          # Auto-routing feature
 │
 ├── plans/              # Design documents
 ├── progress/           # Project tracking
 └── reports/            # Historical records
-    ├── requirements.md
     ├── changelog.md
     └── investigations/   # Issue investigations & fixes
 ```
