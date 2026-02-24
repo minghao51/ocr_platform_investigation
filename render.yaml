@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: ocr-platform
+    env: python
+    region: oregon
+    buildCommand: pip install uv && uv pip install -r requirements.txt --system
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./data/ocr_platform.db
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://ocr-platform.onrender.com
+    disk:
+      enabled: true
+      mountPath: /app/data
+      size: 1GB

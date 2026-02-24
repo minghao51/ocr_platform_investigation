@@ -1,0 +1,103 @@
+# UV Best Practices for OCR Platform
+
+## Overview
+
+This project uses `uv` for Python package management. Below are the best practices for development and deployment.
+
+## Project Structure
+
+```
+backend/
+├── pyproject.toml          # Dependencies and project metadata
+├── uv.lock                 # Locked dependencies (generated)
+├── requirements.txt        # Keep for compatibility (render/vercel)
+├── .venv/                  # Virtual environment (generated)
+└── data/                   # Database and uploads
+```
+
+## Commands
+
+### Development
+
+```bash
+# Install dependencies
+cd backend
+uv sync
+
+# Run with hot-reload
+uv run uvicorn main:app --reload --port 8000
+
+# Add a dependency
+uv add fastapi
+uv add pytest --group dev
+
+# Remove a dependency  
+uv remove fastapi
+```
+
+### Production Deployment
+
+**Using uv sync (recommended):**
+```bash
+uv sync --frozen --no-cache
+```
+
+**Using requirements.txt:**
+```bash
+uv pip install -r requirements.txt --system
+```
+
+## Docker Deployment (Best Practice)
+
+Use multi-stage build for production:
+
+```dockerfile
+# Builder stage
+FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-install-project --no-dev
+COPY . .
+RUN uv sync --locked --no-dev
+
+# Production stage
+FROM debian:bookworm-slim
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+## Render Deployment
+
+For Render, use:
+
+```yaml
+services:
+  - type: web
+    name: ocr-platform
+    env: python
+    buildCommand: pip install uv && uv pip install -r requirements.txt --system
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+Or with pyproject.toml:
+
+```yaml
+buildCommand: pip install uv && uv sync --frozen --no-cache
+startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+## Key Points
+
+1. **Commit `uv.lock`** - Ensures reproducible builds across all environments
+2. **`uv sync`** - Installs from lockfile, creates .venv automatically
+3. **`uv pip install`** - Direct install without virtualenv
+4. **`--frozen`** - Fail if lockfile is out of sync (production)
+5. **`--system`** - Install to system Python (for containers)
+6. **Dev dependencies**: Use `[project.optional-dependencies]` or `[tool.uv.dev-dependencies]`
+
+## Notes
+
+- This project uses `aiosqlite` which requires native compilation - works on Render
+- Database file stored in `backend/data/` - ensure persistent disk is mounted
+- API keys loaded from environment variables

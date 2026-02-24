@@ -17,6 +17,14 @@ dependencies = [
     "jsonschema>=4.26.0",
     "pdfplumber>=0.11.0",
     "pymupdf>=1.26.7",
+    # Authentication
+    "pyjwt>=2.9.0",
+    "passlib>=1.7.4",
+    "argon2-cffi>=23.1.0",
+    # Rate limiting
+    "slowapi>=0.1.9",
+    # CLI utilities
+    "tabulate>=0.9.0",
     # Note: PaddlePaddle/PaddleOCR temporarily removed due to ARM64 compatibility issues
     # These will be re-added in Phase 2 when hybrid pipeline is implemented
     # "paddlepaddle>=3.3.0",

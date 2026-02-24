@@ -10,6 +10,7 @@ interface SchemaEditorProps {
   schemaDefinition: Record<string, any> | null;
   onSchemaSelect: (schemaId: number) => void;
   onDefinitionChange: (definition: Record<string, any>) => void;
+  restrictedMode?: boolean; // Hide JSON editor for test users
 }
 
 interface SchemaField {
@@ -24,12 +25,13 @@ export default function SchemaEditor({
   schemaDefinition,
   onSchemaSelect,
   onDefinitionChange,
+  restrictedMode = false,
 }: SchemaEditorProps) {
   const [templates, setTemplates] = useState<Schema[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dual-mode state
-  const [mode, setMode] = useState<'visual' | 'json'>('visual');
+  // In restricted mode, only use visual builder
+  const [mode, setMode] = useState<'visual' | 'json'>(restrictedMode ? 'visual' : 'visual');
   const [fields, setFields] = useState<SchemaField[]>([]);
 
   // JSON state

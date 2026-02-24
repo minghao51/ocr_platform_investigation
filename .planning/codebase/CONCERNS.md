@@ -3,11 +3,34 @@
 ## Overview
 This document identifies technical debt, bugs, security issues, performance concerns, and fragile areas in the OCR Platform codebase. Each concern includes specific file locations and recommendations.
 
+## Implementation Status (Updated 2026-02-03)
+
+**COMPLETED:**
+- ✅ #1: Wide-Open CORS - Fixed with environment-based configuration
+- ✅ #2: No Authentication - JWT authentication implemented with user sessions
+- ✅ #5: Unused PaddleOCR - Removed unused service file
+- ✅ #8: No Rate Limiting - slowapi rate limiting implemented (10 req/min POST, 30 req/min GET)
+- ✅ #9: Frontend Polling Inefficiency - Replaced with WebSocket for real-time updates
+- ✅ #12: Bare `except` Clauses - Fixed in processing.py
+- ✅ #15: Unused `extraction_method` Parameter - Removed and moved to ProcessRequest model
+- ✅ #16: Inconsistent Job Status Endpoints - Unified to /api/jobs/{id}
+- ✅ #21: Hardcoded Paths - Fixed with pathlib.Path
+- ✅ #22: No Graceful Shutdown - Implemented shutdown handler
+
+**SKIPPED (by user request):**
+- ⏭️ #3: API Keys in Environment Variables - Documented for production
+- ⏭️ #4: No Input Sanitization - Future enhancement
+- ⏭️ #6: No Connection Pooling - Implemented simple pool
+- ⏭️ #7: Synchronous File I/O - Future enhancement
+- ⏭️ #14: No Database Migration System - Future enhancement
+
+---
+
 ---
 
 ## Security Concerns
 
-### 1. Wide-Open CORS Configuration
+### 1. Wide-Open CORS Configuration ✅ COMPLETED
 **Category**: Security
 **Severity**: High
 **File**: `backend/main.py:9-15`
@@ -35,7 +58,7 @@ app.add_middleware(
 
 ---
 
-### 2. No Authentication/Authorization
+### 2. No Authentication/Authorization ✅ COMPLETED
 **Category**: Security
 **Severity**: High
 **Files**: All `backend/routers/*.py`
@@ -96,7 +119,7 @@ API keys are loaded from `.env` file in plaintext. If the file is compromised or
 
 ---
 
-### 5. Unused PaddleOCR Dependencies Exposed in Code
+### 5. Unused PaddleOCR Dependencies Exposed in Code ✅ COMPLETED
 **Category**: Security/Maintenance
 **Severity**: Low
 **File**: `backend/pyproject.toml:20-23`
@@ -160,7 +183,7 @@ In async handlers, blocking I/O can block the entire event loop.
 
 ---
 
-### 8. No Rate Limiting
+### 8. No Rate Limiting ✅ COMPLETED
 **Category**: Performance
 **Severity**: Medium
 **Files**: All API endpoints
@@ -182,7 +205,7 @@ A single user could:
 
 ---
 
-### 9. Frontend Polling Inefficiency
+### 9. Frontend Polling Inefficiency ✅ COMPLETED
 **Category**: Performance
 **Severity**: Low
 **File**: `frontend/src/pages/BaseExtractionPage.tsx` (and other pages)
@@ -257,7 +280,7 @@ raise HTTPException(status_code=404, detail="Schema not found")
 
 ---
 
-### 12. Bare `except` Clauses Swallow Errors
+### 12. Bare `except` Clauses Swallow Errors ✅ COMPLETED
 **Category**: Tech Debt/Bug
 **Severity**: Medium
 **File**: `backend/routers/processing.py:119-122`
@@ -333,7 +356,7 @@ No versioning, no rollback, no incremental migrations.
 
 ## Bugs
 
-### 15. Unused `extraction_method` Parameter
+### 15. Unused `extraction_method` Parameter ✅ COMPLETED
 **Category**: Bug
 **Severity**: Low
 **File**: `backend/routers/processing.py:17`
@@ -353,7 +376,7 @@ The function signature has `extraction_method` but the actual value comes from `
 
 ---
 
-### 16. Inconsistent Job Status Endpoints
+### 16. Inconsistent Job Status Endpoints ✅ COMPLETED
 **Category**: Bug
 **Severity**: Medium
 **Files**: `frontend/src/lib/api.ts:121-138`
@@ -458,7 +481,7 @@ This duplicate import could cause confusion and suggests incomplete refactoring.
 
 ---
 
-### 21. Hardcoded Paths in Multiple Locations
+### 21. Hardcoded Paths in Multiple Locations ✅ COMPLETED
 **Category**: Fragile
 **Severity**: Medium
 **Files**: `backend/main.py:32-35`, `backend/config.py:14`
@@ -483,7 +506,7 @@ Paths are hardcoded relative to execution directory. Breaks if run from differen
 
 ---
 
-### 22. No Graceful Shutdown
+### 22. No Graceful Shutdown ✅ COMPLETED
 **Category**: Fragile
 **Severity**: Medium
 **File**: `backend/main.py`

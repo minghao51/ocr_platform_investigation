@@ -1,13 +1,85 @@
 import { Job } from '../lib/api';
 import ProcessingStatus from './ProcessingStatus';
 import ExtractedDataDisplay from './ExtractedDataDisplay';
+import type { ExtractionMethod } from './ExtractionModeSelector';
 
 interface ResultsDisplayProps {
   job: Job;
-  processingMethod?: 'vision' | 'text' | 'auto';  // NEW: Added 'auto'
+  processingMethod?: ExtractionMethod;
 }
 
 export default function ResultsDisplay({ job, processingMethod }: ResultsDisplayProps) {
+  const getMethodBadgeColor = (method: ExtractionMethod): string => {
+    switch (method) {
+      case 'text':
+        return 'bg-green-100 text-green-800';
+      case 'auto':
+        return 'bg-purple-100 text-purple-800';
+      case 'vision':
+        return 'bg-blue-100 text-blue-800';
+      case 'hybrid':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getMethodLabel = (method: ExtractionMethod): string => {
+    switch (method) {
+      case 'text':
+        return 'Text Extraction';
+      case 'auto':
+        return 'Auto-Detection';
+      case 'vision':
+        return 'Vision Extraction';
+      case 'hybrid':
+        return 'Hybrid Extraction';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getProcessingMethodLabel = (method?: string): string => {
+    switch (method) {
+      case 'text':
+        return 'Text Pipeline (Fast)';
+      case 'hybrid':
+        return 'Hybrid Pipeline (Balanced)';
+      case 'vision':
+        return 'Vision Pipeline (Accurate)';
+      default:
+        return 'Unknown Pipeline';
+    }
+  };
+
+  const getProcessingMethodColor = (method?: string): string => {
+    switch (method) {
+      case 'text':
+        return 'bg-green-100 text-green-800';
+      case 'hybrid':
+        return 'bg-orange-100 text-orange-800';
+      case 'vision':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getMethodDescription = (method: ExtractionMethod): string => {
+    switch (method) {
+      case 'auto':
+        return 'Automatically selecting optimal pipeline...';
+      case 'text':
+        return 'Fast, cost-effective extraction for digital PDFs';
+      case 'vision':
+        return 'High accuracy for images and scanned documents';
+      case 'hybrid':
+        return 'Combines text extraction and vision processing';
+      default:
+        return '';
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Processing method badge */}
@@ -15,16 +87,8 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         <div className="flex items-center gap-2 flex-wrap">
           {/* Requested method */}
           <span className="text-xs text-gray-600">Requested:</span>
-          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-            processingMethod === 'text'
-              ? 'bg-green-100 text-green-800'
-              : processingMethod === 'auto'
-              ? 'bg-purple-100 text-purple-800'
-              : 'bg-blue-100 text-blue-800'
-          }`}>
-            {processingMethod === 'text' ? 'Text Extraction' :
-             processingMethod === 'auto' ? 'Auto-Detection' :
-             'Vision Extraction'}
+          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getMethodBadgeColor(processingMethod)}`}>
+            {getMethodLabel(processingMethod)}
           </span>
 
           {/* Actual method used (shown after job starts) */}
@@ -32,34 +96,16 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
             <>
               <span className="text-xs text-gray-600">→</span>
               <span className="text-xs text-gray-600">Detected:</span>
-              <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                job.processing_method === 'text'
-                  ? 'bg-green-100 text-green-800'
-                  : job.processing_method === 'hybrid'
-                  ? 'bg-orange-100 text-orange-800'
-                  : 'bg-blue-100 text-blue-800'
-              }`}>
-                {job.processing_method === 'text' ? 'Text Pipeline (Fast)' :
-                 job.processing_method === 'hybrid' ? 'Hybrid Pipeline (Balanced)' :
-                 'Vision Pipeline (Accurate)'}
+              <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getProcessingMethodColor(job.processing_method)}`}>
+                {getProcessingMethodLabel(job.processing_method)}
               </span>
             </>
           )}
 
           {/* Description */}
-          {processingMethod === 'auto' && !job.processing_method && (
+          {!job.processing_method && (
             <span className="text-xs text-gray-600">
-              Automatically selecting optimal pipeline...
-            </span>
-          )}
-          {processingMethod === 'text' && (
-            <span className="text-xs text-gray-600">
-              Fast, cost-effective extraction for digital PDFs
-            </span>
-          )}
-          {processingMethod === 'vision' && (
-            <span className="text-xs text-gray-600">
-              High accuracy for images and scanned documents
+              {getMethodDescription(processingMethod)}
             </span>
           )}
         </div>

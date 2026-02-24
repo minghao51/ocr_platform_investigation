@@ -1,21 +1,29 @@
 import { processDocument, ProcessRequest } from '@/lib/api';
 import BaseExtractionPage from './BaseExtractionPage';
+import type { ExtractionMethod } from './BaseExtractionPage';
 
 export default function ProcessingPage() {
   const processWrapper = async (
     fileId: string,
     provider: string,
     model: string,
+    extractionMethod: ExtractionMethod,
     schemaId?: number,
-    schemaDefinition?: Record<string, any>
+    schemaDefinition?: Record<string, any>,
+    prompt?: string,
+    temperature?: number,
+    maxTokens?: number
   ) => {
     const request: ProcessRequest = {
       file_id: fileId,
       provider,
       model,
+      extraction_method: extractionMethod,
       schema_id: schemaId,
       schema_definition: schemaDefinition,
-      extraction_method: 'auto',  // NEW: Use auto-detection
+      prompt,
+      temperature,
+      max_tokens: maxTokens,
     };
 
     return processDocument(request);
@@ -24,9 +32,10 @@ export default function ProcessingPage() {
   return (
     <BaseExtractionPage
       title="Smart Extraction"
-      description="Automatically selects the best extraction method for your document. Digital PDFs use fast text extraction, while scanned documents use vision models for highest accuracy."
+      description="Upload your document and choose the extraction method that best fits your needs. Auto mode automatically selects the optimal method based on document type."
       processFunction={processWrapper}
-      processingMethod="auto"  // NEW: Auto mode
+      processingMethod="auto"
+      showModeSelector={true}
     />
   );
 }

@@ -12,6 +12,9 @@ venv/
 dist/
 build/
 
+# UV - Always commit uv.lock for reproducible builds
+# uv.lock
+
 # Data
 data/
 *.db
@@ -41,3 +44,22 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend Build
+frontend/dist/
+frontend/.vite/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Misc
+*.tmp
+.cache/
+
+# Secrets - do not commit
+DEMO_ACCOUNTS.md
+credentials.json
+*.pem
+*.key

@@ -2,15 +2,28 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from routers import upload, processing, schemas, jobs, providers, text_processing
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from routers import upload, processing, schemas, jobs, providers, text_processing, auth, websocket
+from config import get_settings
+from limiter import limiter
+from pathlib import Path
+import logging
 
+logger = logging.getLogger(__name__)
+
+settings = get_settings()
 app = FastAPI(title="OCR Platform")
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -20,6 +33,8 @@ def health_check():
     return {"status": "healthy"}
 
 # Include API routers
+app.include_router(auth.router)
+app.include_router(websocket.router)
 app.include_router(upload.router)
 app.include_router(processing.router)
 app.include_router(schemas.router)
@@ -29,19 +44,21 @@ app.include_router(text_processing.router)
 
 # Mount static files for frontend assets
 import os
-static_dir = "/app/frontend/dist"
-if not os.path.exists(static_dir):
-    # Try looking in local development path
-    static_dir = "../frontend/dist"
+BASE_DIR = Path(__file__).parent.parent
+static_dir = BASE_DIR / "frontend" / "dist"
 
-if os.path.exists(f"{static_dir}/assets"):
-    app.mount("/assets", StaticFiles(directory=f"{static_dir}/assets"), name="assets")
+# For Docker compatibility
+if not static_dir.exists():
+    static_dir = Path("/app/frontend/dist")
+
+if (static_dir / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 
 # Serve index.html for root
 @app.get("/")
 def serve_root():
-    if os.path.exists(f"{static_dir}/index.html"):
-        return FileResponse(f"{static_dir}/index.html")
+    if (static_dir / "index.html").exists():
+        return FileResponse(str(static_dir / "index.html"))
     return {"message": "Frontend not found. Please build frontend or run in Docker."}
 
 # Middleware to handle SPA routing for unmatched routes
@@ -56,6 +73,32 @@ async def spa_fallback(request: Request, call_next):
         # Don't fall back for API routes, assets, or health
         if not (path.startswith("/api/") or path.startswith("/assets/") or path == "/health"):
             # Serve index.html for SPA routes
-            return FileResponse("/app/frontend/dist/index.html")
+            index_path = static_dir / "index.html"
+            if index_path.exists():
+                return FileResponse(str(index_path))
 
     return response
+
+
+# Graceful shutdown
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on shutdown."""
+    logger.info("Shutting down OCR Platform...")
+
+    # Close database pool
+    try:
+        from database.pool import close_pool
+        await close_pool()
+        logger.info("Database pool closed")
+    except Exception as e:
+        logger.warning(f"Failed to close database pool: {e}")
+
+    # Close WebSocket connections
+    try:
+        # The ConnectionManager handles cleanup automatically on disconnect
+        logger.info("WebSocket connections will close")
+    except Exception as e:
+        logger.warning(f"Note: {e}")
+
+    logger.info("Shutdown complete")

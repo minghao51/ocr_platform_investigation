@@ -1,7 +1,9 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from pathlib import Path
 from database import crud
+from dependencies import get_current_user
+from limiter import limiter
 import uuid
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -13,7 +15,12 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
 
 @router.post("/")
-async def upload_file(file: UploadFile = File(...)):
+@limiter.limit("10/minute")
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
     """Upload a file for processing"""
 
     # Validate file size

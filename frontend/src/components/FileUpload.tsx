@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { uploadFile } from '../lib/api';
 
 interface FileUploadProps {
-  onUpload: (fileId: string, fileName: string) => void;
+  onUpload: (fileId: string, fileName: string, fileType?: string) => void;
 }
 
 export default function FileUpload({ onUpload }: FileUploadProps) {
@@ -36,7 +36,7 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
 
     try {
       const result = await uploadFile(file);
-      onUpload(result.file_id, file.name);
+      onUpload(result.file_id, file.name, file.type);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {

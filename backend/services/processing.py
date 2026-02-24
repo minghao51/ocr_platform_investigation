@@ -11,6 +11,43 @@ from database import crud
 
 settings = get_settings()
 
+
+async def update_job_status_with_broadcast(
+    job_id: int,
+    status: str,
+    result: Optional[Dict[str, Any]] = None,
+    error_message: Optional[str] = None,
+    processing_time: Optional[float] = None
+):
+    """
+    Update job status in database and broadcast via WebSocket.
+
+    This function combines the database update with WebSocket notification
+    to keep all connected clients informed of job progress.
+    """
+    # Update status in database
+    job = await update_job_status_with_broadcast(
+        job_id,
+        status,
+        result=result,
+        error_message=error_message,
+        processing_time=processing_time
+    )
+
+    # Broadcast update via WebSocket if job was found
+    if job:
+        try:
+            # Import here to avoid circular dependency
+            from routers.websocket import broadcast_job_update
+            await broadcast_job_update(job_id, job)
+        except Exception as e:
+            # Log but don't fail - WebSocket is optional
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to broadcast job update via WebSocket: {e}")
+
+    return job
+
 class ProcessingService:
     """Main processing pipeline"""
 
@@ -193,7 +230,7 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
         return
 
     # Update status to processing
-    await crud.update_job_status(job_id, "processing")
+    await update_job_status_with_broadcast(job_id, "processing")
 
     # Determine file type from job record
     file_type = job['file_type']
@@ -237,14 +274,14 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
         processing_time = time.time() - start_time
 
         if result['success']:
-            await crud.update_job_status(
+            await update_job_status_with_broadcast(
                 job_id,
                 "success",
                 result=result.get('data'),
                 processing_time=processing_time
             )
         else:
-            await crud.update_job_status(
+            await update_job_status_with_broadcast(
                 job_id,
                 "error",
                 error_message=result.get('error'),
@@ -257,7 +294,7 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
         error_details = f"{type(e).__name__}: {str(e)}"
         print(f"ERROR processing job {job_id}: {error_details}")
         print(f"Traceback: {traceback.format_exc()}")
-        await crud.update_job_status(
+        await update_job_status_with_broadcast(
             job_id,
             "error",
             error_message=error_details,
@@ -285,7 +322,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
         return
 
     # Update status to processing
-    await crud.update_job_status(job_id, "processing")
+    await update_job_status_with_broadcast(job_id, "processing")
 
     # Get schema
     if job['schema_id']:
@@ -301,7 +338,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
     provider_name = job['provider']
     api_key = getattr(settings, f"{provider_name}_api_key")
     if not api_key:
-        await crud.update_job_status(
+        await update_job_status_with_broadcast(
             job_id,
             "error",
             error_message=f"No API key configured for {provider_name}"
@@ -322,7 +359,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
         extracted_text = text_service.extract_text_from_pdf(file_path)
 
         if not extracted_text:
-            await crud.update_job_status(
+            await update_job_status_with_broadcast(
                 job_id,
                 "error",
                 error_message="This PDF appears to be image-based. Please use the Vision Extraction tab instead.",
@@ -355,7 +392,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
 
         # Check for errors
         if "error" in result:
-            await crud.update_job_status(
+            await update_job_status_with_broadcast(
                 job_id,
                 "error",
                 error_message=f"Provider error: {result['error']}",
@@ -376,7 +413,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
             )
 
             if is_valid:
-                await crud.update_job_status(
+                await update_job_status_with_broadcast(
                     job_id,
                     "success",
                     result=validated_data,
@@ -384,7 +421,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
                 )
                 print(f"Processing completed for job {job_id}")
             else:
-                await crud.update_job_status(
+                await update_job_status_with_broadcast(
                     job_id,
                     "error",
                     error_message=f"Validation failed: {error}",
@@ -392,7 +429,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
                 )
 
         except json.JSONDecodeError as e:
-            await crud.update_job_status(
+            await update_job_status_with_broadcast(
                 job_id,
                 "error",
                 error_message=f"Invalid JSON response: {str(e)}",
@@ -405,7 +442,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
         error_details = f"{type(e).__name__}: {str(e)}"
         print(f"ERROR processing job {job_id}: {error_details}")
         print(f"Traceback: {traceback.format_exc()}")
-        await crud.update_job_status(
+        await update_job_status_with_broadcast(
             job_id,
             "error",
             error_message=error_details,

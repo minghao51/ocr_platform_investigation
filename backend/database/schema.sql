@@ -1,3 +1,12 @@
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    hashed_password TEXT NOT NULL,
+    is_admin BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Schemas table
 CREATE TABLE IF NOT EXISTS schemas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,9 +44,11 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     error_message TEXT,
     processing_time_seconds REAL,
     processing_method TEXT DEFAULT 'vision',  -- 'vision' or 'text'
+    user_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP,
-    FOREIGN KEY (schema_id) REFERENCES schemas(id) ON DELETE SET NULL
+    FOREIGN KEY (schema_id) REFERENCES schemas(id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Indexes for performance

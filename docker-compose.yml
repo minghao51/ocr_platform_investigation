@@ -11,6 +11,7 @@ services:
       # Development volume mounts for hot-reload
       - ./backend:/app/backend
       - ./frontend/src:/app/frontend/src
+      - ./frontend/dist:/app/frontend/dist
     env_file:
       - .env
     environment:

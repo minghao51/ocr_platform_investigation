@@ -1,13 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ProcessingPage from './pages/ProcessingPage';
-import TextExtractionPage from './pages/TextExtractionPage';
 import MethodologyPage from './pages/MethodologyPage';
 import HistoryPage from './pages/HistoryPage';
+import LoginPage from './pages/LoginPage';
+import { isAuthenticated, logout, getCurrentUser } from '@/lib/api';
 
-type Page = 'processing' | 'text-extraction' | 'history' | 'methodology';
+type Page = 'processing' | 'history' | 'methodology';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('processing');
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    setIsAuthChecked(true);
+    setShowLogin(!isAuthenticated());
+  }, []);
+
+  const handleLoginSuccess = () => {
+    setShowLogin(false);
+    window.location.reload(); // Reload to refresh app state
+  };
+
+  // Show loading while checking auth
+  if (!isAuthChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (showLogin) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  const currentUser = getCurrentUser();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -24,28 +54,14 @@ function App() {
                   onClick={() => setCurrentPage('processing')}
                   className={'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ' +
                     (currentPage === 'processing'
-                      ? 'border-purple-500 text-gray-900'
+                      ? 'border-blue-500 text-gray-900'
                       : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                     )}
                 >
                   <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  Smart Extract
-                  <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">Auto</span>
-                </button>
-                <button
-                  onClick={() => setCurrentPage('text-extraction')}
-                  className={'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ' +
-                    (currentPage === 'text-extraction'
-                      ? 'border-green-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    )}
-                >
-                  <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Text Extract
+                  Extract
                 </button>
                 <button
                   onClick={() => setCurrentPage('history')}
@@ -69,6 +85,20 @@ function App() {
                 </button>
               </div>
             </div>
+            <div className="flex items-center">
+              <span className="text-sm text-gray-600 mr-4">
+                {currentUser?.username}
+              </span>
+              <button
+                onClick={() => {
+                  logout();
+                  setShowLogin(true);
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -76,7 +106,6 @@ function App() {
       {/* Page Content */}
       <main className="bg-gray-50">
         {currentPage === 'processing' && <ProcessingPage />}
-        {currentPage === 'text-extraction' && <TextExtractionPage />}
         {currentPage === 'history' && <HistoryPage />}
         {currentPage === 'methodology' && <MethodologyPage />}
       </main>

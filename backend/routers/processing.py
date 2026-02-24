@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from models.schemas import ProcessRequest, ProcessResponse
 from database import crud
 from services.processing import run_processing_job, run_text_processing_job
 from services.document_classifier import DocumentClassifier
+from dependencies import check_daily_limit, increment_daily_limit, get_current_user
 import json
 import logging
 
@@ -14,7 +15,8 @@ router = APIRouter(prefix="/api/process", tags=["processing"])
 async def process_document(
     request: ProcessRequest,
     background_tasks: BackgroundTasks,
-    extraction_method: str = None  # NEW: "auto", "text", "vision", or None (auto)
+    extraction_method: str = None,  # NEW: "auto", "text", "vision", or None (auto)
+    current_user: dict = Depends(check_daily_limit)
 ):
     """
     Process a document with intelligent routing
@@ -104,6 +106,7 @@ async def process_document(
         processing_method = "vision"
 
     # Create job
+    user_id = current_user.get("user_id")
     job_id = await crud.create_job(
         file_name=file_record["original_filename"],
         file_type=file_type,
@@ -111,8 +114,13 @@ async def process_document(
         model=request.model,
         schema_id=request.schema_id,
         schema_name=schema_name,
-        processing_method=processing_method
+        processing_method=processing_method,
+        user_id=user_id
     )
+
+    # Increment daily request counter (non-blocking)
+    if user_id:
+        background_tasks.add_task(increment_daily_limit, user_id)
 
     # Store classification info in job metadata (optional, for debugging)
     if classification_info:
