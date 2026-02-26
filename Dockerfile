@@ -75,4 +75,4 @@ RUN mkdir -p /app/data
 EXPOSE 8000
 
 # Initialize database and start application
-CMD ["sh", "-c", "uv run python -m database.migrations && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]
+CMD ["sh", "-c", "uv run python -m database.migrations && uv run uvicorn main:app --host 0.0.0.0 --port 8000"]

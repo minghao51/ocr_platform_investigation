@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from services.schema_service import (
     validate_vlm_output,
     get_builtin_schema,
-    get_all_builtin_schemas
+    get_all_builtin_schemas,
 )
 
 
@@ -19,17 +19,11 @@ class TestSchemaValidation:
         """Test validation of simple object schema."""
         schema = {
             "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "number"}
-            },
-            "required": ["name"]
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+            "required": ["name"],
         }
 
-        vlm_output = {
-            "name": "John Doe",
-            "age": 30
-        }
+        vlm_output = {"name": "John Doe", "age": 30}
 
         result = validate_vlm_output(vlm_output, schema)
         assert result["name"] == "John Doe"
@@ -48,21 +42,18 @@ class TestSchemaValidation:
                             "type": "object",
                             "properties": {
                                 "street": {"type": "string"},
-                                "city": {"type": "string"}
-                            }
-                        }
-                    }
+                                "city": {"type": "string"},
+                            },
+                        },
+                    },
                 }
-            }
+            },
         }
 
         vlm_output = {
             "person": {
                 "name": "Jane Doe",
-                "address": {
-                    "street": "123 Main St",
-                    "city": "San Francisco"
-                }
+                "address": {"street": "123 Main St", "city": "San Francisco"},
             }
         }
 
@@ -81,17 +72,17 @@ class TestSchemaValidation:
                         "type": "object",
                         "properties": {
                             "name": {"type": "string"},
-                            "price": {"type": "number"}
-                        }
-                    }
+                            "price": {"type": "number"},
+                        },
+                    },
                 }
-            }
+            },
         }
 
         vlm_output = {
             "items": [
                 {"name": "Item 1", "price": 10.99},
-                {"name": "Item 2", "price": 20.50}
+                {"name": "Item 2", "price": 20.50},
             ]
         }
 
@@ -104,11 +95,8 @@ class TestSchemaValidation:
         """Test that validation fails when required field is missing."""
         schema = {
             "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "email": {"type": "string"}
-            },
-            "required": ["name", "email"]
+            "properties": {"name": {"type": "string"}, "email": {"type": "string"}},
+            "required": ["name", "email"],
         }
 
         vlm_output = {
@@ -121,12 +109,7 @@ class TestSchemaValidation:
 
     def test_validation_error_wrong_type(self):
         """Test that validation fails when field has wrong type."""
-        schema = {
-            "type": "object",
-            "properties": {
-                "age": {"type": "number"}
-            }
-        }
+        schema = {"type": "object", "properties": {"age": {"type": "number"}}}
 
         vlm_output = {
             "age": "thirty"  # Should be number, not string
@@ -209,20 +192,20 @@ class TestInvoiceSchemaValidation:
                     "description": "Web Hosting Service",
                     "quantity": 1,
                     "unit_price": 99.99,
-                    "total": 99.99
+                    "total": 99.99,
                 },
                 {
                     "description": "Domain Registration",
                     "quantity": 2,
                     "unit_price": 15.00,
-                    "total": 30.00
-                }
+                    "total": 30.00,
+                },
             ],
             "subtotal": 129.99,
             "tax_amount": 11.70,
             "total_amount": 141.69,
             "currency": "USD",
-            "due_date": "2024-02-15"
+            "due_date": "2024-02-15",
         }
 
         result = validate_vlm_output(invoice_data, schema)
@@ -239,7 +222,7 @@ class TestInvoiceSchemaValidation:
             "invoice_number": "INV-001",
             "vendor_name": "Test Vendor",
             "line_items": [],
-            "total_amount": 0.0
+            "total_amount": 0.0,
         }
 
         # This should either pass or fail depending on schema requirements
@@ -265,25 +248,20 @@ class TestReceiptSchemaValidation:
             "transaction_date": "2024-01-15",
             "transaction_time": "09:30 AM",
             "items": [
-                {
-                    "name": "Caffe Latte",
-                    "quantity": 2,
-                    "price": 4.50,
-                    "total": 9.00
-                },
+                {"name": "Caffe Latte", "quantity": 2, "price": 4.50, "total": 9.00},
                 {
                     "name": "Blueberry Muffin",
                     "quantity": 1,
                     "price": 3.50,
-                    "total": 3.50
-                }
+                    "total": 3.50,
+                },
             ],
             "subtotal": 12.50,
             "tax": 1.13,
             "total": 13.63,
             "payment_method": "Credit Card",
             "card_last_4": "1234",
-            "transaction_id": "TXN-123456"
+            "transaction_id": "TXN-123456",
         }
 
         result = validate_vlm_output(receipt_data, schema)

@@ -1,8 +1,9 @@
 """
 WebSocket router for real-time job status updates.
 """
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException, status
-from typing import Dict, List, Set
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
+from typing import Dict, Set
 from auth import verify_token
 from database import crud
 import json
@@ -44,22 +45,24 @@ class ConnectionManager:
         logger.info(f"WebSocket connected for job {job_id}")
 
         # Send current job status immediately
-        await websocket.send_json({
-            "type": "status",
-            "data": {
-                "job_id": job["id"],
-                "file_name": job["file_name"],
-                "status": job["status"],
-                "provider": job["provider"],
-                "model": job["model"],
-                "result": json.loads(job["result"]) if job.get("result") else None,
-                "error": job.get("error_message"),
-                "processing_time": job.get("processing_time_seconds"),
-                "processing_method": job.get("processing_method"),
-                "created_at": job["created_at"],
-                "completed_at": job.get("completed_at")
+        await websocket.send_json(
+            {
+                "type": "status",
+                "data": {
+                    "job_id": job["id"],
+                    "file_name": job["file_name"],
+                    "status": job["status"],
+                    "provider": job["provider"],
+                    "model": job["model"],
+                    "result": json.loads(job["result"]) if job.get("result") else None,
+                    "error": job.get("error_message"),
+                    "processing_time": job.get("processing_time_seconds"),
+                    "processing_method": job.get("processing_method"),
+                    "created_at": job["created_at"],
+                    "completed_at": job.get("completed_at"),
+                },
             }
-        })
+        )
 
         return True
 
@@ -78,10 +81,7 @@ class ConnectionManager:
             logger.debug(f"No WebSocket connections for job {job_id}")
             return
 
-        message = {
-            "type": "status_update",
-            "data": job_data
-        }
+        message = {"type": "status_update", "data": job_data}
 
         # Remove dead connections
         dead_connections = set()
@@ -109,9 +109,7 @@ async def broadcast_job_update(job_id: int, job_data: dict):
 
 @router.websocket("/ws/job/{job_id}")
 async def job_status_websocket(
-    websocket: WebSocket,
-    job_id: int,
-    token: str = Query(...)
+    websocket: WebSocket, job_id: int, token: str = Query(...)
 ):
     """
     WebSocket endpoint for real-time job status updates.
@@ -132,18 +130,24 @@ async def job_status_websocket(
     # Verify user has access to this job
     job = await crud.get_job(job_id)
     if not job:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Job not found")
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Job not found"
+        )
         return
 
     # Check if user owns this job or is admin
     if job["user_id"] != payload["user_id"] and not payload.get("is_admin", False):
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Access denied")
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Access denied"
+        )
         return
 
     # Connect WebSocket
     connected = await manager.connect(job_id, websocket)
     if not connected:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Job not found")
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Job not found"
+        )
         return
 
     try:

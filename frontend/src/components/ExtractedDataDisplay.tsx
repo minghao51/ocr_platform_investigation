@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 interface ExtractedDataDisplayProps {
-  result: any;
+  result: unknown;
   fileName: string;
 }
 
@@ -19,12 +19,12 @@ export default function ExtractedDataDisplay({ result, fileName }: ExtractedData
   };
 
   // Basic syntax highlighting for JSON
-  const syntaxHighlight = (json: any): string => {
+  const syntaxHighlight = (json: unknown): string => {
     if (typeof json !== 'string') {
       json = JSON.stringify(json, null, 2);
     }
 
-    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match: string) => {
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, (match: string) => {
       let cls = 'text-purple-600 font-medium'; // number
       if (/^"/.test(match)) {
         if (/:$/.test(match)) {

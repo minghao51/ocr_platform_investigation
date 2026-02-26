@@ -4,6 +4,7 @@ Simple database connection wrapper for SQLite.
 This provides a drop-in replacement for aiosqlite.connect() with
 connection pooling for future migration to PostgreSQL/MySQL.
 """
+
 import aiosqlite
 from pathlib import Path
 import logging

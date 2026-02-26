@@ -3,6 +3,7 @@ from PIL import Image
 import json
 from .vlm_provider import VLMProvider
 
+
 class NebiusProvider(VLMProvider):
     """Nebius AI Studio provider"""
 
@@ -14,7 +15,7 @@ class NebiusProvider(VLMProvider):
         prompt: str,
         schema: Dict[str, Any],
         model: str = "Qwen/Qwen2.5-VL-72B-Instruct",
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process image with Nebius"""
 
@@ -25,15 +26,15 @@ class NebiusProvider(VLMProvider):
                 "content": [
                     {
                         "type": "text",
-                        "text": f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}"
+                        "text": f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}",
                     },
                     {
                         "type": "image_url",
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{self.encode_image(image)}"
-                        }
-                    }
-                ]
+                        },
+                    },
+                ],
             }
         ]
 
@@ -42,15 +43,15 @@ class NebiusProvider(VLMProvider):
             f"{self.BASE_URL}/chat/completions",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
             json={
                 "model": model,
                 "messages": messages,
                 "response_format": {"type": "json_object"},
                 "temperature": kwargs.get("temperature", 0.1),
-                "max_tokens": kwargs.get("max_tokens", 4096)
-            }
+                "max_tokens": kwargs.get("max_tokens", 4096),
+            },
         )
 
         response.raise_for_status()
@@ -62,7 +63,7 @@ class NebiusProvider(VLMProvider):
         return {
             "raw_response": result,
             "content": content,
-            "usage": result.get("usage", {})
+            "usage": result.get("usage", {}),
         }
 
     async def process_text(
@@ -73,7 +74,7 @@ class NebiusProvider(VLMProvider):
         model: str,
         temperature: float = 0.1,
         max_tokens: int = 4096,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Process text with Nebius text-only model
@@ -91,18 +92,21 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 f"{self.BASE_URL}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 },
                 json={
                     "model": model,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"{prompt}\n\nDocument text:\n{text}"}
+                        {
+                            "role": "user",
+                            "content": f"{prompt}\n\nDocument text:\n{text}",
+                        },
                     ],
                     "response_format": {"type": "json_object"},
                     "temperature": temperature,
-                    "max_tokens": max_tokens
-                }
+                    "max_tokens": max_tokens,
+                },
             )
 
             response.raise_for_status()
@@ -115,16 +119,12 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "usage": {
                     "prompt_tokens": result["usage"]["prompt_tokens"],
                     "completion_tokens": result["usage"]["completion_tokens"],
-                    "total_tokens": result["usage"]["total_tokens"]
-                }
+                    "total_tokens": result["usage"]["total_tokens"],
+                },
             }
 
         except Exception as e:
-            return {
-                "error": str(e),
-                "content": None,
-                "model": model
-            }
+            return {"error": str(e), "content": None, "model": model}
 
     def get_models(self) -> List[Dict[str, Any]]:
         """Get available Nebius models with metadata"""
@@ -135,7 +135,7 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "tier": "premium",
                 "capabilities": ["vision", "reasoning", "video"],
                 "context_window": 131072,
-                "description": "High-performance vision model for complex visual tasks"
+                "description": "High-performance vision model for complex visual tasks",
             }
         ]
 

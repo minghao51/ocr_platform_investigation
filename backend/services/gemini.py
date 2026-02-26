@@ -3,6 +3,7 @@ from PIL import Image
 import json
 from .vlm_provider import VLMProvider
 
+
 class GeminiProvider(VLMProvider):
     """Google Gemini provider"""
 
@@ -14,7 +15,7 @@ class GeminiProvider(VLMProvider):
         prompt: str,
         schema: Dict[str, Any],
         model: str = "gemini-1.5-pro",
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process image with Gemini"""
 
@@ -29,24 +30,24 @@ class GeminiProvider(VLMProvider):
                         {
                             "inline_data": {
                                 "mime_type": "image/jpeg",
-                                "data": self.encode_image(image)
+                                "data": self.encode_image(image),
                             }
-                        }
+                        },
                     ]
                 }
             ],
             "generationConfig": {
                 "temperature": kwargs.get("temperature", 0.1),
                 "maxOutputTokens": kwargs.get("max_tokens", 4096),
-                "responseMimeType": "application/json"
-            }
+                "responseMimeType": "application/json",
+            },
         }
 
         # Make API call
         response = await self.client.post(
             f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
             headers={"Content-Type": "application/json"},
-            json=content
+            json=content,
         )
 
         response.raise_for_status()
@@ -60,7 +61,7 @@ class GeminiProvider(VLMProvider):
                     "raw_response": result,
                     "content": "{}",
                     "usage": result.get("usageMetadata", {}),
-                    "error": "No candidates in response"
+                    "error": "No candidates in response",
                 }
 
             candidate = result["candidates"][0]
@@ -71,7 +72,7 @@ class GeminiProvider(VLMProvider):
                     "raw_response": result,
                     "content": "{}",
                     "usage": result.get("usageMetadata", {}),
-                    "error": "No content in candidate"
+                    "error": "No content in candidate",
                 }
 
             content = candidate["content"]
@@ -82,7 +83,7 @@ class GeminiProvider(VLMProvider):
                     "raw_response": result,
                     "content": "{}",
                     "usage": result.get("usageMetadata", {}),
-                    "error": "No parts in content"
+                    "error": "No parts in content",
                 }
 
             part = content["parts"][0]
@@ -93,7 +94,7 @@ class GeminiProvider(VLMProvider):
                     "raw_response": result,
                     "content": "{}",
                     "usage": result.get("usageMetadata", {}),
-                    "error": f"No text in part. Available keys: {list(part.keys())}"
+                    "error": f"No text in part. Available keys: {list(part.keys())}",
                 }
 
             content_text = part["text"]
@@ -109,13 +110,13 @@ class GeminiProvider(VLMProvider):
                 "raw_response": result,
                 "content": "{}",
                 "usage": result.get("usageMetadata", {}),
-                "error": f"Failed to extract content: {str(e)}"
+                "error": f"Failed to extract content: {str(e)}",
             }
 
         return {
             "raw_response": result,
             "content": content_text,
-            "usage": result.get("usageMetadata", {})
+            "usage": result.get("usageMetadata", {}),
         }
 
     async def process_text(
@@ -126,7 +127,7 @@ class GeminiProvider(VLMProvider):
         model: str,
         temperature: float = 0.1,
         max_tokens: int = 4096,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process text with Gemini text-only model"""
         # Prepare content (text-only, no image)
@@ -143,8 +144,8 @@ class GeminiProvider(VLMProvider):
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
-                "responseMimeType": "application/json"
-            }
+                "responseMimeType": "application/json",
+            },
         }
 
         try:
@@ -152,7 +153,7 @@ class GeminiProvider(VLMProvider):
             response = await self.client.post(
                 f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
                 headers={"Content-Type": "application/json"},
-                json=content
+                json=content,
             )
 
             response.raise_for_status()
@@ -163,7 +164,7 @@ class GeminiProvider(VLMProvider):
                 return {
                     "error": "No candidates in response",
                     "content": None,
-                    "model": model
+                    "model": model,
                 }
 
             candidate = result["candidates"][0]
@@ -172,17 +173,13 @@ class GeminiProvider(VLMProvider):
                 return {
                     "error": "No content in candidate",
                     "content": None,
-                    "model": model
+                    "model": model,
                 }
 
             content_obj = candidate["content"]
 
             if "parts" not in content_obj or len(content_obj["parts"]) == 0:
-                return {
-                    "error": "No parts in content",
-                    "content": None,
-                    "model": model
-                }
+                return {"error": "No parts in content", "content": None, "model": model}
 
             part = content_obj["parts"][0]
 
@@ -190,7 +187,7 @@ class GeminiProvider(VLMProvider):
                 return {
                     "error": f"No text in part. Available keys: {list(part.keys())}",
                     "content": None,
-                    "model": model
+                    "model": model,
                 }
 
             content_text = part["text"]
@@ -199,25 +196,27 @@ class GeminiProvider(VLMProvider):
                 return {
                     "error": "Empty content received",
                     "content": None,
-                    "model": model
+                    "model": model,
                 }
 
             return {
                 "content": content_text,
                 "model": model,
                 "usage": {
-                    "prompt_tokens": result.get("usageMetadata", {}).get("promptTokenCount", 0),
-                    "completion_tokens": result.get("usageMetadata", {}).get("candidatesTokenCount", 0),
-                    "total_tokens": result.get("usageMetadata", {}).get("totalTokenCount", 0)
-                }
+                    "prompt_tokens": result.get("usageMetadata", {}).get(
+                        "promptTokenCount", 0
+                    ),
+                    "completion_tokens": result.get("usageMetadata", {}).get(
+                        "candidatesTokenCount", 0
+                    ),
+                    "total_tokens": result.get("usageMetadata", {}).get(
+                        "totalTokenCount", 0
+                    ),
+                },
             }
 
         except Exception as e:
-            return {
-                "error": str(e),
-                "content": None,
-                "model": model
-            }
+            return {"error": str(e), "content": None, "model": model}
 
     def get_models(self) -> List[Dict[str, Any]]:
         """Get available Gemini models with metadata"""
@@ -229,7 +228,7 @@ class GeminiProvider(VLMProvider):
                 "tier": "premium",
                 "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Most intelligent multimodal model with advanced reasoning"
+                "description": "Most intelligent multimodal model with advanced reasoning",
             },
             {
                 "id": "gemini-3-pro-image-preview",
@@ -237,7 +236,7 @@ class GeminiProvider(VLMProvider):
                 "tier": "premium",
                 "capabilities": ["vision", "image_generation"],
                 "context_window": 65536,
-                "description": "Image generation with advanced vision understanding"
+                "description": "Image generation with advanced vision understanding",
             },
             {
                 "id": "gemini-3-flash-preview",
@@ -245,9 +244,8 @@ class GeminiProvider(VLMProvider):
                 "tier": "balanced",
                 "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Balanced speed and intelligence for scale"
+                "description": "Balanced speed and intelligence for scale",
             },
-
             # Gemini 2.5 Series (Stable - Jun/Jul 2025)
             {
                 "id": "gemini-2.5-pro",
@@ -255,7 +253,7 @@ class GeminiProvider(VLMProvider):
                 "tier": "premium",
                 "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Advanced thinking model for complex reasoning"
+                "description": "Advanced thinking model for complex reasoning",
             },
             {
                 "id": "gemini-2.5-flash",
@@ -263,7 +261,7 @@ class GeminiProvider(VLMProvider):
                 "tier": "balanced",
                 "capabilities": ["vision", "thinking", "pdf", "video"],
                 "context_window": 1048576,
-                "description": "Best price-performance for large-scale processing"
+                "description": "Best price-performance for large-scale processing",
             },
             {
                 "id": "gemini-2.5-flash-lite",
@@ -271,9 +269,8 @@ class GeminiProvider(VLMProvider):
                 "tier": "lite",
                 "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Fastest, most cost-efficient model"
+                "description": "Fastest, most cost-efficient model",
             },
-
             # Gemini 2.0 Series (Previous Gen - Feb 2025)
             {
                 "id": "gemini-2.0-flash",
@@ -281,8 +278,8 @@ class GeminiProvider(VLMProvider):
                 "tier": "balanced",
                 "capabilities": ["vision", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Second generation workhorse, 1M context"
-            }
+                "description": "Second generation workhorse, 1M context",
+            },
         ]
 
     def get_default_image_size(self) -> tuple[int, int]:

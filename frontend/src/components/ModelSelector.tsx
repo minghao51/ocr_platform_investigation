@@ -20,6 +20,7 @@ export default function ModelSelector({
 
   useEffect(() => {
     loadProviders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadProviders = async () => {

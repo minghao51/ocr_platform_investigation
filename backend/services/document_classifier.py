@@ -12,7 +12,7 @@ Based on 2026 best practices for document processing:
 
 import fitz  # PyMuPDF
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Optional
 from dataclasses import dataclass
 import logging
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DocumentAnalysis:
     """Result of document analysis"""
+
     type: str  # "digital", "scanned", "mixed"
     has_text_layer: bool
     complexity_score: int  # 0-100
@@ -71,7 +72,7 @@ class DocumentClassifier:
             if not path.exists():
                 raise ValueError(f"File not found: {file_path}")
 
-            if path.suffix.lower() != '.pdf':
+            if path.suffix.lower() != ".pdf":
                 raise ValueError(f"Not a PDF file: {file_path}")
 
             # Open PDF with PyMuPDF
@@ -82,7 +83,9 @@ class DocumentClassifier:
 
             doc.close()
 
-            logger.info(f"Document analysis completed: {analysis.recommended_pipeline} pipeline recommended")
+            logger.info(
+                f"Document analysis completed: {analysis.recommended_pipeline} pipeline recommended"
+            )
             return analysis
 
         except Exception as e:
@@ -154,7 +157,7 @@ class DocumentClassifier:
             page_count=page_count,
             has_tables=has_tables,
             has_images=has_images,
-            reasoning=reasoning
+            reasoning=reasoning,
         )
 
     def _determine_document_type(
@@ -209,7 +212,7 @@ class DocumentClassifier:
         doc_type: str,
         has_text_layer: bool,
         complexity_score: int,
-        text_density: float
+        text_density: float,
     ) -> tuple[str, float, str]:
         """
         Recommend optimal processing pipeline
@@ -230,7 +233,10 @@ class DocumentClassifier:
             return "text", confidence, reasoning
 
         # Scanned document with high complexity → Vision/VLM
-        if doc_type == "scanned" and complexity_score > self.COMPLEXITY_THRESHOLD_MEDIUM:
+        if (
+            doc_type == "scanned"
+            and complexity_score > self.COMPLEXITY_THRESHOLD_MEDIUM
+        ):
             confidence = 0.90
             reasoning = f"Scanned document with complex layout (score: {complexity_score}). VLM provides best accuracy for tables, handwriting, and complex structures."
             return "vision", confidence, reasoning

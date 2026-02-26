@@ -21,7 +21,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> List[str]:
         """Parse CORS origins from comma-separated string"""
-        return [origin.strip() for origin in self.cors_origins_str.split(",") if origin.strip()]
+        return [
+            origin.strip()
+            for origin in self.cors_origins_str.split(",")
+            if origin.strip()
+        ]
 
     # JWT Authentication
     jwt_secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
@@ -34,6 +38,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = "../.env"
         extra = "ignore"
+
 
 @lru_cache
 def get_settings():

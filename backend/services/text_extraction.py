@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class TextExtractionService:
     """Extract text from PDFs using pdfplumber"""
 

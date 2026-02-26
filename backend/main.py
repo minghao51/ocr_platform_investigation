@@ -1,10 +1,19 @@
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from routers import upload, processing, schemas, jobs, providers, text_processing, auth, websocket
+from routers import (
+    upload,
+    processing,
+    schemas,
+    jobs,
+    providers,
+    text_processing,
+    auth,
+    websocket,
+)
 from config import get_settings
 from limiter import limiter
 from pathlib import Path
@@ -27,10 +36,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Health check
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
 
 # Include API routers
 app.include_router(auth.router)
@@ -43,7 +54,6 @@ app.include_router(providers.router)
 app.include_router(text_processing.router)
 
 # Mount static files for frontend assets
-import os
 BASE_DIR = Path(__file__).parent.parent
 static_dir = BASE_DIR / "frontend" / "dist"
 
@@ -52,7 +62,10 @@ if not static_dir.exists():
     static_dir = Path("/app/frontend/dist")
 
 if (static_dir / "assets").exists():
-    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
+    app.mount(
+        "/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets"
+    )
+
 
 # Serve index.html for root
 @app.get("/")
@@ -60,6 +73,7 @@ def serve_root():
     if (static_dir / "index.html").exists():
         return FileResponse(str(static_dir / "index.html"))
     return {"message": "Frontend not found. Please build frontend or run in Docker."}
+
 
 # Middleware to handle SPA routing for unmatched routes
 @app.middleware("http")
@@ -71,7 +85,9 @@ async def spa_fallback(request: Request, call_next):
         path = request.url.path
 
         # Don't fall back for API routes, assets, or health
-        if not (path.startswith("/api/") or path.startswith("/assets/") or path == "/health"):
+        if not (
+            path.startswith("/api/") or path.startswith("/assets/") or path == "/health"
+        ):
             # Serve index.html for SPA routes
             index_path = static_dir / "index.html"
             if index_path.exists():
@@ -89,6 +105,7 @@ async def shutdown_event():
     # Close database pool
     try:
         from database.pool import close_pool
+
         await close_pool()
         logger.info("Database pool closed")
     except Exception as e:

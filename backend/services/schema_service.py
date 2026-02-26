@@ -1,6 +1,6 @@
 from typing import Dict, Any, Type
 from pydantic import BaseModel, ValidationError
-import json
+
 
 class SchemaService:
     """Service for validating and managing Pydantic schemas"""
@@ -21,20 +21,21 @@ class SchemaService:
 
     @staticmethod
     def validate_data(
-        data: Dict[str, Any],
-        schema_definition: Dict[str, Any]
+        data: Dict[str, Any], schema_definition: Dict[str, Any]
     ) -> tuple[bool, Any, str]:
         """Validate data against schema"""
 
         try:
             from jsonschema import validate
-            from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
-            
+            from jsonschema.exceptions import (
+                ValidationError as JsonSchemaValidationError,
+            )
+
             validate(instance=data, schema=schema_definition)
             return True, data, None
         except ImportError:
             # Fallback if jsonschema is not installed (though we added it)
-            return True, data, None 
+            return True, data, None
         except JsonSchemaValidationError as e:
             return False, None, str(e)
         except Exception as e:
@@ -46,7 +47,7 @@ class SchemaService:
 
         errors = []
         for err in error.errors():
-            loc = " -> ".join(str(l) for l in err["loc"])
+            loc = " -> ".join(str(loc_item) for loc_item in err["loc"])
             errors.append(f"{loc}: {err['msg']}")
 
         return "\n".join(errors)
@@ -70,16 +71,21 @@ class SchemaService:
                                 "description": {"type": "string"},
                                 "quantity": {"type": "number"},
                                 "unit_price": {"type": "number"},
-                                "total": {"type": "number"}
+                                "total": {"type": "number"},
                             },
-                            "required": ["description", "quantity", "unit_price", "total"]
-                        }
+                            "required": [
+                                "description",
+                                "quantity",
+                                "unit_price",
+                                "total",
+                            ],
+                        },
                     },
                     "subtotal": {"type": "number"},
                     "tax": {"type": "number"},
-                    "total": {"type": "number"}
+                    "total": {"type": "number"},
                 },
-                "required": ["invoice_number", "date", "vendor", "items", "total"]
+                "required": ["invoice_number", "date", "vendor", "items", "total"],
             },
             "Receipt": {
                 "type": "object",
@@ -92,15 +98,15 @@ class SchemaService:
                             "type": "object",
                             "properties": {
                                 "name": {"type": "string"},
-                                "price": {"type": "number"}
+                                "price": {"type": "number"},
                             },
-                            "required": ["name", "price"]
-                        }
+                            "required": ["name", "price"],
+                        },
                     },
                     "total": {"type": "number"},
-                    "payment_method": {"type": "string"}
+                    "payment_method": {"type": "string"},
                 },
-                "required": ["merchant", "date", "items", "total"]
+                "required": ["merchant", "date", "items", "total"],
             },
             "ID": {
                 "type": "object",
@@ -110,18 +116,15 @@ class SchemaService:
                     "date_of_birth": {"type": "string"},
                     "document_number": {"type": "string"},
                     "expiration_date": {"type": "string"},
-                    "address": {"type": "string"}
+                    "address": {"type": "string"},
                 },
-                "required": ["document_type", "full_name", "document_number"]
+                "required": ["document_type", "full_name", "document_number"],
             },
             "Generic": {
                 "type": "object",
                 "properties": {
                     "text": {"type": "string"},
-                    "entities": {
-                        "type": "array",
-                        "items": {"type": "string"}
-                    }
-                }
-            }
+                    "entities": {"type": "array", "items": {"type": "string"}},
+                },
+            },
         }

@@ -3,8 +3,8 @@ services:
     name: ocr-platform
     env: python
     region: oregon
-    buildCommand: pip install uv && uv pip install -r requirements.txt --system
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: cd backend && pip install uv && uv sync --frozen --no-dev
+    startCommand: cd backend && uv run python -m database.migrations && uv run uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         value: sqlite:///./data/ocr_platform.db
@@ -16,9 +16,9 @@ services:
         sync: false
       - key: JWT_SECRET_KEY
         generateValue: true
-      - key: CORS_ORIGINS
+      - key: CORS_ORIGINS_STR
         value: https://ocr-platform.onrender.com
     disk:
       enabled: true
-      mountPath: /app/data
+      mountPath: /opt/render/project/src/backend/data
       size: 1GB

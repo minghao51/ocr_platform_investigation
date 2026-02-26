@@ -136,7 +136,7 @@ export interface Schema {
   id?: number;
   name: string;
   description?: string;
-  definition: Record<string, any>;
+  definition: Record<string, unknown>;
   is_template?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -154,7 +154,7 @@ export interface Job {
   updated_at?: string;
   processing_time?: number;
   processing_method?: 'vision' | 'text' | 'hybrid';
-  result?: any;
+  result?: unknown;
   error?: string;
 }
 
@@ -163,7 +163,7 @@ export interface ProcessRequest {
   provider: string;
   model: string;
   schema_id?: number;
-  schema_definition?: Record<string, any>;
+  schema_definition?: Record<string, unknown>;
   prompt?: string;
   temperature?: number;
   max_tokens?: number;
@@ -180,7 +180,7 @@ export interface ProcessResponse {
 // ============================================================================
 
 // Upload
-export async function uploadFile(file: File): Promise<{ file_id: string; file_name: string; file_type: string; file_path: string; file_size: number }> {
+export async function uploadFile(file: File): Promise<{ file_id: string; file_name: string; file_type: string; file_size: number }> {
   const formData = new FormData();
   formData.append('file', file);
 

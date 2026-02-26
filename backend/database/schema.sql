@@ -27,7 +27,9 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
     file_path TEXT NOT NULL,
     file_size INTEGER NOT NULL,
     content_type TEXT NOT NULL,
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    user_id INTEGER,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Processing jobs table
@@ -58,3 +60,4 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON processing_jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_processing_method ON processing_jobs(processing_method);
 CREATE INDEX IF NOT EXISTS idx_schemas_is_template ON schemas(is_template);
 CREATE INDEX IF NOT EXISTS idx_uploaded_files_file_id ON uploaded_files(file_id);
+CREATE INDEX IF NOT EXISTS idx_uploaded_files_user_id ON uploaded_files(user_id);

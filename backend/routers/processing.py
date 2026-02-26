@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from typing import Optional
 from models.schemas import ProcessRequest, ProcessResponse
 from database import crud
 from services.processing import run_processing_job, run_text_processing_job
@@ -11,12 +12,33 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/process", tags=["processing"])
 
+
+def _is_admin(user: dict) -> bool:
+    return bool(user.get("is_admin", False))
+
+
+def _ensure_uploaded_file_access(file_record: dict, current_user: dict) -> None:
+    if _is_admin(current_user):
+        return
+    if file_record.get("user_id") != current_user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+
+def _ensure_job_access(job: dict, current_user: dict) -> None:
+    if _is_admin(current_user):
+        return
+    if job.get("user_id") != current_user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+
 @router.post("/", response_model=ProcessResponse)
 async def process_document(
     request: ProcessRequest,
     background_tasks: BackgroundTasks,
-    extraction_method: str = None,  # NEW: "auto", "text", "vision", or None (auto)
-    current_user: dict = Depends(check_daily_limit)
+    extraction_method: Optional[
+        str
+    ] = None,  # NEW: "auto", "text", "vision", or None (auto)
+    current_user: dict = Depends(check_daily_limit),
 ):
     """
     Process a document with intelligent routing
@@ -33,30 +55,29 @@ async def process_document(
         if not schema_record:
             raise HTTPException(status_code=404, detail="Schema not found")
 
-        schema_definition = json.loads(schema_record["definition"])
+        _schema_definition = json.loads(schema_record["definition"])
         schema_name = schema_record["name"]
     elif request.schema_definition:
-        schema_definition = request.schema_definition
+        _schema_definition = request.schema_definition
         schema_name = "Custom"
     else:
         raise HTTPException(
             status_code=400,
-            detail="Either schema_id or schema_definition must be provided"
+            detail="Either schema_id or schema_definition must be provided",
         )
 
     # Get file metadata from database
     file_record = await crud.get_uploaded_file(request.file_id)
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
+    _ensure_uploaded_file_access(file_record, current_user)
 
     # Verify file still exists on disk
     from pathlib import Path
+
     file_path = Path(file_record["file_path"])
     if not file_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="File has been deleted or moved"
-        )
+        raise HTTPException(status_code=404, detail="File has been deleted or moved")
 
     # Determine file type
     file_type = "pdf" if file_record["file_extension"] == ".pdf" else "image"
@@ -78,15 +99,21 @@ async def process_document(
                     "type": analysis.type,
                     "complexity_score": analysis.complexity_score,
                     "confidence": analysis.confidence,
-                    "reasoning": analysis.reasoning
+                    "reasoning": analysis.reasoning,
                 }
 
-                logger.info(f"Auto-detected pipeline: {processing_method} for {file_record['original_filename']}")
-                logger.info(f"  Classification: {analysis.type} (confidence: {analysis.confidence:.2f})")
+                logger.info(
+                    f"Auto-detected pipeline: {processing_method} for {file_record['original_filename']}"
+                )
+                logger.info(
+                    f"  Classification: {analysis.type} (confidence: {analysis.confidence:.2f})"
+                )
                 logger.info(f"  Reasoning: {analysis.reasoning}")
 
             except Exception as e:
-                logger.warning(f"Classification failed, falling back to vision: {str(e)}")
+                logger.warning(
+                    f"Classification failed, falling back to vision: {str(e)}"
+                )
                 processing_method = "vision"
         else:
             # Images always use vision processing
@@ -97,12 +124,12 @@ async def process_document(
     if processing_method not in ["text", "vision", "hybrid"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid extraction_method: {processing_method}. Must be 'text', 'vision', or 'hybrid'"
+            detail=f"Invalid extraction_method: {processing_method}. Must be 'text', 'vision', or 'hybrid'",
         )
 
     # For images, force vision processing
     if file_type == "image" and processing_method != "vision":
-        logger.info(f"Overriding extraction_method to 'vision' for image file")
+        logger.info("Overriding extraction_method to 'vision' for image file")
         processing_method = "vision"
 
     # Create job
@@ -115,7 +142,7 @@ async def process_document(
         schema_id=request.schema_id,
         schema_name=schema_name,
         processing_method=processing_method,
-        user_id=user_id
+        user_id=user_id,
     )
 
     # Increment daily request counter (non-blocking)
@@ -126,7 +153,7 @@ async def process_document(
     if classification_info:
         try:
             await crud.update_job_metadata(job_id, classification_info)
-        except:
+        except Exception:
             pass  # Metadata update is optional
 
     # Queue background processing with appropriate method
@@ -135,21 +162,18 @@ async def process_document(
     else:  # "vision" or "hybrid"
         background_tasks.add_task(run_processing_job, job_id, str(file_path))
 
-    return ProcessResponse(
-        job_id=job_id,
-        status="pending"
-    )
+    return ProcessResponse(job_id=job_id, status="pending")
+
 
 @router.get("/status/{job_id}")
-async def get_job_status(job_id: int):
+async def get_job_status(job_id: int, current_user: dict = Depends(get_current_user)):
     """Get processing job status"""
 
     job = await crud.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    _ensure_job_access(job, current_user)
 
-
-    
     result = job.get("result")
     if result and isinstance(result, str):
         try:
@@ -166,9 +190,11 @@ async def get_job_status(job_id: int):
         "model": job["model"],
         "schema_name": job["schema_name"],
         "created_at": job["created_at"],
-        "updated_at": job.get("completed_at") or job.get("updated_at") or job["created_at"],
+        "updated_at": job.get("completed_at")
+        or job.get("updated_at")
+        or job["created_at"],
         "result": result,
         "error": job.get("error_message"),
         "processing_time": job.get("processing_time_seconds"),
-        "processing_method": job.get("processing_method")
+        "processing_method": job.get("processing_method"),
     }

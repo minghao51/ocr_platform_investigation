@@ -3,9 +3,15 @@ import { uploadFile } from '../lib/api';
 
 interface FileUploadProps {
   onUpload: (fileId: string, fileName: string, fileType?: string) => void;
+  disabled?: boolean;
+  disabledMessage?: string;
 }
 
-export default function FileUpload({ onUpload }: FileUploadProps) {
+export default function FileUpload({
+  onUpload,
+  disabled = false,
+  disabledMessage = 'Login required to upload files.',
+}: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +31,8 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
   };
 
   const handleFile = async (file: File) => {
+    if (disabled) return;
+
     const validationError = validateFile(file);
     if (validationError) {
       setError(validationError);
@@ -47,6 +55,7 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (disabled) return;
 
     const file = e.dataTransfer.files[0];
     if (file) {
@@ -56,6 +65,7 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    if (disabled) return;
     setIsDragging(true);
   };
 
@@ -64,6 +74,7 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const file = e.target.files?.[0];
     if (file) {
       handleFile(file);
@@ -73,13 +84,15 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
   return (
     <div
       className={'border-2 border-dashed rounded-lg p-8 text-center transition-colors ' +
-        (isDragging
+        (disabled
+          ? 'border-gray-200 bg-gray-100 opacity-80'
+          : isDragging
           ? 'border-blue-500 bg-blue-50'
           : 'border-gray-300 hover:border-gray-400'
         )}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
+      onDrop={disabled ? undefined : handleDrop}
+      onDragOver={disabled ? undefined : handleDragOver}
+      onDragLeave={disabled ? undefined : handleDragLeave}
     >
       <input
         ref={fileInputRef}
@@ -98,10 +111,10 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
 
         <div>
           <p className="text-lg font-medium text-gray-700">
-            {isDragging ? 'Drop your file here' : 'Upload a document'}
+            {disabled ? 'Upload locked' : (isDragging ? 'Drop your file here' : 'Upload a document')}
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            Drag and drop, or click to browse
+            {disabled ? disabledMessage : 'Drag and drop, or click to browse'}
           </p>
           <p className="text-xs text-gray-400 mt-2">
             Supports: JPEG, PNG, GIF, WebP, PDF (max 10MB)
@@ -111,10 +124,10 @@ export default function FileUpload({ onUpload }: FileUploadProps) {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
+          disabled={disabled || isUploading}
           className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
         >
-          {isUploading ? 'Uploading...' : 'Select File'}
+          {disabled ? 'Login Required' : (isUploading ? 'Uploading...' : 'Select File')}
         </button>
 
         {error && (

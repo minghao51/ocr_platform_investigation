@@ -7,6 +7,7 @@ import SchemaEditor from '@/components/SchemaEditor';
 import ResultsDisplay from '@/components/ResultsDisplay';
 import ExtractionModeSelector, { ExtractionMethod } from '@/components/ExtractionModeSelector';
 import AdvancedOptions from '@/components/AdvancedOptions';
+import LoginPanel from '@/components/LoginPanel';
 
 export type { ExtractionMethod };
 
@@ -19,13 +20,15 @@ interface BaseExtractionPageProps {
         model: string,
         extractionMethod: ExtractionMethod,
         schemaId?: number,
-        schemaDefinition?: Record<string, any>,
+        schemaDefinition?: Record<string, unknown>,
         prompt?: string,
         temperature?: number,
         maxTokens?: number
     ) => Promise<{ job_id: number }>;
     processingMethod?: ExtractionMethod;
     showModeSelector?: boolean;
+    isAuthenticated: boolean;
+    onLoginSuccess?: () => void;
 }
 
 export default function BaseExtractionPage({
@@ -34,6 +37,8 @@ export default function BaseExtractionPage({
     processFunction,
     processingMethod = 'auto',
     showModeSelector = true,
+    isAuthenticated,
+    onLoginSuccess,
 }: BaseExtractionPageProps) {
     const [fileId, setFileId] = useState<string | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
@@ -42,7 +47,7 @@ export default function BaseExtractionPage({
     const [provider, setProvider] = useState('');
     const [model, setModel] = useState('');
     const [schemaId, setSchemaId] = useState<number | null>(null);
-    const [schemaDefinition, setSchemaDefinition] = useState<Record<string, any> | null>(null);
+    const [schemaDefinition, setSchemaDefinition] = useState<Record<string, unknown> | null>(null);
     const [customPrompt, setCustomPrompt] = useState('');
     const [temperature, setTemperature] = useState(0.1);
     const [maxTokens, setMaxTokens] = useState(4096);
@@ -92,6 +97,11 @@ export default function BaseExtractionPage({
     };
 
     const handleProcess = async () => {
+        if (!isAuthenticated) {
+            setError('Login required to upload documents and run OCR.');
+            return;
+        }
+
         if (!fileId || !provider || !model || !schemaDefinition) {
             setError('Please complete all required fields');
             return;
@@ -199,7 +209,21 @@ export default function BaseExtractionPage({
                 <section>
                     <h2 className="text-xl font-semibold mb-4">Step 1: Upload Document</h2>
                     {!fileId ? (
-                        <FileUpload onUpload={handleFileUpload} />
+                        <div className="space-y-4">
+                            <FileUpload
+                                onUpload={handleFileUpload}
+                                disabled={!isAuthenticated}
+                                disabledMessage="Login required to upload documents and images for OCR."
+                            />
+                            {!isAuthenticated && onLoginSuccess && (
+                                <LoginPanel
+                                    onLoginSuccess={onLoginSuccess}
+                                    title="Login Required for OCR"
+                                    subtitle="You can explore models and schemas in guest mode, but uploading and processing require login."
+                                    compact={true}
+                                />
+                            )}
+                        </div>
                     ) : (
                         <div className="p-4 bg-green-50 border border-green-200 rounded-md flex items-center justify-between">
                             <div>
@@ -272,15 +296,25 @@ export default function BaseExtractionPage({
                 </section>
 
                 {/* Process Button */}
-                {fileId && (
+                {(fileId || !isAuthenticated) && (
                     <section>
                         <button
                             onClick={handleProcess}
-                            disabled={processing || !provider || !model || !schemaDefinition}
-                            className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                            disabled={!isAuthenticated || processing || !fileId || !provider || !model || !schemaDefinition}
+                            className={'w-full px-6 py-3 font-medium rounded-md transition-colors ' +
+                                (!isAuthenticated
+                                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed'
+                                )}
                         >
-                            {processing ? 'Processing...' : 'Process Document'}
+                            {!isAuthenticated ? 'Process Document (Login required)' : (processing ? 'Processing...' : 'Process Document')}
                         </button>
+
+                        {!isAuthenticated && (
+                            <p className="mt-2 text-sm text-gray-600">
+                                Sign in above to enable document upload and OCR processing.
+                            </p>
+                        )}
 
                         {error && (
                             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">

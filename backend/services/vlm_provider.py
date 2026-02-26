@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import httpx
 import base64
 from io import BytesIO
 from PIL import Image
+
 
 class VLMProvider(ABC):
     """Base class for VLM providers"""
@@ -15,11 +16,7 @@ class VLMProvider(ABC):
 
     @abstractmethod
     async def process_image(
-        self,
-        image: Image.Image,
-        prompt: str,
-        schema: Dict[str, Any],
-        **kwargs
+        self, image: Image.Image, prompt: str, schema: Dict[str, Any], **kwargs
     ) -> Dict[str, Any]:
         """Process an image and extract structured data"""
         pass
@@ -31,7 +28,7 @@ class VLMProvider(ABC):
         prompt: str,
         schema_definition: Dict[str, Any],
         model: str,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Process extracted text with text-only LLM

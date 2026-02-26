@@ -1,8 +1,8 @@
-from pathlib import Path
 from typing import List
 from PIL import Image
 import pdf2image
 from io import BytesIO
+
 
 class ImageService:
     """Service for processing images and PDFs"""
@@ -14,9 +14,7 @@ class ImageService:
 
     @staticmethod
     def resize_image(
-        image: Image.Image,
-        target_size: tuple[int, int],
-        maintain_aspect: bool = True
+        image: Image.Image, target_size: tuple[int, int], maintain_aspect: bool = True
     ) -> Image.Image:
         """Resize image to target size"""
 
@@ -40,18 +38,12 @@ class ImageService:
 
     @staticmethod
     def pdf_to_images(
-        pdf_path: str,
-        dpi: int = 200,
-        first_page: int = None,
-        last_page: int = None
+        pdf_path: str, dpi: int = 200, first_page: int = None, last_page: int = None
     ) -> List[Image.Image]:
         """Convert PDF to list of images"""
 
         images = pdf2image.convert_from_path(
-            pdf_path,
-            dpi=dpi,
-            first_page=first_page,
-            last_page=last_page
+            pdf_path, dpi=dpi, first_page=first_page, last_page=last_page
         )
 
         return images

@@ -2,14 +2,19 @@ import { processDocument, ProcessRequest } from '@/lib/api';
 import BaseExtractionPage from './BaseExtractionPage';
 import type { ExtractionMethod } from './BaseExtractionPage';
 
-export default function ProcessingPage() {
+interface ProcessingPageProps {
+  isAuthenticated: boolean;
+  onLoginSuccess: () => void;
+}
+
+export default function ProcessingPage({ isAuthenticated, onLoginSuccess }: ProcessingPageProps) {
   const processWrapper = async (
     fileId: string,
     provider: string,
     model: string,
     extractionMethod: ExtractionMethod,
     schemaId?: number,
-    schemaDefinition?: Record<string, any>,
+    schemaDefinition?: Record<string, unknown>,
     prompt?: string,
     temperature?: number,
     maxTokens?: number
@@ -36,6 +41,8 @@ export default function ProcessingPage() {
       processFunction={processWrapper}
       processingMethod="auto"
       showModeSelector={true}
+      isAuthenticated={isAuthenticated}
+      onLoginSuccess={onLoginSuccess}
     />
   );
 }

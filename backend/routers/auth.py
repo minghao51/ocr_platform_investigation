@@ -1,11 +1,12 @@
 """
 Authentication router - handles login and token management.
 """
-from fastapi import APIRouter, HTTPException, status, Body
+
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
-from typing import Optional
 from database import crud
 from auth import verify_password, create_access_token
+from dependencies import get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -34,21 +35,19 @@ async def login(request: LoginRequest):
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
+            detail="Invalid username or password",
         )
 
     # Verify password
     if not verify_password(request.password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
+            detail="Invalid username or password",
         )
 
     # Create access token
     access_token = create_access_token(
-        user_id=user["id"],
-        username=user["username"],
-        is_admin=bool(user["is_admin"])
+        user_id=user["id"], username=user["username"], is_admin=bool(user["is_admin"])
     )
 
     return LoginResponse(
@@ -56,13 +55,13 @@ async def login(request: LoginRequest):
         user={
             "id": user["id"],
             "username": user["username"],
-            "is_admin": bool(user["is_admin"])
-        }
+            "is_admin": bool(user["is_admin"]),
+        },
     )
 
 
 @router.post("/verify")
-async def verify_token_endpoint(current_user: dict = Body(...)):
+async def verify_token_endpoint(current_user: dict = Depends(get_current_user)):
     """
     Verify a JWT token and return user information.
 

@@ -7,9 +7,9 @@ import 'prismjs/themes/prism.css';
 
 interface SchemaEditorProps {
   schemaId: number | null;
-  schemaDefinition: Record<string, any> | null;
+  schemaDefinition: Record<string, unknown> | null;
   onSchemaSelect: (schemaId: number) => void;
-  onDefinitionChange: (definition: Record<string, any>) => void;
+  onDefinitionChange: (definition: Record<string, unknown>) => void;
   restrictedMode?: boolean; // Hide JSON editor for test users
 }
 
@@ -40,6 +40,7 @@ export default function SchemaEditor({
 
   useEffect(() => {
     loadTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync incoming schemaDefinition to both inputs
@@ -82,28 +83,29 @@ export default function SchemaEditor({
 
   // --- Visual Builder Logic ---
 
-  const parseSchemaToFields = (schema: Record<string, any>): SchemaField[] => {
+  const parseSchemaToFields = (schema: Record<string, unknown>): SchemaField[] => {
     if (schema.type !== 'object' || !schema.properties) {
       return [];
     }
 
-    return Object.entries(schema.properties).map(([key, value]: [string, any]) => ({
+    const props = schema.properties as Record<string, unknown>;
+    return Object.entries(props).map(([key, value]: [string, unknown]) => ({
       id: key, // Use key as ID for stability
       name: key,
-      type: value.type === 'array' ? 'array' :
-        value.type === 'number' || value.type === 'integer' ? 'number' :
-          value.type === 'boolean' ? 'boolean' : 'string',
-      description: value.description || '',
+      type: (value as { type?: string }).type === 'array' ? 'array' :
+        (value as { type?: string }).type === 'number' || (value as { type?: string }).type === 'integer' ? 'number' :
+          (value as { type?: string }).type === 'boolean' ? 'boolean' : 'string',
+      description: (value as { description?: string }).description || '',
     }));
   };
 
   const updateSchemaFromFields = (newFields: SchemaField[]) => {
-    const properties: Record<string, any> = {};
+    const properties: Record<string, unknown> = {};
 
     newFields.forEach(field => {
       if (!field.name) return;
 
-      let fieldDef: any = {
+      const fieldDef: Record<string, unknown> = {
         type: field.type,
         description: field.description
       };
@@ -268,7 +270,7 @@ export default function SchemaEditor({
                             <label className="text-xs text-gray-500 block mb-1">Type</label>
                             <select
                               value={field.type}
-                              onChange={(e) => handleFieldChange(field.id, 'type', e.target.value as any)}
+                              onChange={(e) => handleFieldChange(field.id, 'type', e.target.value as SchemaField['type'])}
                               className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                             >
                               <option value="string">Text</option>

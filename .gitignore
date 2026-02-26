@@ -58,6 +58,9 @@ htmlcov/
 *.tmp
 .cache/
 
+# Ruff
+.ruff_cache/
+
 # Secrets - do not commit
 DEMO_ACCOUNTS.md
 credentials.json

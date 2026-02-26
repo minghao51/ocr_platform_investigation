@@ -3,6 +3,7 @@ from PIL import Image
 import json
 from .vlm_provider import VLMProvider
 
+
 class OpenRouterProvider(VLMProvider):
     """OpenRouter provider"""
 
@@ -14,7 +15,7 @@ class OpenRouterProvider(VLMProvider):
         prompt: str,
         schema: Dict[str, Any],
         model: str = "anthropic/claude-3.5-sonnet",
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process image with OpenRouter"""
 
@@ -25,15 +26,15 @@ class OpenRouterProvider(VLMProvider):
                 "content": [
                     {
                         "type": "text",
-                        "text": f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}"
+                        "text": f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}",
                     },
                     {
                         "type": "image_url",
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{self.encode_image(image)}"
-                        }
-                    }
-                ]
+                        },
+                    },
+                ],
             }
         ]
 
@@ -42,14 +43,14 @@ class OpenRouterProvider(VLMProvider):
             f"{self.BASE_URL}/chat/completions",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
             json={
                 "model": model,
                 "messages": messages,
                 "temperature": kwargs.get("temperature", 0.1),
-                "max_tokens": kwargs.get("max_tokens", 4096)
-            }
+                "max_tokens": kwargs.get("max_tokens", 4096),
+            },
         )
 
         response.raise_for_status()
@@ -61,7 +62,7 @@ class OpenRouterProvider(VLMProvider):
         return {
             "raw_response": result,
             "content": content,
-            "usage": result.get("usage", {})
+            "usage": result.get("usage", {}),
         }
 
     async def process_text(
@@ -72,7 +73,7 @@ class OpenRouterProvider(VLMProvider):
         model: str,
         temperature: float = 0.1,
         max_tokens: int = 4096,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process text with OpenRouter text-only model"""
         import json
@@ -88,17 +89,20 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 f"{self.BASE_URL}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 },
                 json={
                     "model": model,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"{prompt}\n\nDocument text:\n{text}"}
+                        {
+                            "role": "user",
+                            "content": f"{prompt}\n\nDocument text:\n{text}",
+                        },
                     ],
                     "temperature": temperature,
-                    "max_tokens": max_tokens
-                }
+                    "max_tokens": max_tokens,
+                },
             )
 
             response.raise_for_status()
@@ -111,16 +115,12 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "usage": {
                     "prompt_tokens": result["usage"]["prompt_tokens"],
                     "completion_tokens": result["usage"]["completion_tokens"],
-                    "total_tokens": result["usage"]["total_tokens"]
-                }
+                    "total_tokens": result["usage"]["total_tokens"],
+                },
             }
 
         except Exception as e:
-            return {
-                "error": str(e),
-                "content": None,
-                "model": model
-            }
+            return {"error": str(e), "content": None, "model": model}
 
     def get_models(self) -> List[Dict[str, Any]]:
         """Get available OpenRouter models with metadata"""
@@ -131,7 +131,7 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "tier": "premium",
                 "capabilities": ["vision", "reasoning"],
                 "context_window": 200000,
-                "description": "Advanced reasoning with vision"
+                "description": "Advanced reasoning with vision",
             },
             {
                 "id": "google/gemini-pro-1.5",
@@ -139,7 +139,7 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "tier": "balanced",
                 "capabilities": ["vision", "reasoning"],
                 "context_window": 2800000,
-                "description": "Large context window with vision"
+                "description": "Large context window with vision",
             },
             {
                 "id": "openai/gpt-4o",
@@ -147,7 +147,7 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "tier": "premium",
                 "capabilities": ["vision", "reasoning"],
                 "context_window": 128000,
-                "description": "OpenAI's latest multimodal model"
+                "description": "OpenAI's latest multimodal model",
             },
             {
                 "id": "meta-llama/llama-3.2-90b-vision-preview",
@@ -155,8 +155,8 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "tier": "balanced",
                 "capabilities": ["vision", "reasoning"],
                 "context_window": 131072,
-                "description": "Large open-source vision model"
-            }
+                "description": "Large open-source vision model",
+            },
         ]
 
     def get_default_image_size(self) -> tuple[int, int]:

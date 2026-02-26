@@ -2,42 +2,22 @@ import { useState, useEffect } from 'react';
 import ProcessingPage from './pages/ProcessingPage';
 import MethodologyPage from './pages/MethodologyPage';
 import HistoryPage from './pages/HistoryPage';
-import LoginPage from './pages/LoginPage';
 import { isAuthenticated, logout, getCurrentUser } from '@/lib/api';
 
 type Page = 'processing' | 'history' | 'methodology';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('processing');
-  const [isAuthChecked, setIsAuthChecked] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
+  const [authUser, setAuthUser] = useState(getCurrentUser());
 
-  // Check authentication on mount
   useEffect(() => {
-    setIsAuthChecked(true);
-    setShowLogin(!isAuthenticated());
+    setAuthUser(getCurrentUser());
   }, []);
 
-  const handleLoginSuccess = () => {
-    setShowLogin(false);
-    window.location.reload(); // Reload to refresh app state
+  const handleAuthChanged = () => {
+    setAuthUser(getCurrentUser());
   };
-
-  // Show loading while checking auth
-  if (!isAuthChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
-  // Show login page if not authenticated
-  if (showLogin) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  const currentUser = getCurrentUser();
+  const authenticated = isAuthenticated();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -86,18 +66,26 @@ function App() {
               </div>
             </div>
             <div className="flex items-center">
-              <span className="text-sm text-gray-600 mr-4">
-                {currentUser?.username}
-              </span>
-              <button
-                onClick={() => {
-                  logout();
-                  setShowLogin(true);
-                }}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Logout
-              </button>
+              {authenticated ? (
+                <>
+                  <span className="text-sm text-gray-600 mr-4">
+                    {authUser?.username}
+                  </span>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setAuthUser(null);
+                    }}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <span className="text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                  Guest mode (login required for OCR/history)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -105,8 +93,18 @@ function App() {
 
       {/* Page Content */}
       <main className="bg-gray-50">
-        {currentPage === 'processing' && <ProcessingPage />}
-        {currentPage === 'history' && <HistoryPage />}
+        {currentPage === 'processing' && (
+          <ProcessingPage
+            isAuthenticated={authenticated}
+            onLoginSuccess={handleAuthChanged}
+          />
+        )}
+        {currentPage === 'history' && (
+          <HistoryPage
+            isAuthenticated={authenticated}
+            onLoginSuccess={handleAuthChanged}
+          />
+        )}
         {currentPage === 'methodology' && <MethodologyPage />}
       </main>
     </div>

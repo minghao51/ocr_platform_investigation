@@ -1,6 +1,7 @@
 """
 Authentication utilities for JWT tokens and password hashing.
 """
+
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
@@ -33,13 +34,11 @@ def create_access_token(user_id: int, username: str, is_admin: bool = False) -> 
         "username": username,
         "is_admin": is_admin,
         "exp": expire,
-        "iat": datetime.utcnow()
+        "iat": datetime.utcnow(),
     }
 
     encoded_jwt = jwt.encode(
-        to_encode,
-        settings.jwt_secret_key,
-        algorithm=settings.jwt_algorithm
+        to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
     )
     return encoded_jwt
 
@@ -52,14 +51,12 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
     """
     try:
         payload = jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm]
+            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
         )
         return {
             "user_id": payload.get("user_id"),
             "username": payload.get("username"),
-            "is_admin": payload.get("is_admin", False)
+            "is_admin": payload.get("is_admin", False),
         }
     except jwt.PyJWTError:
         return None

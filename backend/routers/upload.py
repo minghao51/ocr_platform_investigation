@@ -14,12 +14,13 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
 
+
 @router.post("/")
 @limiter.limit("10/minute")
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Upload a file for processing"""
 
@@ -33,7 +34,7 @@ async def upload_file(
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+            detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
     # Generate unique filename
@@ -50,7 +51,7 @@ async def upload_file(
         ".pdf": "application/pdf",
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
-        ".png": "image/png"
+        ".png": "image/png",
     }
     content_type = content_type_map.get(file_ext, "application/octet-stream")
 
@@ -61,13 +62,15 @@ async def upload_file(
         file_extension=file_ext,
         file_path=str(file_path),
         file_size=len(content),
-        content_type=content_type
+        content_type=content_type,
+        user_id=current_user.get("user_id"),
     )
 
-    return JSONResponse({
-        "file_id": file_id,
-        "file_name": file.filename,
-        "file_type": file_type,
-        "file_path": str(file_path),
-        "file_size": len(content)
-    })
+    return JSONResponse(
+        {
+            "file_id": file_id,
+            "file_name": file.filename,
+            "file_type": file_type,
+            "file_size": len(content),
+        }
+    )

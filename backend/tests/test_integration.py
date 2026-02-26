@@ -4,8 +4,6 @@ Tests complete workflows including file upload, processing, and retrieval.
 """
 
 import pytest
-import os
-import tempfile
 from fastapi.testclient import TestClient
 from main import app
 from PIL import Image
@@ -95,10 +93,10 @@ class TestSchemaEndpoints:
                 "type": "object",
                 "properties": {
                     "title": {"type": "string"},
-                    "content": {"type": "string"}
+                    "content": {"type": "string"},
                 },
-                "required": ["title"]
-            }
+                "required": ["title"],
+            },
         }
 
         response = client.post("/api/schemas", json=custom_schema)
@@ -116,10 +114,8 @@ class TestSchemaEndpoints:
             "description": "Test duplicate",
             "definition": {
                 "type": "object",
-                "properties": {
-                    "field": {"type": "string"}
-                }
-            }
+                "properties": {"field": {"type": "string"}},
+            },
         }
 
         # First creation should succeed
@@ -136,9 +132,9 @@ class TestUploadEndpoint:
 
     def create_test_image(self, width=800, height=600, color="red"):
         """Helper to create test image."""
-        img = Image.new('RGB', (width, height), color=color)
+        img = Image.new("RGB", (width, height), color=color)
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format='JPEG')
+        img.save(img_bytes, format="JPEG")
         img_bytes.seek(0)
         return img_bytes
 
@@ -147,8 +143,7 @@ class TestUploadEndpoint:
         img_bytes = self.create_test_image()
 
         response = client.post(
-            "/api/upload",
-            files={"file": ("test.jpg", img_bytes, "image/jpeg")}
+            "/api/upload", files={"file": ("test.jpg", img_bytes, "image/jpeg")}
         )
 
         assert response.status_code == 200
@@ -159,14 +154,13 @@ class TestUploadEndpoint:
 
     def test_upload_valid_png(self):
         """Test uploading a valid PNG image."""
-        img = Image.new('RGB', (800, 600), color='blue')
+        img = Image.new("RGB", (800, 600), color="blue")
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format='PNG')
+        img.save(img_bytes, format="PNG")
         img_bytes.seek(0)
 
         response = client.post(
-            "/api/upload",
-            files={"file": ("test.png", img_bytes, "image/png")}
+            "/api/upload", files={"file": ("test.png", img_bytes, "image/png")}
         )
 
         assert response.status_code == 200
@@ -180,8 +174,7 @@ class TestUploadEndpoint:
         text_content = b"This is not an image"
 
         response = client.post(
-            "/api/upload",
-            files={"file": ("test.txt", text_content, "text/plain")}
+            "/api/upload", files={"file": ("test.txt", text_content, "text/plain")}
         )
 
         assert response.status_code == 400
@@ -233,9 +226,9 @@ class TestProcessWorkflow:
 
     def create_test_image(self):
         """Helper to create test image."""
-        img = Image.new('RGB', (800, 600), color='red')
+        img = Image.new("RGB", (800, 600), color="red")
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format='JPEG')
+        img.save(img_bytes, format="JPEG")
         img_bytes.seek(0)
         return img_bytes
 
@@ -247,12 +240,11 @@ class TestProcessWorkflow:
         # Step 1: Upload file
         img_bytes = self.create_test_image()
         upload_response = client.post(
-            "/api/upload",
-            files={"file": ("test.jpg", img_bytes, "image/jpeg")}
+            "/api/upload", files={"file": ("test.jpg", img_bytes, "image/jpeg")}
         )
 
         assert upload_response.status_code == 200
-        file_id = upload_response.json()["file_id"]
+        _file_id = upload_response.json()["file_id"]
 
         # Step 2: Start processing
         # (This would fail without valid API keys and mocking)
@@ -281,10 +273,7 @@ class TestErrorHandling:
 
     def test_process_without_file_id(self):
         """Test process request without file_id."""
-        response = client.post(
-            "/api/process",
-            json={}
-        )
+        response = client.post("/api/process", json={})
 
         assert response.status_code == 422
 
@@ -299,9 +288,9 @@ class TestErrorHandling:
 @pytest.fixture
 def test_image_file():
     """Create a test image file."""
-    img = Image.new('RGB', (800, 600), color='red')
+    img = Image.new("RGB", (800, 600), color="red")
     img_bytes = io.BytesIO()
-    img.save(img_bytes, format='JPEG')
+    img.save(img_bytes, format="JPEG")
     img_bytes.seek(0)
     return img_bytes
 
@@ -314,10 +303,7 @@ def test_schema():
         "description": "Schema for integration tests",
         "definition": {
             "type": "object",
-            "properties": {
-                "title": {"type": "string"},
-                "content": {"type": "string"}
-            },
-            "required": ["title"]
-        }
+            "properties": {"title": {"type": "string"}, "content": {"type": "string"}},
+            "required": ["title"],
+        },
     }

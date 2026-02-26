@@ -41,7 +41,7 @@ def test_single_document(file_path: Path, verbose: bool = False):
         analysis = classifier.analyze_document(str(file_path))
 
         # Display results
-        print(f"\n📊 Classification Results:")
+        print("\n📊 Classification Results:")
         print(f"   Document Type:     {analysis.type.upper()}")
         print(f"   Has Text Layer:    {analysis.has_text_layer}")
         print(f"   Complexity Score:  {analysis.complexity_score}/100")
@@ -55,25 +55,30 @@ def test_single_document(file_path: Path, verbose: bool = False):
         print(f"   Confidence: {analysis.confidence:.2%}")
         print()
 
-        print(f"💡 Reasoning:")
+        print("💡 Reasoning:")
         print(f"   {analysis.reasoning}")
         print()
 
         # Verbose mode
         if verbose:
             print("📄 Full Analysis Details:")
-            print(json.dumps({
-                "type": analysis.type,
-                "has_text_layer": analysis.has_text_layer,
-                "complexity_score": analysis.complexity_score,
-                "recommended_pipeline": analysis.recommended_pipeline,
-                "confidence": analysis.confidence,
-                "text_density": analysis.text_density,
-                "page_count": analysis.page_count,
-                "has_tables": analysis.has_tables,
-                "has_images": analysis.has_images,
-                "reasoning": analysis.reasoning
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "type": analysis.type,
+                        "has_text_layer": analysis.has_text_layer,
+                        "complexity_score": analysis.complexity_score,
+                        "recommended_pipeline": analysis.recommended_pipeline,
+                        "confidence": analysis.confidence,
+                        "text_density": analysis.text_density,
+                        "page_count": analysis.page_count,
+                        "has_tables": analysis.has_tables,
+                        "has_images": analysis.has_images,
+                        "reasoning": analysis.reasoning,
+                    },
+                    indent=2,
+                )
+            )
             print()
 
         # Performance recommendations
@@ -97,6 +102,7 @@ def test_single_document(file_path: Path, verbose: bool = False):
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -113,12 +119,7 @@ def test_batch(directory: Path, verbose: bool = False):
     print(f"📂 Found {len(pdfs)} PDF(s) in {directory}")
     print()
 
-    results = {
-        "text": 0,
-        "vision": 0,
-        "hybrid": 0,
-        "total": len(pdfs)
-    }
+    results = {"text": 0, "vision": 0, "hybrid": 0, "total": len(pdfs)}
 
     for i, pdf in enumerate(pdfs, 1):
         print(f"[{i}/{len(pdfs)}] ", end="")
@@ -137,24 +138,30 @@ def test_batch(directory: Path, verbose: bool = False):
     print("📊 BATCH SUMMARY")
     print("=" * 60)
     print(f"Total Documents:     {results['total']}")
-    print(f"Text Pipeline:       {results['text']} ({results['text']/results['total']*100:.1f}%)")
-    print(f"Vision Pipeline:     {results['vision']} ({results['vision']/results['total']*100:.1f}%)")
-    print(f"Hybrid Pipeline:     {results['hybrid']} ({results['hybrid']/results['total']*100:.1f}%)")
+    print(
+        f"Text Pipeline:       {results['text']} ({results['text'] / results['total'] * 100:.1f}%)"
+    )
+    print(
+        f"Vision Pipeline:     {results['vision']} ({results['vision'] / results['total'] * 100:.1f}%)"
+    )
+    print(
+        f"Hybrid Pipeline:     {results['hybrid']} ({results['hybrid'] / results['total'] * 100:.1f}%)"
+    )
     print()
 
     # Cost/speed analysis
     print("💰 Expected Impact (vs all-VLM approach):")
-    if results['text'] > 0:
+    if results["text"] > 0:
         print(f"   • Fast text extraction: {results['text']} docs")
-        print(f"     → ~87x faster, ~90% cost savings")
+        print("     → ~87x faster, ~90% cost savings")
 
-    if results['vision'] > 0:
+    if results["vision"] > 0:
         print(f"   • VLM processing: {results['vision']} docs")
-        print(f"     → Highest accuracy for complex/scanned docs")
+        print("     → Highest accuracy for complex/scanned docs")
 
-    if results['hybrid'] > 0:
+    if results["hybrid"] > 0:
         print(f"   • Hybrid processing: {results['hybrid']} docs")
-        print(f"     → Balanced speed, accuracy, and cost")
+        print("     → Balanced speed, accuracy, and cost")
 
     print()
 
@@ -211,30 +218,24 @@ Examples:
 
   # Batch mode with verbose output
   python test_document_classifier.py ./test_pdfs/ --batch --verbose
-        """
+        """,
+    )
+
+    parser.add_argument("path", help="Path to PDF file or directory")
+
+    parser.add_argument(
+        "--batch", action="store_true", help="Batch mode: process all PDFs in directory"
     )
 
     parser.add_argument(
-        'path',
-        help='Path to PDF file or directory'
+        "--quick", action="store_true", help="Quick check mode (ultra-fast triage)"
     )
 
     parser.add_argument(
-        '--batch',
-        action='store_true',
-        help='Batch mode: process all PDFs in directory'
-    )
-
-    parser.add_argument(
-        '--quick',
-        action='store_true',
-        help='Quick check mode (ultra-fast triage)'
-    )
-
-    parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Verbose output with full analysis details'
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose output with full analysis details",
     )
 
     args = parser.parse_args()
@@ -269,7 +270,7 @@ Examples:
 
     # Single file mode
     if path.is_file():
-        if path.suffix.lower() != '.pdf':
+        if path.suffix.lower() != ".pdf":
             print("❌ Error: Only PDF files are supported")
             sys.exit(1)
 
@@ -280,5 +281,5 @@ Examples:
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

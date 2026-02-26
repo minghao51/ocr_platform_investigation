@@ -33,7 +33,7 @@ def get_schema_definition(schema_name: str, api_url: str) -> dict:
     response = requests.get(f"{api_url}/api/schemas?is_template=true")
 
     if response.status_code != 200:
-        print(f"❌ Error: Could not fetch schemas from API")
+        print("❌ Error: Could not fetch schemas from API")
         sys.exit(1)
 
     schemas = response.json()
@@ -51,18 +51,20 @@ def upload_file(file_path: str, api_url: str) -> str:
     """Upload file and return file_id."""
     upload_url = f"{api_url}/api/upload/"
 
-    with open(file_path, 'rb') as f:
-        files = {'file': (Path(file_path).name, f)}
+    with open(file_path, "rb") as f:
+        files = {"file": (Path(file_path).name, f)}
         response = requests.post(upload_url, files=files)
 
     if response.status_code != 200:
         print(f"❌ Upload failed: {response.text}")
         sys.exit(1)
 
-    return response.json()['file_id']
+    return response.json()["file_id"]
 
 
-def start_processing(file_id: str, provider: str, model: str, schema_name: str, api_url: str) -> int:
+def start_processing(
+    file_id: str, provider: str, model: str, schema_name: str, api_url: str
+) -> int:
     """Start processing and return job_id."""
     process_url = f"{api_url}/api/process/"
 
@@ -70,7 +72,7 @@ def start_processing(file_id: str, provider: str, model: str, schema_name: str, 
         "file_id": file_id,
         "provider": provider,
         "model": model,
-        "schema_name": schema_name
+        "schema_name": schema_name,
     }
 
     response = requests.post(process_url, json=payload)
@@ -79,7 +81,7 @@ def start_processing(file_id: str, provider: str, model: str, schema_name: str, 
         print(f"❌ Failed to start processing: {response.text}")
         sys.exit(1)
 
-    return response.json()['job_id']
+    return response.json()["job_id"]
 
 
 def poll_job_status(job_id: int, api_url: str, timeout: int = 120) -> dict:
@@ -101,12 +103,16 @@ def poll_job_status(job_id: int, api_url: str, timeout: int = 120) -> dict:
             sys.exit(1)
 
         job = response.json()
-        status = job['status']
+        status = job["status"]
 
         # Update status display
-        print(f"\r   Status:  {status.upper()} {'.' * ((int(time.time() - start_time) % 3) + 1)}   ", end="", flush=True)
+        print(
+            f"\r   Status:  {status.upper()} {'.' * ((int(time.time() - start_time) % 3) + 1)}   ",
+            end="",
+            flush=True,
+        )
 
-        if status in ['success', 'error']:
+        if status in ["success", "error"]:
             print(f"\r   Status:  {status.upper()} ✓")
             print()
             return job
@@ -118,13 +124,13 @@ def display_results(job: dict, schema_name: str, verbose: bool = False):
     """Display processing results."""
 
     # Processing time
-    if job.get('processing_time'):
+    if job.get("processing_time"):
         print(f"⏱️  Processing Time: {job['processing_time']:.2f} seconds")
     print()
 
     # Success case
-    if job['status'] == 'success':
-        result = job.get('result')
+    if job["status"] == "success":
+        result = job.get("result")
 
         if not result:
             print("⚠️  Warning: No result data returned")
@@ -147,9 +153,9 @@ def display_results(job: dict, schema_name: str, verbose: bool = False):
         print("   - Try different models for better results")
 
     # Error case
-    elif job['status'] == 'error':
-        error = job.get('error', 'Unknown error')
-        print(f"❌ Processing failed")
+    elif job["status"] == "error":
+        error = job.get("error", "Unknown error")
+        print("❌ Processing failed")
         print(f"   Error: {error}")
         print()
         print("💡 Common fixes:")
@@ -170,7 +176,7 @@ def list_available_providers(api_url: str):
     response = requests.get(f"{api_url}/api/providers")
 
     if response.status_code != 200:
-        print(f"❌ Error: Could not fetch providers")
+        print("❌ Error: Could not fetch providers")
         sys.exit(1)
 
     providers = response.json()
@@ -181,7 +187,7 @@ def list_available_providers(api_url: str):
     for provider in providers:
         print(f"🏢 {provider['display_name']} ({provider['name']})")
         print("   Models:")
-        for model in provider.get('models', []):
+        for model in provider.get("models", []):
             print(f"      • {model.get('id')} - {model.get('name', 'N/A')}")
         print()
 
@@ -204,54 +210,42 @@ Examples:
 
   # List available providers and models
   python test_schema_parsing.py --list-providers
-        """
+        """,
+    )
+
+    parser.add_argument("file", nargs="?", help="Path to document file (JPG, PNG, PDF)")
+
+    parser.add_argument(
+        "--schema", choices=BUILTIN_SCHEMAS, help="Schema name to use for parsing"
+    )
+
+    parser.add_argument("--provider", help="VLM provider (nebius, gemini, openrouter)")
+
+    parser.add_argument(
+        "--model", help="Specific model to use (e.g., gemini-2.5-flash)"
     )
 
     parser.add_argument(
-        'file',
-        nargs='?',
-        help='Path to document file (JPG, PNG, PDF)'
+        "--url",
+        default="http://localhost:8000",
+        help="Backend API URL (default: http://localhost:8000)",
     )
 
     parser.add_argument(
-        '--schema',
-        choices=BUILTIN_SCHEMAS,
-        help='Schema name to use for parsing'
-    )
-
-    parser.add_argument(
-        '--provider',
-        help='VLM provider (nebius, gemini, openrouter)'
-    )
-
-    parser.add_argument(
-        '--model',
-        help='Specific model to use (e.g., gemini-2.5-flash)'
-    )
-
-    parser.add_argument(
-        '--url',
-        default='http://localhost:8000',
-        help='Backend API URL (default: http://localhost:8000)'
-    )
-
-    parser.add_argument(
-        '--timeout',
+        "--timeout",
         type=int,
         default=120,
-        help='Processing timeout in seconds (default: 120)'
+        help="Processing timeout in seconds (default: 120)",
     )
 
     parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Display full job details'
+        "-v", "--verbose", action="store_true", help="Display full job details"
     )
 
     parser.add_argument(
-        '--list-providers',
-        action='store_true',
-        help='List available providers and models'
+        "--list-providers",
+        action="store_true",
+        help="List available providers and models",
     )
 
     args = parser.parse_args()
@@ -264,7 +258,9 @@ Examples:
     # Validate required arguments
     if not args.file or not args.schema:
         parser.print_help()
-        print("\n❌ Error: Both FILE and --schema are required (unless using --list-providers)")
+        print(
+            "\n❌ Error: Both FILE and --schema are required (unless using --list-providers)"
+        )
         sys.exit(1)
 
     # Validate file exists
@@ -272,7 +268,7 @@ Examples:
         print(f"❌ Error: File not found: {args.file}")
         sys.exit(1)
 
-    api_url = args.url.rstrip('/')
+    api_url = args.url.rstrip("/")
 
     print("🔍 Schema Parsing Test")
     print("=" * 50)
@@ -300,12 +296,12 @@ Examples:
 
         # Use first provider if not specified
         if not provider:
-            provider = providers[0]['name']
+            provider = providers[0]["name"]
             print(f"✅ Using provider: {providers[0]['display_name']}")
 
         # Use first model if not specified
         if not model:
-            model = providers[0]['models'][0]['id']
+            model = providers[0]["models"][0]["id"]
             print(f"✅ Using model: {model}")
 
     print(f"   Provider: {provider}")
@@ -334,5 +330,5 @@ Examples:
     display_results(job, args.schema, args.verbose)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

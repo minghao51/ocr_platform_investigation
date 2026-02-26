@@ -1,5 +1,5 @@
 import time
-from pathlib import Path
+import json
 from typing import Dict, Any, Optional
 from config import get_settings
 from services.nebius import NebiusProvider
@@ -12,12 +12,44 @@ from database import crud
 settings = get_settings()
 
 
+def parse_and_validate_response(
+    content: str,
+    schema_definition: Dict[str, Any],
+    schema_service: Optional[SchemaService] = None,
+) -> Dict[str, Any]:
+    """
+    Parse JSON content and validate against schema.
+    Returns a dict with success status and either data/error.
+    """
+    if schema_service is None:
+        schema_service = SchemaService()
+
+    try:
+        data = json.loads(content)
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                pass
+
+        is_valid, validated_data, error = schema_service.validate_data(
+            data, schema_definition
+        )
+
+        if is_valid:
+            return {"success": True, "data": validated_data}
+        else:
+            return {"success": False, "error": f"Validation failed: {error}"}
+    except json.JSONDecodeError as e:
+        return {"success": False, "error": f"Invalid JSON response: {str(e)}"}
+
+
 async def update_job_status_with_broadcast(
     job_id: int,
     status: str,
     result: Optional[Dict[str, Any]] = None,
     error_message: Optional[str] = None,
-    processing_time: Optional[float] = None
+    processing_time: Optional[float] = None,
 ):
     """
     Update job status in database and broadcast via WebSocket.
@@ -25,13 +57,12 @@ async def update_job_status_with_broadcast(
     This function combines the database update with WebSocket notification
     to keep all connected clients informed of job progress.
     """
-    # Update status in database
-    job = await update_job_status_with_broadcast(
+    job = await crud.update_job_status(
         job_id,
         status,
         result=result,
         error_message=error_message,
-        processing_time=processing_time
+        processing_time=processing_time,
     )
 
     # Broadcast update via WebSocket if job was found
@@ -39,14 +70,17 @@ async def update_job_status_with_broadcast(
         try:
             # Import here to avoid circular dependency
             from routers.websocket import broadcast_job_update
+
             await broadcast_job_update(job_id, job)
         except Exception as e:
             # Log but don't fail - WebSocket is optional
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(f"Failed to broadcast job update via WebSocket: {e}")
 
     return job
+
 
 class ProcessingService:
     """Main processing pipeline"""
@@ -55,7 +89,7 @@ class ProcessingService:
         self.providers = {
             "nebius": NebiusProvider,
             "openrouter": OpenRouterProvider,
-            "gemini": GeminiProvider
+            "gemini": GeminiProvider,
         }
         self.image_service = ImageService()
         self.schema_service = SchemaService()
@@ -77,7 +111,7 @@ class ProcessingService:
         model: str,
         schema_definition: Dict[str, Any],
         prompt: str,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process a file (image or PDF)"""
 
@@ -103,7 +137,7 @@ class ProcessingService:
         model: str,
         schema_definition: Dict[str, Any],
         prompt: str,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process a single image"""
 
@@ -115,50 +149,36 @@ class ProcessingService:
         image = self.image_service.resize_image(image, target_size)
 
         # Process with VLM
-        result = await provider.process_image(image, prompt, schema_definition, model, **kwargs)
+        result = await provider.process_image(
+            image, prompt, schema_definition, model, **kwargs
+        )
 
         # Check for provider-level errors
         if "error" in result:
             return {
                 "success": False,
                 "error": f"Provider error: {result['error']}",
-                "raw_response": result
+                "raw_response": result,
             }
 
         # Validate result
         content = result.get("content", "{}")
 
-        try:
-            import json
-            import json
-            data = json.loads(content)
-            # Handle double-encoded JSON (if the model returns a JSON string wrapped in a string)
-            if isinstance(data, str):
-                try:
-                    data = json.loads(data)
-                except json.JSONDecodeError:
-                    pass  # Keep as string if it's not valid JSON
-            is_valid, validated_data, error = self.schema_service.validate_data(
-                data, schema_definition
-            )
+        validation_result = parse_and_validate_response(
+            content, schema_definition, self.schema_service
+        )
 
-            if is_valid:
-                return {
-                    "success": True,
-                    "data": validated_data,
-                    "raw_response": result
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Validation failed: {error}",
-                    "raw_response": result
-                }
-        except json.JSONDecodeError as e:
+        if validation_result["success"]:
+            return {
+                "success": True,
+                "data": validation_result["data"],
+                "raw_response": result,
+            }
+        else:
             return {
                 "success": False,
-                "error": f"Invalid JSON response: {str(e)}",
-                "raw_response": result
+                "error": validation_result["error"],
+                "raw_response": result,
             }
 
     async def _process_pdf(
@@ -168,7 +188,7 @@ class ProcessingService:
         model: str,
         schema_definition: Dict[str, Any],
         prompt: str,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """Process PDF (multiple pages)"""
 
@@ -184,45 +204,40 @@ class ProcessingService:
             resized = self.image_service.resize_image(image, target_size)
 
             # Process
-            result = await provider.process_image(resized, prompt, schema_definition, model, **kwargs)
+            result = await provider.process_image(
+                resized, prompt, schema_definition, model, **kwargs
+            )
 
             # Check for provider-level errors
             if "error" in result:
-                errors.append(f"Page {i+1}: {result['error']}")
+                errors.append(f"Page {i + 1}: {result['error']}")
                 continue
 
             # Validate
             content = result.get("content", "{}")
-            try:
-                import json
-                data = json.loads(content)
-                is_valid, validated_data, error = self.schema_service.validate_data(
-                    data, schema_definition
-                )
+            validation_result = parse_and_validate_response(
+                content, schema_definition, self.schema_service
+            )
 
-                if is_valid:
-                    results.append(validated_data)
-                else:
-                    errors.append(f"Page {i+1}: {error}")
-            except json.JSONDecodeError as e:
-                errors.append(f"Page {i+1}: Invalid JSON - {str(e)}")
+            if validation_result["success"]:
+                results.append(validation_result["data"])
+            else:
+                errors.append(f"Page {i + 1}: {validation_result['error']}")
 
         return {
             "success": len(errors) == 0,
             "data": results,
             "errors": errors if errors else None,
             "total_pages": len(images),
-            "successful_pages": len(results)
+            "successful_pages": len(results),
         }
+
 
 async def run_processing_job(job_id: int, file_path: str) -> None:
     """
     Run vision extraction job (processes images/PDFs as images using VLMs).
     Best for: Scanned documents, images, PDFs with visual elements.
     """
-
-    from config import get_settings
-    from pathlib import Path
 
     # Get job details
     job = await crud.get_job(job_id)
@@ -233,14 +248,15 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
     await update_job_status_with_broadcast(job_id, "processing")
 
     # Determine file type from job record
-    file_type = job['file_type']
+    file_type = job["file_type"]
 
     # Get schema
-    if job['schema_id']:
-        schema_record = await crud.get_schema(job['schema_id'])
+    if job["schema_id"]:
+        schema_record = await crud.get_schema(job["schema_id"])
         if schema_record:
             import json
-            schema_definition = json.loads(schema_record['definition'])
+
+            schema_definition = json.loads(schema_record["definition"])
         else:
             schema_definition = SchemaService.get_builtin_templates()["Generic"]
     else:
@@ -260,12 +276,12 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
             file_id=str(job_id),  # Use job_id as file_id reference
             file_path=file_path,  # Use the provided file_path
             file_type=file_type,
-            provider_name=job['provider'],
-            model=job['model'],
+            provider_name=job["provider"],
+            model=job["model"],
             schema_definition=schema_definition,
             prompt="Extract all information from this document",
             temperature=0.1,
-            max_tokens=4096
+            max_tokens=4096,
         )
 
         print(f"Processing completed for job {job_id}")
@@ -273,24 +289,25 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
 
         processing_time = time.time() - start_time
 
-        if result['success']:
+        if result["success"]:
             await update_job_status_with_broadcast(
                 job_id,
                 "success",
-                result=result.get('data'),
-                processing_time=processing_time
+                result=result.get("data"),
+                processing_time=processing_time,
             )
         else:
             await update_job_status_with_broadcast(
                 job_id,
                 "error",
-                error_message=result.get('error'),
-                processing_time=processing_time
+                error_message=result.get("error"),
+                processing_time=processing_time,
             )
 
     except Exception as e:
         processing_time = time.time() - start_time
         import traceback
+
         error_details = f"{type(e).__name__}: {str(e)}"
         print(f"ERROR processing job {job_id}: {error_details}")
         print(f"Traceback: {traceback.format_exc()}")
@@ -298,8 +315,9 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
             job_id,
             "error",
             error_message=error_details,
-            processing_time=processing_time
+            processing_time=processing_time,
         )
+
 
 async def run_text_processing_job(job_id: int, file_path: str) -> None:
     """
@@ -311,8 +329,6 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
     from services.text_extraction import TextExtractionService
     from database import crud
     from services.schema_service import SchemaService
-    import time
-    import json
 
     settings = get_settings()
 
@@ -325,23 +341,21 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
     await update_job_status_with_broadcast(job_id, "processing")
 
     # Get schema
-    if job['schema_id']:
-        schema_record = await crud.get_schema(job['schema_id'])
+    if job["schema_id"]:
+        schema_record = await crud.get_schema(job["schema_id"])
         if schema_record:
-            schema_definition = json.loads(schema_record['definition'])
+            schema_definition = json.loads(schema_record["definition"])
         else:
             schema_definition = SchemaService.get_builtin_templates()["Generic"]
     else:
         schema_definition = SchemaService.get_builtin_templates()["Generic"]
 
     # Get API key
-    provider_name = job['provider']
+    provider_name = job["provider"]
     api_key = getattr(settings, f"{provider_name}_api_key")
     if not api_key:
         await update_job_status_with_broadcast(
-            job_id,
-            "error",
-            error_message=f"No API key configured for {provider_name}"
+            job_id, "error", error_message=f"No API key configured for {provider_name}"
         )
         return
 
@@ -363,7 +377,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
                 job_id,
                 "error",
                 error_message="This PDF appears to be image-based. Please use the Vision Extraction tab instead.",
-                processing_time=time.time() - start_time
+                processing_time=time.time() - start_time,
             )
             return
 
@@ -373,7 +387,7 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
         providers = {
             "nebius": NebiusProvider,
             "openrouter": OpenRouterProvider,
-            "gemini": GeminiProvider
+            "gemini": GeminiProvider,
         }
 
         provider_class = providers.get(provider_name)
@@ -385,9 +399,9 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
                 text=extracted_text,
                 prompt="Extract all information from this document",
                 schema_definition=schema_definition,
-                model=job['model'],
+                model=job["model"],
                 temperature=0.1,
-                max_tokens=4096
+                max_tokens=4096,
             )
 
         # Check for errors
@@ -396,49 +410,37 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
                 job_id,
                 "error",
                 error_message=f"Provider error: {result['error']}",
-                processing_time=time.time() - start_time
+                processing_time=time.time() - start_time,
             )
             return
 
         # Validate result
         content = result.get("content", "{}")
-        try:
-            data = json.loads(content)
-            if isinstance(data, str):
-                data = json.loads(data)
+        schema_service = SchemaService()
+        validation_result = parse_and_validate_response(
+            content, schema_definition, schema_service
+        )
 
-            schema_service = SchemaService()
-            is_valid, validated_data, error = schema_service.validate_data(
-                data, schema_definition
+        if validation_result["success"]:
+            await update_job_status_with_broadcast(
+                job_id,
+                "success",
+                result=validation_result["data"],
+                processing_time=time.time() - start_time,
             )
-
-            if is_valid:
-                await update_job_status_with_broadcast(
-                    job_id,
-                    "success",
-                    result=validated_data,
-                    processing_time=time.time() - start_time
-                )
-                print(f"Processing completed for job {job_id}")
-            else:
-                await update_job_status_with_broadcast(
-                    job_id,
-                    "error",
-                    error_message=f"Validation failed: {error}",
-                    processing_time=time.time() - start_time
-                )
-
-        except json.JSONDecodeError as e:
+            print(f"Processing completed for job {job_id}")
+        else:
             await update_job_status_with_broadcast(
                 job_id,
                 "error",
-                error_message=f"Invalid JSON response: {str(e)}",
-                processing_time=time.time() - start_time
+                error_message=validation_result["error"],
+                processing_time=time.time() - start_time,
             )
 
     except Exception as e:
         processing_time = time.time() - start_time
         import traceback
+
         error_details = f"{type(e).__name__}: {str(e)}"
         print(f"ERROR processing job {job_id}: {error_details}")
         print(f"Traceback: {traceback.format_exc()}")
@@ -446,6 +448,5 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
             job_id,
             "error",
             error_message=error_details,
-            processing_time=processing_time
+            processing_time=processing_time,
         )
-

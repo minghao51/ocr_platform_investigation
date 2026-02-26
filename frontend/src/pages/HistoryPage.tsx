@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
 import { listJobs, getJob, deleteJob, Job } from '../lib/api';
 import ResultsDisplay from '../components/ResultsDisplay';
+import LoginPanel from '@/components/LoginPanel';
 
-export default function HistoryPage() {
+interface HistoryPageProps {
+  isAuthenticated: boolean;
+  onLoginSuccess: () => void;
+}
+
+export default function HistoryPage({ isAuthenticated, onLoginSuccess }: HistoryPageProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -10,10 +16,21 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState({ status: '', provider: '' });
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setJobs([]);
+      setSelectedJob(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     loadJobs();
-  }, [filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, isAuthenticated]);
 
   const loadJobs = async () => {
+    if (!isAuthenticated) {
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +91,24 @@ export default function HistoryPage() {
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Processing History</h1>
 
+      {!isAuthenticated && (
+        <div className="max-w-xl">
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-100 p-4">
+            <p className="text-sm text-gray-700">
+              Login required to view your processing history and past OCR results.
+            </p>
+          </div>
+          <LoginPanel
+            onLoginSuccess={onLoginSuccess}
+            title="Login Required for History"
+            subtitle="Sign in to view, inspect, and delete your OCR jobs."
+          />
+        </div>
+      )}
+
+      {isAuthenticated && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
         {/* Job List */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow p-4">
@@ -192,6 +226,7 @@ export default function HistoryPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

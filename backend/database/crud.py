@@ -12,13 +12,16 @@ DB_PATH = Path("./data/ocr_platform.db")
 # User CRUD Operations
 # ============================================================================
 
-async def create_user(username: str, hashed_password: str, is_admin: bool = True, is_limited: bool = False) -> int:
+
+async def create_user(
+    username: str, hashed_password: str, is_admin: bool = True, is_limited: bool = False
+) -> int:
     """Create a new user."""
     async with connect() as db:
         cursor = await db.execute(
             """INSERT INTO users (username, hashed_password, is_admin, is_limited)
                VALUES (?, ?, ?, ?)""",
-            (username, hashed_password, is_admin, is_limited)
+            (username, hashed_password, is_admin, is_limited),
         )
         await db.commit()
         return cursor.lastrowid
@@ -28,10 +31,7 @@ async def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
     """Get user by username."""
     async with connect() as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT * FROM users WHERE username = ?",
-            (username,)
-        )
+        cursor = await db.execute("SELECT * FROM users WHERE username = ?", (username,))
         row = await cursor.fetchone()
         if row:
             return dict(row)
@@ -42,10 +42,7 @@ async def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     """Get user by ID."""
     async with connect() as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT * FROM users WHERE id = ?",
-            (user_id,)
-        )
+        cursor = await db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
         row = await cursor.fetchone()
         if row:
             return dict(row)
@@ -69,38 +66,36 @@ async def list_users() -> List[Dict[str, Any]]:
 # Original CRUD Operations (will be updated with user_id)
 # ============================================================================
 
+
 async def create_schema(
     name: str,
     definition: Dict[str, Any],
     description: Optional[str] = None,
-    is_template: bool = False
+    is_template: bool = False,
 ) -> int:
     """Create a new schema"""
     async with connect() as db:
         cursor = await db.execute(
             """INSERT INTO schemas (name, description, definition, is_template)
                VALUES (?, ?, ?, ?)""",
-            (name, description, json.dumps(definition), is_template)
+            (name, description, json.dumps(definition), is_template),
         )
         await db.commit()
         return cursor.lastrowid
+
 
 async def get_schema(schema_id: int) -> Optional[Dict[str, Any]]:
     """Get schema by ID"""
     async with connect() as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT * FROM schemas WHERE id = ?",
-            (schema_id,)
-        )
+        cursor = await db.execute("SELECT * FROM schemas WHERE id = ?", (schema_id,))
         row = await cursor.fetchone()
         if row:
             return dict(row)
         return None
 
-async def list_schemas(
-    is_template: Optional[bool] = None
-) -> List[Dict[str, Any]]:
+
+async def list_schemas(is_template: Optional[bool] = None) -> List[Dict[str, Any]]:
     """List all schemas"""
     async with connect() as db:
         db.row_factory = aiosqlite.Row
@@ -108,15 +103,14 @@ async def list_schemas(
         if is_template is not None:
             cursor = await db.execute(
                 "SELECT * FROM schemas WHERE is_template = ? ORDER BY name",
-                (is_template,)
+                (is_template,),
             )
         else:
-            cursor = await db.execute(
-                "SELECT * FROM schemas ORDER BY name"
-            )
+            cursor = await db.execute("SELECT * FROM schemas ORDER BY name")
 
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
+
 
 async def create_job(
     file_name: str,
@@ -126,7 +120,7 @@ async def create_job(
     schema_id: Optional[int],
     schema_name: Optional[str],
     processing_method: str = "vision",
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
 ) -> int:
     """Create a new processing job"""
     async with connect() as db:
@@ -134,17 +128,28 @@ async def create_job(
             """INSERT INTO processing_jobs
                (file_name, file_type, provider, model, schema_id, schema_name, status, processing_method, user_id)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (file_name, file_type, provider, model, schema_id, schema_name, "pending", processing_method, user_id)
+            (
+                file_name,
+                file_type,
+                provider,
+                model,
+                schema_id,
+                schema_name,
+                "pending",
+                processing_method,
+                user_id,
+            ),
         )
         await db.commit()
         return cursor.lastrowid
+
 
 async def update_job_status(
     job_id: int,
     status: str,
     result: Optional[Dict[str, Any]] = None,
     error_message: Optional[str] = None,
-    processing_time: Optional[float] = None
+    processing_time: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Update job status and return the updated job data.
@@ -158,7 +163,13 @@ async def update_job_status(
                 """UPDATE processing_jobs
                    SET status = ?, result = ?, completed_at = ?, processing_time_seconds = ?
                    WHERE id = ?""",
-                (status, json.dumps(result) if result else None, completed_at, processing_time, job_id)
+                (
+                    status,
+                    json.dumps(result) if result else None,
+                    completed_at,
+                    processing_time,
+                    job_id,
+                ),
             )
         elif status == "error":
             completed_at = datetime.now().isoformat()
@@ -166,44 +177,43 @@ async def update_job_status(
                 """UPDATE processing_jobs
                    SET status = ?, error_message = ?, completed_at = ?, processing_time_seconds = ?
                    WHERE id = ?""",
-                (status, error_message, completed_at, processing_time, job_id)
+                (status, error_message, completed_at, processing_time, job_id),
             )
         else:
             await db.execute(
-                "UPDATE processing_jobs SET status = ? WHERE id = ?",
-                (status, job_id)
+                "UPDATE processing_jobs SET status = ? WHERE id = ?", (status, job_id)
             )
         await db.commit()
 
         # Fetch and return the updated job
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM processing_jobs WHERE id = ?",
-            (job_id,)
+            "SELECT * FROM processing_jobs WHERE id = ?", (job_id,)
         )
         row = await cursor.fetchone()
         if row:
             return dict(row)
         return None
+
 
 async def get_job(job_id: int) -> Optional[Dict[str, Any]]:
     """Get job by ID"""
     async with connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM processing_jobs WHERE id = ?",
-            (job_id,)
+            "SELECT * FROM processing_jobs WHERE id = ?", (job_id,)
         )
         row = await cursor.fetchone()
         if row:
             return dict(row)
         return None
 
+
 async def list_jobs(
     status: Optional[str] = None,
     provider: Optional[str] = None,
     user_id: Optional[int] = None,
-    limit: int = 100
+    limit: int = 100,
 ) -> List[Dict[str, Any]]:
     """List jobs with optional filters"""
     async with connect() as db:
@@ -231,6 +241,7 @@ async def list_jobs(
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
+
 async def delete_job(job_id: int) -> bool:
     """Delete a job"""
     async with connect() as db:
@@ -243,7 +254,9 @@ async def update_job_metadata(job_id: int, metadata: Dict[str, Any]) -> None:
     """Update job metadata (stored in result field as JSON)"""
     async with connect() as db:
         # Get current job data
-        cursor = await db.execute("SELECT result FROM processing_jobs WHERE id = ?", (job_id,))
+        cursor = await db.execute(
+            "SELECT result FROM processing_jobs WHERE id = ?", (job_id,)
+        )
         row = await cursor.fetchone()
         if not row:
             return
@@ -259,9 +272,10 @@ async def update_job_metadata(job_id: int, metadata: Dict[str, Any]) -> None:
         # Update the result field with the merged data
         await db.execute(
             "UPDATE processing_jobs SET result = ? WHERE id = ?",
-            (json.dumps(existing_result), job_id)
+            (json.dumps(existing_result), job_id),
         )
         await db.commit()
+
 
 async def create_uploaded_file(
     file_id: str,
@@ -269,26 +283,35 @@ async def create_uploaded_file(
     file_extension: str,
     file_path: str,
     file_size: int,
-    content_type: str
+    content_type: str,
+    user_id: Optional[int] = None,
 ) -> int:
     """Create a new uploaded file record"""
     async with connect() as db:
         cursor = await db.execute(
             """INSERT INTO uploaded_files
-               (file_id, original_filename, file_extension, file_path, file_size, content_type)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (file_id, original_filename, file_extension, file_path, file_size, content_type)
+               (file_id, original_filename, file_extension, file_path, file_size, content_type, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                file_id,
+                original_filename,
+                file_extension,
+                file_path,
+                file_size,
+                content_type,
+                user_id,
+            ),
         )
         await db.commit()
         return cursor.lastrowid
+
 
 async def get_uploaded_file(file_id: str) -> Optional[Dict[str, Any]]:
     """Get uploaded file by file_id"""
     async with connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM uploaded_files WHERE file_id = ?",
-            (file_id,)
+            "SELECT * FROM uploaded_files WHERE file_id = ?", (file_id,)
         )
         row = await cursor.fetchone()
         if row:

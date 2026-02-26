@@ -4,6 +4,7 @@ from pathlib import Path
 
 DB_PATH = Path("./data/ocr_platform.db")
 
+
 async def migrate_processing_method():
     """Add processing_method column to existing processing_jobs table"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -68,9 +69,7 @@ async def migrate_user_id_to_jobs():
 
         if "user_id" not in column_names:
             print("Adding user_id column to processing_jobs table...")
-            await db.execute(
-                "ALTER TABLE processing_jobs ADD COLUMN user_id INTEGER"
-            )
+            await db.execute("ALTER TABLE processing_jobs ADD COLUMN user_id INTEGER")
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON processing_jobs(user_id)"
             )
@@ -78,6 +77,7 @@ async def migrate_user_id_to_jobs():
             print("✓ Added user_id column")
         else:
             print("✓ user_id column already exists")
+
 
 async def init_database():
     """Initialize database with schema"""
@@ -92,6 +92,7 @@ async def init_database():
         await db.commit()
 
         print(f"Database initialized at {DB_PATH}")
+
 
 async def migrate_user_usage_tracking():
     """Add usage tracking columns to users table"""
@@ -108,9 +109,7 @@ async def migrate_user_usage_tracking():
             await db.execute(
                 "ALTER TABLE users ADD COLUMN daily_requests INTEGER DEFAULT 0"
             )
-            await db.execute(
-                "ALTER TABLE users ADD COLUMN last_request_date TEXT"
-            )
+            await db.execute("ALTER TABLE users ADD COLUMN last_request_date TEXT")
             await db.execute(
                 "ALTER TABLE users ADD COLUMN is_limited BOOLEAN DEFAULT 0"
             )
@@ -120,13 +119,38 @@ async def migrate_user_usage_tracking():
             print("✓ Usage tracking columns already exist")
 
 
+async def migrate_user_id_to_uploaded_files():
+    """Add user_id column to uploaded_files table"""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("PRAGMA table_info(uploaded_files)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+
+        if "user_id" not in column_names:
+            print("Adding user_id column to uploaded_files table...")
+            await db.execute("ALTER TABLE uploaded_files ADD COLUMN user_id INTEGER")
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_uploaded_files_user_id ON uploaded_files(user_id)"
+            )
+            await db.commit()
+            print("✓ Added user_id column to uploaded_files")
+        else:
+            print("✓ uploaded_files.user_id already exists")
+
+
 async def run_migrations():
     """Run all database migrations"""
+    if not DB_PATH.exists():
+        await init_database()
     await migrate_processing_method()
     await migrate_users_table()
     await migrate_user_id_to_jobs()
     await migrate_user_usage_tracking()
+    await migrate_user_id_to_uploaded_files()
     print("All migrations completed successfully")
+
 
 if __name__ == "__main__":
     asyncio.run(run_migrations())
