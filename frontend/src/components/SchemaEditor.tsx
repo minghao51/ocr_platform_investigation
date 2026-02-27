@@ -31,7 +31,7 @@ export default function SchemaEditor({
   const [loading, setLoading] = useState(true);
 
   // In restricted mode, only use visual builder
-  const [mode, setMode] = useState<'visual' | 'json'>(restrictedMode ? 'visual' : 'visual');
+  const [mode, setMode] = useState<'visual' | 'json'>('visual');
   const [fields, setFields] = useState<SchemaField[]>([]);
 
   // JSON state
@@ -105,7 +105,7 @@ export default function SchemaEditor({
     newFields.forEach(field => {
       if (!field.name) return;
 
-      const fieldDef: Record<string, unknown> = {
+      let fieldDef: Record<string, unknown> = {
         type: field.type,
         description: field.description
       };
@@ -177,6 +177,7 @@ export default function SchemaEditor({
   };
 
   const handleTemplateSelect = (template: Schema) => {
+    setMode('visual');
     onSchemaSelect(template.id!);
     onDefinitionChange(template.definition);
   };
@@ -202,7 +203,7 @@ export default function SchemaEditor({
               key={template.name}
               type="button"
               onClick={() => handleTemplateSelect(template)}
-              className={`px-3 py-2 text-left rounded-md border transition-colors ${schemaDefinition && template.name === schemaDefinition?.type?.split('-')[0] // simplistic check
+              className={`px-3 py-2 text-left rounded-md border transition-colors ${schemaId === template.id
                 ? 'border-blue-500 bg-blue-50 text-blue-700'
                 : 'border-gray-300 hover:border-gray-400'
                 }`}
@@ -224,17 +225,19 @@ export default function SchemaEditor({
           >
             Visual Builder
           </button>
-          <button
-            className={`flex-1 py-2 text-sm font-medium ${mode === 'json' ? 'bg-white text-blue-600' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            onClick={() => setMode('json')}
-          >
-            JSON Code
-          </button>
+          {!restrictedMode && (
+            <button
+              className={`flex-1 py-2 text-sm font-medium ${mode === 'json' ? 'bg-white text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              onClick={() => setMode('json')}
+            >
+              JSON Code
+            </button>
+          )}
         </div>
 
         <div className="p-4">
-          {mode === 'visual' ? (
+          {mode === 'visual' || restrictedMode ? (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-medium text-gray-700">Fields to Extract</h3>

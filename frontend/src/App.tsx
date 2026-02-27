@@ -1,13 +1,42 @@
 import { useState, useEffect } from 'react';
+import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
 import ProcessingPage from './pages/ProcessingPage';
 import MethodologyPage from './pages/MethodologyPage';
 import HistoryPage from './pages/HistoryPage';
 import { isAuthenticated, logout, getCurrentUser } from '@/lib/api';
 
-type Page = 'processing' | 'history' | 'methodology';
+const navItems: Array<{
+  to: string;
+  label: string;
+  end?: boolean;
+  icon?: React.ReactNode;
+}> = [
+  {
+    to: '/',
+    label: 'Home',
+    end: true,
+  },
+  {
+    to: '/extract',
+    label: 'Extract',
+    icon: (
+      <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/history',
+    label: 'History',
+  },
+  {
+    to: '/methodology',
+    label: 'Methodology',
+  },
+];
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('processing');
   const [authUser, setAuthUser] = useState(getCurrentUser());
 
   useEffect(() => {
@@ -29,40 +58,23 @@ function App() {
               <div className="flex-shrink-0 flex items-center">
                 <h1 className="text-xl font-bold text-gray-900">OCR Platform</h1>
               </div>
-              <div className="ml-6 flex space-x-8">
-                <button
-                  onClick={() => setCurrentPage('processing')}
-                  className={'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ' +
-                    (currentPage === 'processing'
-                      ? 'border-blue-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    )}
-                >
-                  <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Extract
-                </button>
-                <button
-                  onClick={() => setCurrentPage('history')}
-                  className={'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ' +
-                    (currentPage === 'history'
-                      ? 'border-blue-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    )}
-                >
-                  History
-                </button>
-                <button
-                  onClick={() => setCurrentPage('methodology')}
-                  className={'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ' +
-                    (currentPage === 'methodology'
-                      ? 'border-blue-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    )}
-                >
-                  Methodology
-                </button>
+              <div className="ml-6 hidden sm:flex space-x-8">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ' +
+                      (isActive
+                        ? 'border-blue-500 text-gray-900'
+                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700')
+                    }
+                  >
+                    {item.icon}
+                    {item.label}
+                  </NavLink>
+                ))}
               </div>
             </div>
             <div className="flex items-center">
@@ -88,24 +100,59 @@ function App() {
               )}
             </div>
           </div>
+          <div className="sm:hidden pb-3 flex gap-4 overflow-x-auto">
+            {navItems.map((item) => (
+              <NavLink
+                key={`mobile-${item.to}`}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  'inline-flex items-center whitespace-nowrap px-2 py-1 rounded-md text-sm font-medium transition-colors ' +
+                  (isActive
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800')
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
         </div>
       </nav>
 
       {/* Page Content */}
       <main className="bg-gray-50">
-        {currentPage === 'processing' && (
-          <ProcessingPage
-            isAuthenticated={authenticated}
-            onLoginSuccess={handleAuthChanged}
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <LandingPage
+                isAuthenticated={authenticated}
+                username={authUser?.username}
+              />
+            }
           />
-        )}
-        {currentPage === 'history' && (
-          <HistoryPage
-            isAuthenticated={authenticated}
-            onLoginSuccess={handleAuthChanged}
+          <Route
+            path="/extract"
+            element={
+              <ProcessingPage
+                isAuthenticated={authenticated}
+                onLoginSuccess={handleAuthChanged}
+              />
+            }
           />
-        )}
-        {currentPage === 'methodology' && <MethodologyPage />}
+          <Route
+            path="/history"
+            element={
+              <HistoryPage
+                isAuthenticated={authenticated}
+                onLoginSuccess={handleAuthChanged}
+              />
+            }
+          />
+          <Route path="/methodology" element={<MethodologyPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
     </div>
   );
