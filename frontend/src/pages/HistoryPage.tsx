@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { listJobs, getJob, deleteJob, Job } from '../lib/api';
 import ResultsDisplay from '../components/ResultsDisplay';
 import LoginPanel from '@/components/LoginPanel';
+import { SkeletonList } from '@/components/LoadingSpinner';
 
 interface HistoryPageProps {
   isAuthenticated: boolean;
@@ -149,11 +150,7 @@ export default function HistoryPage({ isAuthenticated, onLoginSuccess }: History
 
             <h2 className="text-lg font-semibold mb-4">Jobs ({jobs.length})</h2>
             {loading ? (
-              <div className="animate-pulse space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-16 bg-gray-200 rounded"></div>
-                ))}
-              </div>
+              <SkeletonList count={5} />
             ) : error ? (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
                 <p className="text-sm text-red-800 mb-3">{error}</p>

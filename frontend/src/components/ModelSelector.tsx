@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { listProviders, Provider } from '../lib/api';
+import { Skeleton } from './LoadingSpinner';
 
 interface ModelSelectorProps {
   provider: string;
@@ -64,9 +65,13 @@ export default function ModelSelector({
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-10 bg-gray-200 rounded mb-4"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
+        <div>
+          <Skeleton className="h-4 w-20 mb-2" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div>
+          <Skeleton className="h-4 w-16 mb-2" />
+          <Skeleton className="h-10 w-full" />
         </div>
       </div>
     );

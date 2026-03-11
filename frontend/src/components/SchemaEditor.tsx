@@ -4,20 +4,20 @@ import Editor from 'react-simple-code-editor';
 import { highlight, languages } from 'prismjs';
 import 'prismjs/components/prism-json';
 import 'prismjs/themes/prism.css';
+import {
+  type FieldError,
+  type SchemaField,
+  MAX_FIELDS,
+  validateFields,
+} from './schemaEditorValidation';
 
 interface SchemaEditorProps {
   schemaId: number | null;
   schemaDefinition: Record<string, unknown> | null;
   onSchemaSelect: (schemaId: number) => void;
   onDefinitionChange: (definition: Record<string, unknown>) => void;
-  restrictedMode?: boolean; // Hide JSON editor for test users
-}
-
-interface SchemaField {
-  id: string;
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'array';
-  description: string;
+  onValidityChange?: (isValid: boolean) => void;
+  restrictedMode?: boolean;
 }
 
 export default function SchemaEditor({
@@ -25,18 +25,19 @@ export default function SchemaEditor({
   schemaDefinition,
   onSchemaSelect,
   onDefinitionChange,
+  onValidityChange,
   restrictedMode = false,
 }: SchemaEditorProps) {
   const [templates, setTemplates] = useState<Schema[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // In restricted mode, only use visual builder
   const [mode, setMode] = useState<'visual' | 'json'>('visual');
   const [fields, setFields] = useState<SchemaField[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, FieldError>>({});
 
-  // JSON state
   const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [jsonSchemaError, setJsonSchemaError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTemplates();
@@ -49,16 +50,27 @@ export default function SchemaEditor({
       const jsonStr = JSON.stringify(schemaDefinition, null, 2);
       setJsonInput(jsonStr);
       setJsonError(null);
+      setJsonSchemaError(null);
 
       // Try to parse into visual fields
       try {
         const visualFields = parseSchemaToFields(schemaDefinition);
+        const nextErrors = validateFields(visualFields);
         setFields(visualFields);
+        setFieldErrors(nextErrors);
+        onValidityChange?.(Object.keys(nextErrors).length === 0);
       } catch (e) {
         console.log('Schema too complex for visual builder', e);
       }
+    } else {
+      setFields([]);
+      setFieldErrors({});
+      setJsonInput('');
+      setJsonError(null);
+      setJsonSchemaError(null);
+      onValidityChange?.(false);
     }
-  }, [schemaDefinition]);
+  }, [onValidityChange, schemaDefinition]);
 
   const loadTemplates = async () => {
     try {
@@ -126,13 +138,26 @@ export default function SchemaEditor({
     const newSchema = {
       type: 'object',
       properties,
-      required: Object.keys(properties) // Default all to required for now
+      required: Object.keys(properties)
     };
 
     onDefinitionChange(newSchema);
   };
 
+  const validateJsonSchema = (parsed: Record<string, unknown>): string | null => {
+    if (parsed.type !== 'object') {
+      return 'Root schema must have type: "object"';
+    }
+    if (!parsed.properties || typeof parsed.properties !== 'object') {
+      return 'Schema must have a "properties" object';
+    }
+    return null;
+  };
+
   const handleAddField = () => {
+    if (fields.length >= MAX_FIELDS) {
+      return;
+    }
     const newField: SchemaField = {
       id: Date.now().toString(),
       name: '',
@@ -140,7 +165,10 @@ export default function SchemaEditor({
       description: ''
     };
     const newFields = [...fields, newField];
+    const nextErrors = validateFields(newFields);
     setFields(newFields);
+    setFieldErrors(nextErrors);
+    onValidityChange?.(false);
   };
 
   const handleFieldChange = (id: string, key: keyof SchemaField, value: string) => {
@@ -150,29 +178,54 @@ export default function SchemaEditor({
       }
       return f;
     });
+    const nextErrors = validateFields(newFields);
     setFields(newFields);
-    updateSchemaFromFields(newFields);
+    setFieldErrors(nextErrors);
+    onValidityChange?.(Object.keys(nextErrors).length === 0);
+
+    // Keep the editor interactive, but only publish valid schemas.
+    if (Object.keys(nextErrors).length === 0) {
+      updateSchemaFromFields(newFields);
+    }
   };
 
   const handleRemoveField = (id: string) => {
     const newFields = fields.filter(f => f.id !== id);
+    const nextErrors = validateFields(newFields);
     setFields(newFields);
-    updateSchemaFromFields(newFields);
+    setFieldErrors(nextErrors);
+    onValidityChange?.(Object.keys(nextErrors).length === 0);
+    if (Object.keys(nextErrors).length === 0) {
+      updateSchemaFromFields(newFields);
+    }
   };
 
   // --- JSON Editor Logic ---
 
   const handleJsonChange = (value: string) => {
-    setJsonInput(value); // Always update text input
+    setJsonInput(value);
 
     try {
       const parsed = JSON.parse(value);
       setJsonError(null);
+      
+      const schemaError = validateJsonSchema(parsed);
+      if (schemaError) {
+        setJsonSchemaError(schemaError);
+        onValidityChange?.(false);
+        return;
+      }
+      setJsonSchemaError(null);
+      
+      const nextFields = parseSchemaToFields(parsed);
+      const nextErrors = validateFields(nextFields);
       onDefinitionChange(parsed);
-      // Try to sync back to visual
-      setFields(parseSchemaToFields(parsed));
+      setFields(nextFields);
+      setFieldErrors(nextErrors);
+      onValidityChange?.(Object.keys(nextErrors).length === 0);
     } catch (err) {
       setJsonError(err instanceof Error ? err.message : 'Invalid JSON');
+      onValidityChange?.(false);
     }
   };
 
@@ -243,6 +296,12 @@ export default function SchemaEditor({
                 <h3 className="text-sm font-medium text-gray-700">Fields to Extract</h3>
               </div>
 
+              {Object.keys(fieldErrors).length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Fix the highlighted field errors before the schema definition is updated.
+                </div>
+              )}
+
               {fields.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-md border border-dashed border-gray-300">
                   <p className="text-sm text-gray-500 mb-2">No fields defined yet</p>
@@ -255,8 +314,11 @@ export default function SchemaEditor({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {fields.map((field) => (
-                    <div key={field.id} className="flex gap-2 items-start bg-gray-50 p-3 rounded-md border border-gray-200">
+                  {fields.map((field) => {
+                    const error = fieldErrors[field.id];
+                    const hasError = Boolean(error && (error.name || error.duplicate));
+                    return (
+                    <div key={field.id} className={`flex gap-2 items-start bg-gray-50 p-3 rounded-md border ${hasError ? 'border-red-300' : 'border-gray-200'}`}>
                       <div className="flex-1 space-y-2">
                         <div className="flex gap-2">
                           <div className="w-1/3">
@@ -266,8 +328,14 @@ export default function SchemaEditor({
                               value={field.name}
                               onChange={(e) => handleFieldChange(field.id, 'name', e.target.value)}
                               placeholder="e.g. invoice_total"
-                              className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                              className={`w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${error?.name ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
                             />
+                            {error?.name && (
+                              <p className="text-xs text-red-500 mt-1">{error.name}</p>
+                            )}
+                            {error?.duplicate && (
+                              <p className="text-xs text-red-500 mt-1">Duplicate field name</p>
+                            )}
                           </div>
                           <div className="w-1/3">
                             <label className="text-xs text-gray-500 block mb-1">Type</label>
@@ -283,7 +351,6 @@ export default function SchemaEditor({
                             </select>
                           </div>
                           <div className="w-1/3">
-                            {/* Delete button wrapper to align with inputs */}
                             <div className="h-[21px] mb-1"></div>
                           </div>
                         </div>
@@ -308,13 +375,20 @@ export default function SchemaEditor({
                         </svg>
                       </button>
                     </div>
-                  ))}
+                  )})}
 
                   <button
                     onClick={handleAddField}
-                    className="w-full py-2 border-2 border-dashed border-gray-300 rounded-md text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                    disabled={fields.length >= MAX_FIELDS}
+                    className={`w-full py-2 border-2 border-dashed rounded-md text-sm transition-colors ${
+                      fields.length >= MAX_FIELDS
+                        ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600'
+                    }`}
                   >
-                    + Add Field
+                    {fields.length >= MAX_FIELDS 
+                      ? `Maximum ${MAX_FIELDS} fields reached` 
+                      : '+ Add Field'}
                   </button>
                 </div>
               )}
@@ -347,6 +421,9 @@ export default function SchemaEditor({
               </div>
               {jsonError && (
                 <p className="text-sm text-red-600 mt-1">{jsonError}</p>
+              )}
+              {jsonSchemaError && !jsonError && (
+                <p className="text-sm text-amber-600 mt-1">{jsonSchemaError}</p>
               )}
               <p className="text-xs text-gray-500 mt-2">
                 Use JSON Schema format to define the structure.

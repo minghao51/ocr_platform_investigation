@@ -48,6 +48,7 @@ export default function BaseExtractionPage({
     const [model, setModel] = useState('');
     const [schemaId, setSchemaId] = useState<number | null>(null);
     const [schemaDefinition, setSchemaDefinition] = useState<Record<string, unknown> | null>(null);
+    const [isSchemaValid, setIsSchemaValid] = useState(false);
     const [customPrompt, setCustomPrompt] = useState('');
     const [temperature, setTemperature] = useState(0.1);
     const [maxTokens, setMaxTokens] = useState(4096);
@@ -104,6 +105,11 @@ export default function BaseExtractionPage({
 
         if (!fileId || !provider || !model || !schemaDefinition) {
             setError('Please complete all required fields');
+            return;
+        }
+
+        if (!isSchemaValid) {
+            setError('Please fix the schema definition before processing');
             return;
         }
 
@@ -194,6 +200,7 @@ export default function BaseExtractionPage({
         setFileType(null);
         setCurrentJob(null);
         setError(null);
+        setIsSchemaValid(Boolean(schemaDefinition));
         setValidationErrors({});
     };
 
@@ -274,6 +281,7 @@ export default function BaseExtractionPage({
                         schemaDefinition={schemaDefinition}
                         onSchemaSelect={setSchemaId}
                         onDefinitionChange={setSchemaDefinition}
+                        onValidityChange={setIsSchemaValid}
                     />
                 </section>
 
@@ -300,7 +308,7 @@ export default function BaseExtractionPage({
                     <section>
                         <button
                             onClick={handleProcess}
-                            disabled={!isAuthenticated || processing || !fileId || !provider || !model || !schemaDefinition}
+                            disabled={!isAuthenticated || processing || !fileId || !provider || !model || !schemaDefinition || !isSchemaValid}
                             className={'w-full px-6 py-3 font-medium rounded-md transition-colors ' +
                                 (!isAuthenticated
                                     ? 'bg-gray-300 text-gray-600 cursor-not-allowed'

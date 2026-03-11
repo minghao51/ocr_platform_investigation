@@ -9,6 +9,9 @@ interface ResultsDisplayProps {
 }
 
 export default function ResultsDisplay({ job, processingMethod }: ResultsDisplayProps) {
+  const errorMessage = typeof job.error === 'string' ? job.error : null;
+  const hasResult = job.result !== null && job.result !== undefined;
+
   const getMethodBadgeColor = (method: ExtractionMethod): string => {
     switch (method) {
       case 'text':
@@ -115,15 +118,15 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
       <ProcessingStatus job={job} />
 
       {/* Error display */}
-      {job.status === 'error' && job.error && (
+      {job.status === 'error' && errorMessage && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <h4 className="text-sm font-semibold text-red-800 mb-2">Error Details</h4>
-          <pre className="text-sm text-red-700 whitespace-pre-wrap">{job.error}</pre>
+          <pre className="text-sm text-red-700 whitespace-pre-wrap">{errorMessage}</pre>
         </div>
       )}
 
       {/* Extracted data display */}
-      {job.status === 'success' && job.result && (
+      {job.status === 'success' && hasResult && (
         <section>
           <h2 className="text-xl font-semibold mb-4">Extracted Data</h2>
           <ExtractedDataDisplay result={job.result} fileName={job.file_name} />
