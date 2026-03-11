@@ -5,6 +5,7 @@ from database import crud
 from services.processing import run_processing_job, run_text_processing_job
 from services.document_classifier import DocumentClassifier
 from dependencies import check_daily_limit, increment_daily_limit, get_current_user
+from routers.job_serialization import serialize_job
 import json
 import logging
 
@@ -82,12 +83,14 @@ async def process_document(
     # Determine file type
     file_type = "pdf" if file_record["file_extension"] == ".pdf" else "image"
 
+    effective_extraction_method = extraction_method or request.extraction_method
+
     # NEW: Intelligent routing logic
-    processing_method = extraction_method
+    processing_method = effective_extraction_method
     classification_info = None
 
     # Auto-detect if not specified or set to "auto"
-    if not extraction_method or extraction_method == "auto":
+    if not effective_extraction_method or effective_extraction_method == "auto":
         if file_type == "pdf":
             # Use DocumentClassifier for PDFs
             try:
@@ -157,10 +160,20 @@ async def process_document(
             pass  # Metadata update is optional
 
     # Queue background processing with appropriate method
+    worker_kwargs = {
+        "schema_definition_override": _schema_definition,
+        "prompt_override": request.prompt,
+        "temperature_override": request.temperature,
+        "max_tokens_override": request.max_tokens,
+    }
     if processing_method == "text":
-        background_tasks.add_task(run_text_processing_job, job_id, str(file_path))
+        background_tasks.add_task(
+            run_text_processing_job, job_id, str(file_path), **worker_kwargs
+        )
     else:  # "vision" or "hybrid"
-        background_tasks.add_task(run_processing_job, job_id, str(file_path))
+        background_tasks.add_task(
+            run_processing_job, job_id, str(file_path), **worker_kwargs
+        )
 
     return ProcessResponse(job_id=job_id, status="pending")
 
@@ -174,27 +187,4 @@ async def get_job_status(job_id: int, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail="Job not found")
     _ensure_job_access(job, current_user)
 
-    result = job.get("result")
-    if result and isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except json.JSONDecodeError:
-            pass  # Keep as string if parsing fails
-
-    return {
-        "job_id": job["id"],
-        "file_name": job["file_name"],
-        "file_type": job["file_type"],
-        "status": job["status"],
-        "provider": job["provider"],
-        "model": job["model"],
-        "schema_name": job["schema_name"],
-        "created_at": job["created_at"],
-        "updated_at": job.get("completed_at")
-        or job.get("updated_at")
-        or job["created_at"],
-        "result": result,
-        "error": job.get("error_message"),
-        "processing_time": job.get("processing_time_seconds"),
-        "processing_method": job.get("processing_method"),
-    }
+    return serialize_job(job)

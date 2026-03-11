@@ -251,28 +251,11 @@ async def delete_job(job_id: int) -> bool:
 
 
 async def update_job_metadata(job_id: int, metadata: Dict[str, Any]) -> None:
-    """Update job metadata (stored in result field as JSON)"""
+    """Update job metadata JSON without mutating the extracted result payload."""
     async with connect() as db:
-        # Get current job data
-        cursor = await db.execute(
-            "SELECT result FROM processing_jobs WHERE id = ?", (job_id,)
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return
-
-        # Merge with existing result if any
-        try:
-            existing_result = json.loads(row[0]) if row[0] else {}
-        except (json.JSONDecodeError, TypeError):
-            existing_result = {}
-
-        existing_result["metadata"] = metadata
-
-        # Update the result field with the merged data
         await db.execute(
-            "UPDATE processing_jobs SET result = ? WHERE id = ?",
-            (json.dumps(existing_result), job_id),
+            "UPDATE processing_jobs SET metadata = ? WHERE id = ?",
+            (json.dumps(metadata), job_id),
         )
         await db.commit()
 

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from database import crud
 from dependencies import check_daily_limit, increment_daily_limit, get_current_user
+from routers.job_serialization import serialize_job
 
 router = APIRouter(prefix="/api/text", tags=["text-processing"])
 
@@ -104,34 +105,8 @@ async def get_text_job_status(
     job_id: int, current_user: dict = Depends(get_current_user)
 ):
     """Get job status (reuses existing jobs table)"""
-    import json
-
     job = await crud.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     _ensure_job_access(job, current_user)
-
-    result = job.get("result")
-    if result and isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except json.JSONDecodeError:
-            pass
-
-    return {
-        "job_id": job["id"],
-        "file_name": job["file_name"],
-        "file_type": job["file_type"],
-        "status": job["status"],
-        "provider": job["provider"],
-        "model": job["model"],
-        "schema_name": job["schema_name"],
-        "created_at": job["created_at"],
-        "updated_at": job.get("completed_at")
-        or job.get("updated_at")
-        or job["created_at"],
-        "result": result,
-        "error": job.get("error_message"),
-        "processing_time": job.get("processing_time_seconds"),
-        "processing_method": job.get("processing_method"),
-    }
+    return serialize_job(job)

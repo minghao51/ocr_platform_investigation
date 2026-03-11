@@ -233,10 +233,19 @@ class ProcessingService:
         }
 
 
-async def run_processing_job(job_id: int, file_path: str) -> None:
+async def run_processing_job(
+    job_id: int,
+    file_path: str,
+    schema_definition_override: Optional[Dict[str, Any]] = None,
+    prompt_override: Optional[str] = None,
+    temperature_override: Optional[float] = None,
+    max_tokens_override: Optional[int] = None,
+) -> None:
     """
     Run vision extraction job (processes images/PDFs as images using VLMs).
     Best for: Scanned documents, images, PDFs with visual elements.
+
+    Optional overrides preserve request-time settings when the job is queued in-memory.
     """
 
     # Get job details
@@ -251,7 +260,9 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
     file_type = job["file_type"]
 
     # Get schema
-    if job["schema_id"]:
+    if schema_definition_override is not None:
+        schema_definition = schema_definition_override
+    elif job["schema_id"]:
         schema_record = await crud.get_schema(job["schema_id"])
         if schema_record:
             import json
@@ -261,6 +272,10 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
             schema_definition = SchemaService.get_builtin_templates()["Generic"]
     else:
         schema_definition = SchemaService.get_builtin_templates()["Generic"]
+
+    prompt = prompt_override or "Extract all information from this document"
+    temperature = 0.1 if temperature_override is None else temperature_override
+    max_tokens = 4096 if max_tokens_override is None else max_tokens_override
 
     # Process
     service = ProcessingService()
@@ -279,9 +294,9 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
             provider_name=job["provider"],
             model=job["model"],
             schema_definition=schema_definition,
-            prompt="Extract all information from this document",
-            temperature=0.1,
-            max_tokens=4096,
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
 
         print(f"Processing completed for job {job_id}")
@@ -319,7 +334,14 @@ async def run_processing_job(job_id: int, file_path: str) -> None:
         )
 
 
-async def run_text_processing_job(job_id: int, file_path: str) -> None:
+async def run_text_processing_job(
+    job_id: int,
+    file_path: str,
+    schema_definition_override: Optional[Dict[str, Any]] = None,
+    prompt_override: Optional[str] = None,
+    temperature_override: Optional[float] = None,
+    max_tokens_override: Optional[int] = None,
+) -> None:
     """
     Run text extraction job (extracts text from PDFs using pdfplumber, then processes with LLM).
     Best for: Digital PDFs with extractable text (faster & more cost-effective).
@@ -341,7 +363,9 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
     await update_job_status_with_broadcast(job_id, "processing")
 
     # Get schema
-    if job["schema_id"]:
+    if schema_definition_override is not None:
+        schema_definition = schema_definition_override
+    elif job["schema_id"]:
         schema_record = await crud.get_schema(job["schema_id"])
         if schema_record:
             schema_definition = json.loads(schema_record["definition"])
@@ -349,6 +373,10 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
             schema_definition = SchemaService.get_builtin_templates()["Generic"]
     else:
         schema_definition = SchemaService.get_builtin_templates()["Generic"]
+
+    prompt = prompt_override or "Extract all information from this document"
+    temperature = 0.1 if temperature_override is None else temperature_override
+    max_tokens = 4096 if max_tokens_override is None else max_tokens_override
 
     # Get API key
     provider_name = job["provider"]
@@ -397,11 +425,11 @@ async def run_text_processing_job(job_id: int, file_path: str) -> None:
         async with provider_class(api_key) as provider:
             result = await provider.process_text(
                 text=extracted_text,
-                prompt="Extract all information from this document",
+                prompt=prompt,
                 schema_definition=schema_definition,
                 model=job["model"],
-                temperature=0.1,
-                max_tokens=4096,
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
 
         # Check for errors

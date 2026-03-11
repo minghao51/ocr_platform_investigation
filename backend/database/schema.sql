@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     schema_name TEXT,
     status TEXT NOT NULL,      -- 'pending', 'processing', 'success', 'error'
     result TEXT,               -- JSON string of extracted data
+    metadata TEXT,             -- JSON string of job metadata (e.g. classifier/debug info)
     error_message TEXT,
     processing_time_seconds REAL,
     processing_method TEXT DEFAULT 'vision',  -- 'vision' or 'text'

@@ -140,6 +140,24 @@ async def migrate_user_id_to_uploaded_files():
             print("✓ uploaded_files.user_id already exists")
 
 
+async def migrate_job_metadata_column():
+    """Add metadata column to processing_jobs table"""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("PRAGMA table_info(processing_jobs)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+
+        if "metadata" not in column_names:
+            print("Adding metadata column to processing_jobs table...")
+            await db.execute("ALTER TABLE processing_jobs ADD COLUMN metadata TEXT")
+            await db.commit()
+            print("✓ Added metadata column")
+        else:
+            print("✓ processing_jobs.metadata already exists")
+
+
 async def run_migrations():
     """Run all database migrations"""
     if not DB_PATH.exists():
@@ -149,6 +167,7 @@ async def run_migrations():
     await migrate_user_id_to_jobs()
     await migrate_user_usage_tracking()
     await migrate_user_id_to_uploaded_files()
+    await migrate_job_metadata_column()
     print("All migrations completed successfully")
 
 
