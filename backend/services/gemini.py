@@ -40,6 +40,7 @@ class GeminiProvider(VLMProvider):
                 "temperature": kwargs.get("temperature", 0.1),
                 "maxOutputTokens": kwargs.get("max_tokens", 4096),
                 "responseMimeType": "application/json",
+                "responseSchema": self._convert_json_schema_to_gemini(schema),
             },
         }
 
@@ -119,6 +120,42 @@ class GeminiProvider(VLMProvider):
             "usage": result.get("usageMetadata", {}),
         }
 
+    def _convert_json_schema_to_gemini(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert JSON Schema to Gemini's responseSchema format."""
+        return self._schema_type_to_gemini(schema)
+
+    def _schema_type_to_gemini(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Recursively convert JSON Schema to Gemini schema."""
+        gemini_type_map = {
+            "string": "STRING",
+            "number": "NUMBER",
+            "integer": "INTEGER",
+            "boolean": "BOOLEAN",
+            "array": "ARRAY",
+            "object": "OBJECT",
+        }
+
+        result: Dict[str, Any] = {}
+
+        if "type" in schema:
+            result["type"] = gemini_type_map.get(schema["type"], "STRING")
+
+        if "description" in schema:
+            result["description"] = schema["description"]
+
+        if schema.get("type") == "object" and "properties" in schema:
+            result["properties"] = {
+                key: self._schema_type_to_gemini(val)
+                for key, val in schema["properties"].items()
+            }
+            if "required" in schema:
+                result["required"] = schema["required"]
+
+        if schema.get("type") == "array" and "items" in schema:
+            result["items"] = self._schema_type_to_gemini(schema["items"])
+
+        return result
+
     async def process_text(
         self,
         text: str,
@@ -145,6 +182,7 @@ class GeminiProvider(VLMProvider):
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
                 "responseMimeType": "application/json",
+                "responseSchema": self._convert_json_schema_to_gemini(schema_definition),
             },
         }
 

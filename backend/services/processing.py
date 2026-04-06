@@ -50,6 +50,7 @@ async def update_job_status_with_broadcast(
     result: Optional[Dict[str, Any]] = None,
     error_message: Optional[str] = None,
     processing_time: Optional[float] = None,
+    usage: Optional[Dict[str, Any]] = None,
 ):
     """
     Update job status in database and broadcast via WebSocket.
@@ -63,6 +64,7 @@ async def update_job_status_with_broadcast(
         result=result,
         error_message=error_message,
         processing_time=processing_time,
+        usage=usage,
     )
 
     # Broadcast update via WebSocket if job was found
@@ -305,18 +307,24 @@ async def run_processing_job(
         processing_time = time.time() - start_time
 
         if result["success"]:
+            raw_response = result.get("raw_response", {})
+            usage = raw_response.get("usage") if isinstance(raw_response, dict) else None
             await update_job_status_with_broadcast(
                 job_id,
                 "success",
                 result=result.get("data"),
                 processing_time=processing_time,
+                usage=usage,
             )
         else:
+            raw_response = result.get("raw_response", {})
+            usage = raw_response.get("usage") if isinstance(raw_response, dict) else None
             await update_job_status_with_broadcast(
                 job_id,
                 "error",
                 error_message=result.get("error"),
                 processing_time=processing_time,
+                usage=usage,
             )
 
     except Exception as e:
@@ -455,6 +463,7 @@ async def run_text_processing_job(
                 "success",
                 result=validation_result["data"],
                 processing_time=time.time() - start_time,
+                usage=result.get("usage"),
             )
             print(f"Processing completed for job {job_id}")
         else:
@@ -463,6 +472,7 @@ async def run_text_processing_job(
                 "error",
                 error_message=validation_result["error"],
                 processing_time=time.time() - start_time,
+                usage=result.get("usage"),
             )
 
     except Exception as e:

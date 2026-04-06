@@ -47,11 +47,49 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     error_message TEXT,
     processing_time_seconds REAL,
     processing_method TEXT DEFAULT 'vision',  -- 'vision' or 'text'
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    total_tokens INTEGER,
+    estimated_cost REAL,
     user_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP,
     FOREIGN KEY (schema_id) REFERENCES schemas(id) ON DELETE SET NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Benchmark runs table
+CREATE TABLE IF NOT EXISTS benchmark_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dataset TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    sample_count INTEGER NOT NULL,
+    overall_accuracy REAL,
+    avg_latency REAL,
+    total_cost REAL,
+    total_prompt_tokens INTEGER,
+    total_completion_tokens INTEGER,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+-- Benchmark results table
+CREATE TABLE IF NOT EXISTS benchmark_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL,
+    sample_index INTEGER NOT NULL,
+    file_path TEXT,
+    accuracy_score REAL,
+    latency REAL,
+    cost REAL,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    expected_json TEXT,
+    actual_json TEXT,
+    field_scores TEXT,
+    error_message TEXT,
+    FOREIGN KEY (run_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE
 );
 
 -- Indexes for performance
@@ -62,3 +100,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_processing_method ON processing_jobs(process
 CREATE INDEX IF NOT EXISTS idx_schemas_is_template ON schemas(is_template);
 CREATE INDEX IF NOT EXISTS idx_uploaded_files_file_id ON uploaded_files(file_id);
 CREATE INDEX IF NOT EXISTS idx_uploaded_files_user_id ON uploaded_files(user_id);
+CREATE INDEX IF NOT EXISTS idx_benchmark_runs_dataset ON benchmark_runs(dataset);
+CREATE INDEX IF NOT EXISTS idx_benchmark_runs_provider ON benchmark_runs(provider);
+CREATE INDEX IF NOT EXISTS idx_benchmark_results_run_id ON benchmark_results(run_id);

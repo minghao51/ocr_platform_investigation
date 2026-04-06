@@ -15,12 +15,6 @@ DB_PATH = Path("./data/ocr_platform.db")
 DAILY_REQUEST_LIMIT = 5
 
 
-async def get_db():
-    """Get database connection (will be replaced with pool later)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        yield db
-
-
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     """
     Verify JWT token and return current user.
@@ -129,30 +123,3 @@ async def increment_daily_limit(user_id: int):
         )
         await db.commit()
 
-
-async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    """Require admin role."""
-    if not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
-        )
-    return current_user
-
-
-async def get_optional_user(
-    authorization: Optional[str] = Header(None),
-) -> Optional[dict]:
-    """
-    Optional authentication - returns user if token provided, None otherwise.
-
-    This is useful for endpoints that work for both authenticated and
-    unauthenticated users.
-    """
-    if authorization is None:
-        return None
-
-    if not authorization.startswith("Bearer "):
-        return None
-
-    token = authorization.split(" ")[1]
-    return verify_token(token)

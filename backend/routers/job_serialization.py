@@ -29,4 +29,7 @@ def serialize_job(job: Dict[str, Any]) -> Dict[str, Any]:
         "result": _parse_job_result(job.get("result")),
         "metadata": _parse_job_result(job.get("metadata")),
         "error": job.get("error_message"),
+        "prompt_tokens": job.get("prompt_tokens"),
+        "completion_tokens": job.get("completion_tokens"),
+        "estimated_cost": job.get("estimated_cost"),
     }

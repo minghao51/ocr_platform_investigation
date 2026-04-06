@@ -38,6 +38,18 @@ class NebiusProvider(VLMProvider):
             }
         ]
 
+        # Build structured output format
+        json_schema = {
+            "name": "extraction",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": schema.get("properties", {}),
+                "required": schema.get("required", []),
+                "additionalProperties": False,
+            },
+        }
+
         # Make API call
         response = await self.client.post(
             f"{self.BASE_URL}/chat/completions",
@@ -48,7 +60,7 @@ class NebiusProvider(VLMProvider):
             json={
                 "model": model,
                 "messages": messages,
-                "response_format": {"type": "json_object"},
+                "response_format": {"type": "json_schema", "json_schema": json_schema},
                 "temperature": kwargs.get("temperature", 0.1),
                 "max_tokens": kwargs.get("max_tokens", 4096),
             },

@@ -158,6 +158,92 @@ async def migrate_job_metadata_column():
             print("✓ processing_jobs.metadata already exists")
 
 
+async def migrate_cost_tracking_columns():
+    """Add cost tracking columns to processing_jobs table"""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("PRAGMA table_info(processing_jobs)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+
+        for col_name in ["prompt_tokens", "completion_tokens", "total_tokens", "estimated_cost"]:
+            if col_name not in column_names:
+                print(f"Adding {col_name} column to processing_jobs table...")
+                await db.execute(f"ALTER TABLE processing_jobs ADD COLUMN {col_name}")
+                await db.commit()
+                print(f"✓ Added {col_name} column")
+            else:
+                print(f"✓ processing_jobs.{col_name} already exists")
+
+
+async def migrate_benchmark_tables():
+    """Create benchmark_runs and benchmark_results tables"""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='benchmark_runs'"
+        )
+        result = await cursor.fetchone()
+
+        if result is None:
+            print("Creating benchmark_runs table...")
+            await db.execute("""
+                CREATE TABLE benchmark_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dataset TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    sample_count INTEGER NOT NULL,
+                    overall_accuracy REAL,
+                    avg_latency REAL,
+                    total_cost REAL,
+                    total_prompt_tokens INTEGER,
+                    total_completion_tokens INTEGER,
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP
+                )
+            """)
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_dataset ON benchmark_runs(dataset)")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_provider ON benchmark_runs(provider)")
+            await db.commit()
+            print("✓ Created benchmark_runs table")
+        else:
+            print("✓ benchmark_runs table already exists")
+
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='benchmark_results'"
+        )
+        result = await cursor.fetchone()
+
+        if result is None:
+            print("Creating benchmark_results table...")
+            await db.execute("""
+                CREATE TABLE benchmark_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id INTEGER NOT NULL,
+                    sample_index INTEGER NOT NULL,
+                    file_path TEXT,
+                    accuracy_score REAL,
+                    latency REAL,
+                    cost REAL,
+                    prompt_tokens INTEGER,
+                    completion_tokens INTEGER,
+                    expected_json TEXT,
+                    actual_json TEXT,
+                    field_scores TEXT,
+                    error_message TEXT,
+                    FOREIGN KEY (run_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE
+                )
+            """)
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_results_run_id ON benchmark_results(run_id)")
+            await db.commit()
+            print("✓ Created benchmark_results table")
+        else:
+            print("✓ benchmark_results table already exists")
+
+
 async def run_migrations():
     """Run all database migrations"""
     if not DB_PATH.exists():
@@ -168,6 +254,8 @@ async def run_migrations():
     await migrate_user_usage_tracking()
     await migrate_user_id_to_uploaded_files()
     await migrate_job_metadata_column()
+    await migrate_cost_tracking_columns()
+    await migrate_benchmark_tables()
     print("All migrations completed successfully")
 
 

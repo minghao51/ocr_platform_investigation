@@ -10,6 +10,9 @@ Commands:
     delete-user <username>             Delete a user by username
     change-password <username> <new>   Change user password
     set-admin <username> <true|false>  Toggle admin status
+    run-benchmark                      Run a benchmark against a provider/model
+    list-benchmarks                    List past benchmark runs
+    show-benchmark <id>                Show detailed results for a benchmark run
 """
 
 import asyncio
@@ -23,6 +26,138 @@ sys.path.insert(0, str(Path(__file__).parent))
 from auth import hash_password
 from database import crud
 from database.pool import connect
+from config import get_settings
+
+
+async def run_benchmark_cli():
+    """Run a benchmark from CLI arguments."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run OCR benchmark")
+    parser.add_argument("--provider", required=True, help="Provider name (nebius, openrouter, gemini)")
+    parser.add_argument("--model", required=True, help="Model identifier")
+    parser.add_argument("--dataset", default="cord", help="Dataset name (default: cord)")
+    parser.add_argument("--limit", type=int, default=20, help="Max samples to process (default: 20)")
+    parser.add_argument("--data-dir", default=None, help="Path to dataset directory")
+    parser.add_argument("--prompt", default="Extract all information from this receipt as JSON.", help="Prompt")
+    parser.add_argument("--concurrency", type=int, default=5, help="Max concurrent API calls (default: 5)")
+    args = parser.parse_args(sys.argv[2:])
+
+    settings = get_settings()
+    api_key = getattr(settings, f"{args.provider}_api_key")
+    if not api_key:
+        print(f"✗ Error: No API key configured for {args.provider}")
+        print("  Set the appropriate env var (e.g. NEBIUS_API_KEY) in .env")
+        sys.exit(1)
+
+    from benchmarks.runner import run_benchmark
+
+    print("Starting benchmark:")
+    print(f"  Provider: {args.provider}")
+    print(f"  Model: {args.model}")
+    print(f"  Dataset: {args.dataset}")
+    print(f"  Samples: {args.limit}")
+    print(f"  Data dir: {args.data_dir or '(default)'}")
+    print(f"  Concurrency: {args.concurrency}")
+    print()
+
+    summary = await run_benchmark(
+        provider_name=args.provider,
+        model=args.model,
+        api_key=api_key,
+        dataset=args.dataset,
+        limit=args.limit,
+        data_dir=args.data_dir,
+        prompt=args.prompt,
+        concurrency=args.concurrency,
+    )
+
+    print()
+    print("=" * 60)
+    print("BENCHMARK RESULTS")
+    print("=" * 60)
+    print(f"  Run ID: {summary['run_id']}")
+    print(f"  Provider: {summary['provider']}")
+    print(f"  Model: {summary['model']}")
+    print(f"  Dataset: {summary['dataset']}")
+    print(f"  Samples: {summary['sample_count']}")
+    print(f"  Overall Accuracy: {summary['overall_accuracy']:.2%}")
+    print(f"  Success Rate (>=50%): {summary['success_rate']:.2%}")
+    print(f"  Avg Latency: {summary['avg_latency']:.1f}s")
+    print(f"  Total Cost: ${summary['total_cost']:.4f}")
+    print(f"  Total Tokens: {summary['total_prompt_tokens'] + summary['total_completion_tokens']}")
+    print(f"    Input: {summary['total_prompt_tokens']}")
+    print(f"    Output: {summary['total_completion_tokens']}")
+    print("=" * 60)
+
+
+async def list_benchmarks_cli():
+    """List past benchmark runs."""
+    runs = await crud.list_benchmark_runs()
+
+    if not runs:
+        print("No benchmark runs found.")
+        print("Run: uv run python -m backend.cli run-benchmark --provider <name> --model <name>")
+        return
+
+    headers = ["ID", "Dataset", "Provider", "Model", "Samples", "Accuracy", "Latency", "Cost", "Date"]
+    rows = []
+    for run in runs:
+        rows.append([
+            run["id"],
+            run["dataset"],
+            run["provider"],
+            run["model"],
+            run["sample_count"],
+            f"{run['overall_accuracy']:.2%}" if run["overall_accuracy"] is not None else "N/A",
+            f"{run['avg_latency']:.1f}s" if run["avg_latency"] is not None else "N/A",
+            f"${run['total_cost']:.4f}" if run["total_cost"] is not None else "N/A",
+            run["started_at"][:19] if run["started_at"] else "N/A",
+        ])
+
+    print("\n" + tabulate(rows, headers=headers, tablefmt="grid"))
+    print(f"\nTotal: {len(runs)} run(s)")
+
+
+async def show_benchmark_cli(run_id: int):
+    """Show detailed results for a benchmark run."""
+    run = await crud.get_benchmark_run(run_id)
+    if not run:
+        print(f"✗ Error: Benchmark run {run_id} not found.")
+        return
+
+    results = await crud.get_benchmark_results(run_id)
+
+    print("=" * 70)
+    print(f"BENCHMARK RUN #{run_id}")
+    print("=" * 70)
+    print(f"  Dataset: {run['dataset']}")
+    print(f"  Provider: {run['provider']}")
+    print(f"  Model: {run['model']}")
+    print(f"  Samples: {run['sample_count']}")
+    print(f"  Overall Accuracy: {run['overall_accuracy']:.2%}" if run["overall_accuracy"] is not None else "  Overall Accuracy: N/A")
+    print(f"  Avg Latency: {run['avg_latency']:.1f}s" if run["avg_latency"] is not None else "  Avg Latency: N/A")
+    print(f"  Total Cost: ${run['total_cost']:.4f}" if run["total_cost"] is not None else "  Total Cost: N/A")
+    print(f"  Started: {run['started_at']}")
+    print(f"  Completed: {run['completed_at']}")
+    print("=" * 70)
+
+    if results:
+        print("\nPer-sample results:")
+        headers = ["#", "Accuracy", "Latency", "Cost", "Tokens", "Status"]
+        rows = []
+        for r in results:
+            status = "OK" if not r.get("error_message") else f"ERR: {r['error_message'][:30]}"
+            tokens = f"{r.get('prompt_tokens', 0)}/{r.get('completion_tokens', 0)}"
+            rows.append([
+                r["sample_index"] + 1,
+                f"{r['accuracy_score']:.2%}" if r["accuracy_score"] is not None else "N/A",
+                f"{r['latency']:.1f}s" if r["latency"] is not None else "N/A",
+                f"${r['cost']:.4f}" if r["cost"] is not None else "N/A",
+                tokens,
+                status,
+            ])
+        print(tabulate(rows, headers=headers, tablefmt="grid"))
 
 
 async def create_admin_user(username: str, password: str):
@@ -186,12 +321,18 @@ def print_help():
     print("  change-password <username> <new>       Change user password")
     print("  set-admin <username> <true|false>      Set admin status")
     print("  set-limited <username> <true|false>   Set limited status")
+    print("  run-benchmark --provider <name> --model <name>  Run benchmark")
+    print("  list-benchmarks                    List past benchmark runs")
+    print("  show-benchmark <id>                Show detailed benchmark results")
     print("\nExamples:")
     print("  uv run python -m backend.cli create-admin admin1 securepass123")
     print("  uv run python -m backend.cli create-demo testuser1 pass123")
     print("  uv run python -m backend.cli create-demo-batch 10")
     print("  uv run python -m backend.cli list-users")
     print("  uv run python -m backend.cli change-password admin1 newpass456")
+    print("  uv run python -m backend.cli run-benchmark --provider nebius --model Qwen/Qwen2.5-VL-72B-Instruct")
+    print("  uv run python -m backend.cli list-benchmarks")
+    print("  uv run python -m backend.cli show-benchmark 1")
 
 
 async def main():
@@ -284,6 +425,24 @@ async def main():
 
         status = "limited" if is_limited else "unlimited"
         print(f"✓ User '{username}' is now {status}.")
+
+    elif command == "run-benchmark":
+        await run_benchmark_cli()
+
+    elif command == "list-benchmarks":
+        await list_benchmarks_cli()
+
+    elif command == "show-benchmark":
+        if len(sys.argv) < 3:
+            print("✗ Error: Benchmark run ID required.")
+            print("Usage: python -m backend.cli show-benchmark <id>")
+            sys.exit(1)
+        try:
+            run_id = int(sys.argv[2])
+        except ValueError:
+            print("✗ Error: Run ID must be a number.")
+            sys.exit(1)
+        await show_benchmark_cli(run_id)
 
     else:
         print(f"✗ Error: Unknown command '{command}'")

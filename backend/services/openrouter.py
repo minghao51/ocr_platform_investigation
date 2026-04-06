@@ -38,25 +38,28 @@ class OpenRouterProvider(VLMProvider):
             }
         ]
 
-        # Make API call
-        response = await self.client.post(
-            f"{self.BASE_URL}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
+        # Build structured output format
+        json_schema = {
+            "name": "extraction",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": schema.get("properties", {}),
+                "required": schema.get("required", []),
+                "additionalProperties": False,
             },
-            json={
-                "model": model,
-                "messages": messages,
-                "temperature": kwargs.get("temperature", 0.1),
-                "max_tokens": kwargs.get("max_tokens", 4096),
-            },
-        )
+        }
 
-        response.raise_for_status()
+        payload = {
+            "model": model,
+            "messages": messages,
+            "response_format": {"type": "json_schema", "json_schema": json_schema},
+            "temperature": kwargs.get("temperature", 0.1),
+            "max_tokens": kwargs.get("max_tokens", 4096),
+        }
+
+        response = await self._call_with_fallback(payload)
         result = response.json()
-
-        # Extract content
         content = result["choices"][0]["message"]["content"]
 
         return {
@@ -64,6 +67,61 @@ class OpenRouterProvider(VLMProvider):
             "content": content,
             "usage": result.get("usage", {}),
         }
+
+    async def _call_with_fallback(self, payload: dict) -> Any:
+        """
+        Try json_schema mode first, fall back to json_object, then plain prompt.
+        """
+        # Attempt 1: Full JSON Schema
+        response = await self.client.post(
+            f"{self.BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+
+        if response.status_code == 200:
+            return response
+
+        # Attempt 2: Fallback to json_object mode
+        if response.status_code in (400, 422):
+            fallback_payload = {
+                "model": payload["model"],
+                "messages": payload["messages"],
+                "response_format": {"type": "json_object"},
+                "temperature": payload.get("temperature", 0.1),
+                "max_tokens": payload.get("max_tokens", 4096),
+            }
+            response = await self.client.post(
+                f"{self.BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=fallback_payload,
+            )
+            if response.status_code == 200:
+                return response
+
+        # Attempt 3: No structured output at all — rely on prompt
+        plain_payload = {
+            "model": payload["model"],
+            "messages": payload["messages"],
+            "temperature": payload.get("temperature", 0.1),
+            "max_tokens": payload.get("max_tokens", 4096),
+        }
+        response = await self.client.post(
+            f"{self.BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json=plain_payload,
+        )
+        response.raise_for_status()
+        return response
 
     async def process_text(
         self,
@@ -126,36 +184,60 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
         """Get available OpenRouter models with metadata"""
         return [
             {
-                "id": "anthropic/claude-3.5-sonnet",
-                "name": "Claude 3.5 Sonnet",
-                "tier": "premium",
-                "capabilities": ["vision", "reasoning"],
-                "context_window": 200000,
-                "description": "Advanced reasoning with vision",
+                "id": "qwen/qwen3.6-plus:free",
+                "name": "Qwen3.6 Plus (Free)",
+                "tier": "free",
+                "capabilities": ["vision", "reasoning", "structured_output"],
+                "context_window": 1000000,
+                "description": "Free, strong reasoning, 1M context",
             },
             {
-                "id": "google/gemini-pro-1.5",
-                "name": "Gemini Pro 1.5",
+                "id": "qwen/qwen3.5-flash-02-23",
+                "name": "Qwen3.5 Flash",
+                "tier": "lite",
+                "capabilities": ["vision", "reasoning", "structured_output"],
+                "context_window": 1000000,
+                "description": "Cheapest paid vision model, native VL",
+            },
+            {
+                "id": "google/gemini-2.5-flash-lite",
+                "name": "Gemini 2.5 Flash Lite",
+                "tier": "lite",
+                "capabilities": ["vision", "reasoning", "structured_output"],
+                "context_window": 1048576,
+                "description": "Ultra-cheap, fast, 1M context",
+            },
+            {
+                "id": "google/gemini-2.5-flash",
+                "name": "Gemini 2.5 Flash",
+                "tier": "balanced",
+                "capabilities": ["vision", "reasoning", "structured_output"],
+                "context_window": 1048576,
+                "description": "Best price-performance for scale",
+            },
+            {
+                "id": "google/gemini-3-flash-preview",
+                "name": "Gemini 3 Flash Preview",
+                "tier": "balanced",
+                "capabilities": ["vision", "reasoning", "structured_output"],
+                "context_window": 1048576,
+                "description": "Near-Pro reasoning, #1 Finance ranking",
+            },
+            {
+                "id": "x-ai/grok-4.1-fast",
+                "name": "Grok 4.1 Fast",
                 "tier": "balanced",
                 "capabilities": ["vision", "reasoning"],
-                "context_window": 2800000,
-                "description": "Large context window with vision",
+                "context_window": 2000000,
+                "description": "Cheapest paid vision, 2M context",
             },
             {
-                "id": "openai/gpt-4o",
-                "name": "GPT-4o",
-                "tier": "premium",
-                "capabilities": ["vision", "reasoning"],
-                "context_window": 128000,
-                "description": "OpenAI's latest multimodal model",
-            },
-            {
-                "id": "meta-llama/llama-3.2-90b-vision-preview",
-                "name": "Llama 3.2 90B Vision",
+                "id": "openai/gpt-4.1-mini",
+                "name": "GPT-4.1 Mini",
                 "tier": "balanced",
-                "capabilities": ["vision", "reasoning"],
-                "context_window": 131072,
-                "description": "Large open-source vision model",
+                "capabilities": ["vision", "reasoning", "structured_output"],
+                "context_window": 1000000,
+                "description": "Solid mid-tier, 1M context",
             },
         ]
 

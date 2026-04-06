@@ -13,6 +13,7 @@ from routers import (
     text_processing,
     auth,
     websocket,
+    benchmarks,
 )
 from config import get_settings
 from limiter import limiter
@@ -65,6 +66,7 @@ app.include_router(schemas.router)
 app.include_router(jobs.router)
 app.include_router(providers.router)
 app.include_router(text_processing.router)
+app.include_router(benchmarks.router)
 
 # Mount static files for frontend assets
 BASE_DIR = Path(__file__).parent.parent
