@@ -348,3 +348,100 @@ export async function listProviders(): Promise<Provider[]> {
   });
   return response.json();
 }
+
+// ============================================================================
+// Benchmarks
+// ============================================================================
+
+export interface BenchmarkRun {
+  id: number;
+  dataset: string;
+  provider: string;
+  model: string;
+  sample_count: number;
+  overall_accuracy: number | null;
+  avg_latency: number | null;
+  total_cost: number | null;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  success_rate: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface BenchmarkResult {
+  id: number;
+  run_id: number;
+  sample_index: number;
+  file_path: string | null;
+  accuracy_score: number;
+  latency: number;
+  cost: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  expected_json: string | null;
+  actual_json: string | null;
+  field_scores: string | null;
+  error_message: string | null;
+}
+
+export interface ModelComparison {
+  run_id: number;
+  provider: string;
+  model: string;
+  sample_count: number;
+  overall_accuracy: number;
+  avg_latency: number;
+  total_cost: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  success_rate: number | null;
+  started_at: string | null;
+}
+
+export async function listBenchmarkRuns(
+  limit = 50,
+  dataset?: string,
+  provider?: string
+): Promise<BenchmarkRun[]> {
+  const params = new URLSearchParams();
+  params.append('limit', limit.toString());
+  if (dataset) params.append('dataset', dataset);
+  if (provider) params.append('provider', provider);
+
+  const response = await fetch(`${API_BASE}/benchmarks/runs?${params}`, {
+    headers: getAuthHeaders()
+  });
+  return response.json();
+}
+
+export async function getBenchmarkRun(runId: number): Promise<BenchmarkRun> {
+  const response = await fetch(`${API_BASE}/benchmarks/runs/${runId}`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    throw new Error('Benchmark run not found');
+  }
+  return response.json();
+}
+
+export async function getBenchmarkResults(runId: number): Promise<BenchmarkResult[]> {
+  const response = await fetch(`${API_BASE}/benchmarks/runs/${runId}/results`, {
+    headers: getAuthHeaders()
+  });
+  return response.json();
+}
+
+export async function compareModels(
+  dataset = 'cord',
+  limit = 20
+): Promise<{ runs: ModelComparison[] }> {
+  const params = new URLSearchParams();
+  params.append('dataset', dataset);
+  params.append('limit', limit.toString());
+
+  const response = await fetch(`${API_BASE}/benchmarks/compare?${params}`, {
+    headers: getAuthHeaders()
+  });
+  return response.json();
+}

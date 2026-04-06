@@ -4,6 +4,7 @@ import LandingPage from './pages/LandingPage';
 import ProcessingPage from './pages/ProcessingPage';
 import MethodologyPage from './pages/MethodologyPage';
 import HistoryPage from './pages/HistoryPage';
+import BenchmarksPage from './pages/BenchmarksPage';
 import { isAuthenticated, logout, getCurrentUser } from '@/lib/api';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
@@ -34,6 +35,10 @@ const navItems: Array<{
   {
     to: '/methodology',
     label: 'Methodology',
+  },
+  {
+    to: '/benchmarks',
+    label: 'Benchmarks',
   },
 ];
 
@@ -153,6 +158,7 @@ function App() {
               }
             />
             <Route path="/methodology" element={<MethodologyPage />} />
+            <Route path="/benchmarks" element={<BenchmarksPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
