@@ -1,15 +1,22 @@
 import aiosqlite
 import asyncio
 from pathlib import Path
+from paths import LEGACY_DB_PATH, get_db_path
 
-DB_PATH = Path("./data/ocr_platform.db")
+
+def _get_db_path() -> Path:
+    return get_db_path()
+
+
+SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
 
 async def migrate_processing_method():
     """Add processing_method column to existing processing_jobs table"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         # Check if column exists
         cursor = await db.execute("PRAGMA table_info(processing_jobs)")
         columns = await cursor.fetchall()
@@ -31,9 +38,10 @@ async def migrate_processing_method():
 
 async def migrate_users_table():
     """Create users table for authentication"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         # Check if users table exists
         cursor = await db.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
@@ -59,9 +67,10 @@ async def migrate_users_table():
 
 async def migrate_user_id_to_jobs():
     """Add user_id column to processing_jobs table"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         # Check if column exists
         cursor = await db.execute("PRAGMA table_info(processing_jobs)")
         columns = await cursor.fetchall()
@@ -81,24 +90,26 @@ async def migrate_user_id_to_jobs():
 
 async def init_database():
     """Initialize database with schema"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         # Read and execute schema
-        with open("database/schema.sql", "r") as f:
+        with open(SCHEMA_PATH, "r") as f:
             schema = f.read()
 
         await db.executescript(schema)
         await db.commit()
 
-        print(f"Database initialized at {DB_PATH}")
+        print(f"Database initialized at {db_path}")
 
 
 async def migrate_user_usage_tracking():
     """Add usage tracking columns to users table"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         # Check if column exists
         cursor = await db.execute("PRAGMA table_info(users)")
         columns = await cursor.fetchall()
@@ -121,9 +132,10 @@ async def migrate_user_usage_tracking():
 
 async def migrate_user_id_to_uploaded_files():
     """Add user_id column to uploaded_files table"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("PRAGMA table_info(uploaded_files)")
         columns = await cursor.fetchall()
         column_names = [col[1] for col in columns]
@@ -142,9 +154,10 @@ async def migrate_user_id_to_uploaded_files():
 
 async def migrate_job_metadata_column():
     """Add metadata column to processing_jobs table"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("PRAGMA table_info(processing_jobs)")
         columns = await cursor.fetchall()
         column_names = [col[1] for col in columns]
@@ -160,9 +173,10 @@ async def migrate_job_metadata_column():
 
 async def migrate_cost_tracking_columns():
     """Add cost tracking columns to processing_jobs table"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("PRAGMA table_info(processing_jobs)")
         columns = await cursor.fetchall()
         column_names = [col[1] for col in columns]
@@ -179,9 +193,10 @@ async def migrate_cost_tracking_columns():
 
 async def migrate_benchmark_tables():
     """Create benchmark_runs and benchmark_results tables"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='benchmark_runs'"
         )
@@ -244,9 +259,121 @@ async def migrate_benchmark_tables():
             print("✓ benchmark_results table already exists")
 
 
+async def migrate_legacy_benchmark_data():
+    """Import legacy benchmark data from backend/data if canonical DB has none."""
+    db_path = _get_db_path()
+    legacy_path = LEGACY_DB_PATH.resolve()
+    if legacy_path == db_path or not legacy_path.exists():
+        return
+
+    async with aiosqlite.connect(legacy_path) as legacy_db:
+        cursor = await legacy_db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='benchmark_runs'"
+        )
+        if await cursor.fetchone() is None:
+            return
+
+        cursor = await legacy_db.execute("SELECT COUNT(*) FROM benchmark_runs")
+        legacy_count = (await cursor.fetchone())[0]
+        if legacy_count == 0:
+            return
+
+        legacy_db.row_factory = aiosqlite.Row
+        runs_cursor = await legacy_db.execute(
+            """
+            SELECT id, dataset, provider, model, sample_count, overall_accuracy,
+                   avg_latency, total_cost, total_prompt_tokens, total_completion_tokens,
+                   started_at, completed_at
+            FROM benchmark_runs
+            ORDER BY id
+            """
+        )
+        runs = await runs_cursor.fetchall()
+
+        results_cursor = await legacy_db.execute(
+            """
+            SELECT id, run_id, sample_index, file_path, accuracy_score, latency, cost,
+                   prompt_tokens, completion_tokens, expected_json, actual_json,
+                   field_scores, error_message
+            FROM benchmark_results
+            ORDER BY id
+            """
+        )
+        results = await results_cursor.fetchall()
+
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("SELECT COUNT(*) FROM benchmark_runs")
+        current_count = (await cursor.fetchone())[0]
+        if current_count > 0:
+            print("✓ canonical benchmark data already present")
+            return
+
+        try:
+            run_id_map: dict[int, int] = {}
+            for run in runs:
+                cursor = await db.execute(
+                    """
+                    INSERT INTO benchmark_runs (
+                        dataset, provider, model, sample_count, overall_accuracy,
+                        avg_latency, total_cost, total_prompt_tokens, total_completion_tokens,
+                        started_at, completed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        run["dataset"],
+                        run["provider"],
+                        run["model"],
+                        run["sample_count"],
+                        run["overall_accuracy"],
+                        run["avg_latency"],
+                        run["total_cost"],
+                        run["total_prompt_tokens"],
+                        run["total_completion_tokens"],
+                        run["started_at"],
+                        run["completed_at"],
+                    ),
+                )
+                run_id_map[run["id"]] = cursor.lastrowid
+
+            for result in results:
+                mapped_run_id = run_id_map.get(result["run_id"])
+                if mapped_run_id is None:
+                    continue
+                await db.execute(
+                    """
+                    INSERT INTO benchmark_results (
+                        run_id, sample_index, file_path, accuracy_score, latency, cost,
+                        prompt_tokens, completion_tokens, expected_json, actual_json,
+                        field_scores, error_message
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        mapped_run_id,
+                        result["sample_index"],
+                        result["file_path"],
+                        result["accuracy_score"],
+                        result["latency"],
+                        result["cost"],
+                        result["prompt_tokens"],
+                        result["completion_tokens"],
+                        result["expected_json"],
+                        result["actual_json"],
+                        result["field_scores"],
+                        result["error_message"],
+                    ),
+                )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+    print(f"✓ Imported {legacy_count} benchmark runs from legacy backend/data database")
+
+
 async def run_migrations():
     """Run all database migrations"""
-    if not DB_PATH.exists():
+    db_path = _get_db_path()
+    if not db_path.exists():
         await init_database()
     await migrate_processing_method()
     await migrate_users_table()
@@ -256,6 +383,7 @@ async def run_migrations():
     await migrate_job_metadata_column()
     await migrate_cost_tracking_columns()
     await migrate_benchmark_tables()
+    await migrate_legacy_benchmark_data()
     print("All migrations completed successfully")
 
 

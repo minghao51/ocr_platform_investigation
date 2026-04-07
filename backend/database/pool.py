@@ -6,12 +6,11 @@ connection pooling for future migration to PostgreSQL/MySQL.
 """
 
 import aiosqlite
-from pathlib import Path
 import logging
+from pathlib import Path
+from paths import get_db_path
 
 logger = logging.getLogger(__name__)
-
-DB_PATH = Path("./data/ocr_platform.db")
 
 
 class ConnectionWrapper:
@@ -35,7 +34,7 @@ class ConnectionWrapper:
             self._connection = None
 
 
-def connect(db_path: Path = DB_PATH) -> ConnectionWrapper:
+def connect(db_path: Path | None = None) -> ConnectionWrapper:
     """
     Get a connection wrapper that works with async context manager.
 
@@ -43,7 +42,7 @@ def connect(db_path: Path = DB_PATH) -> ConnectionWrapper:
         async with connect() as db:
             cursor = await db.execute(...)
     """
-    return ConnectionWrapper(db_path)
+    return ConnectionWrapper(db_path or get_db_path())
 
 
 async def close_pool():

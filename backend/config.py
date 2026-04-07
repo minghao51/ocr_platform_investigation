@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List
+from paths import DB_PATH
 
 
 class Settings(BaseSettings):
@@ -10,7 +11,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
 
     # Database
-    database_url: str = "sqlite:///./data/ocr_platform.db"
+    database_url: str = f"sqlite:///{DB_PATH}"
 
     # File Upload
     max_file_size: int = 10 * 1024 * 1024  # 10MB

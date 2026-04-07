@@ -1,11 +1,8 @@
 import aiosqlite
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, List, Dict, Any
 from database.pool import connect
-
-DB_PATH = Path("./data/ocr_platform.db")
 
 
 # ============================================================================

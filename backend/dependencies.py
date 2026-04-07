@@ -2,17 +2,23 @@
 FastAPI dependencies for authentication.
 """
 
+from functools import lru_cache
+from pathlib import Path
 from fastapi import Header, HTTPException, Depends, status
 from typing import Optional
 from auth import verify_token
 import aiosqlite
-from pathlib import Path
 from datetime import date
-
-DB_PATH = Path("./data/ocr_platform.db")
+from database.pool import get_db_path
 
 # Daily request limit for test users
 DAILY_REQUEST_LIMIT = 5
+
+
+@lru_cache
+def _get_cached_db_path() -> Path:
+    """Cache DB path to avoid repeated settings lookups."""
+    return get_db_path()
 
 
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
@@ -61,7 +67,7 @@ async def check_daily_limit(current_user: dict = Depends(get_current_user)) -> d
     user_id = current_user.get("user_id")
     today = date.today().isoformat()
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(_get_cached_db_path()) as db:
         # Get user's usage stats
         cursor = await db.execute(
             "SELECT daily_requests, last_request_date, is_limited FROM users WHERE id = ?",
@@ -99,7 +105,7 @@ async def increment_daily_limit(user_id: int):
     """Increment the daily request count for a user."""
     today = date.today().isoformat()
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(_get_cached_db_path()) as db:
         # Get current stats
         cursor = await db.execute(
             "SELECT daily_requests, last_request_date FROM users WHERE id = ?",
@@ -122,4 +128,3 @@ async def increment_daily_limit(user_id: int):
             (daily_requests + 1, today, user_id),
         )
         await db.commit()
-

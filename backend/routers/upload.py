@@ -5,10 +5,9 @@ from database import crud
 from dependencies import get_current_user
 from limiter import limiter
 import uuid
+from paths import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
-
-UPLOAD_DIR = Path("./data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB

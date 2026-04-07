@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+from paths import BENCHMARKS_DIR
 
 
 @dataclass
@@ -20,7 +21,7 @@ class BenchmarkSample:
     sample_index: int = 0
 
 
-CORD_CACHE_DIR = Path("./data/benchmarks/cord")
+CORD_CACHE_DIR = BENCHMARKS_DIR / "cord"
 CORD_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {

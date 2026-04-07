@@ -18,6 +18,7 @@ from routers import (
 from config import get_settings
 from limiter import limiter
 from pathlib import Path
+from paths import REPO_ROOT
 import logging
 
 logger = logging.getLogger(__name__)
@@ -69,8 +70,7 @@ app.include_router(text_processing.router)
 app.include_router(benchmarks.router)
 
 # Mount static files for frontend assets
-BASE_DIR = Path(__file__).parent.parent
-static_dir = BASE_DIR / "frontend" / "dist"
+static_dir = REPO_ROOT / "frontend" / "dist"
 
 # For Docker compatibility
 if not static_dir.exists():
