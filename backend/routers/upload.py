@@ -1,39 +1,45 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from pathlib import Path
+from config import get_settings
 from database import crud
 from dependencies import get_current_user
-from limiter import limiter
+from limiter import limiter, get_rate_limit_value
 import uuid
 from paths import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
 
 
 @router.post("/")
-@limiter.limit("10/minute")
+@limiter.limit(get_rate_limit_value)
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
     """Upload a file for processing"""
+    settings = get_settings()
 
-    # Validate file size
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File too large. Max size is 10MB")
+    if len(content) > settings.max_file_size:
+        max_size_mb = settings.max_file_size / (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Max size is {max_size_mb:.0f}MB",
+        )
 
-    # Validate file extension
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+            detail=(
+                "Invalid file type. Allowed: "
+                f"{', '.join(sorted(ALLOWED_EXTENSIONS))}"
+            ),
         )
 
     # Generate unique filename

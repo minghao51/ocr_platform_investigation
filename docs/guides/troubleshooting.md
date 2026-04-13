@@ -11,7 +11,6 @@ Check:
 Useful command:
 
 ```bash
-cd backend
 uv run python -m backend.cli list-users
 ```
 
@@ -38,6 +37,20 @@ Relevant settings:
 
 - `.env`: `MAX_FILE_SIZE`
 - code: [backend/routers/upload.py](/Users/minghao/Desktop/personal/ocr_platform_testdrive/backend/routers/upload.py)
+
+## Demo User Hits a Limit
+
+Check whether the account is intentionally limited:
+
+```bash
+uv run python -m backend.cli list-users
+```
+
+Notes:
+
+- admin/master accounts bypass both the per-minute cap and the demo daily cap
+- limited demo accounts use `DEMO_DAILY_REQUEST_LIMIT`
+- `RATE_LIMIT_PER_MINUTE` controls the per-minute cap for uploads and OCR actions
 
 ## No Providers or Models Show Up
 

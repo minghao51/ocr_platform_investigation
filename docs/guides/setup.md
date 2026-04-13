@@ -22,8 +22,10 @@ Important variables:
 
 - `NEBIUS_API_KEY`, `OPENROUTER_API_KEY`, or `GEMINI_API_KEY`
 - `JWT_SECRET_KEY`
-- `CORS_ORIGINS`
+- `CORS_ORIGINS` or `CORS_ORIGINS_STR`
 - `DATABASE_URL` if you want to override the default SQLite path
+- `RATE_LIMIT_PER_MINUTE` for per-minute OCR action caps
+- `DEMO_DAILY_REQUEST_LIMIT` for limited demo accounts
 
 Generate a JWT secret with:
 
@@ -36,7 +38,6 @@ python -c "import secrets; print(secrets.token_hex(32))"
 The app requires login for uploads and history access.
 
 ```bash
-cd backend
 uv run python -m backend.cli create-admin admin your-password
 ```
 
@@ -96,9 +97,12 @@ Open:
 - The backend serves the built frontend from `/` when `frontend/dist` exists.
 - CORS defaults are intended for local development.
 - Uploaded files are stored under `data/uploads`.
+- Admin users bypass rate and demo daily limits.
+- Demo users are limited by `DEMO_DAILY_REQUEST_LIMIT` per day.
 
 ## Next Reading
 
 - [docs/guides/user-guide.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/user-guide.md)
+- [docs/guides/deployment.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/deployment.md)
 - [docs/reference/api.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/reference/api.md)
 - [docs/guides/troubleshooting.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/troubleshooting.md)

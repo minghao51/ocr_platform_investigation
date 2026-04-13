@@ -1,7 +1,8 @@
 import time
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Type
 from config import get_settings
+from services.vlm_provider import VLMProvider
 from services.nebius import NebiusProvider
 from services.openrouter import OpenRouterProvider
 from services.gemini import GeminiProvider
@@ -420,7 +421,7 @@ async def run_text_processing_job(
         print(f"  Extracted {len(extracted_text)} characters")
 
         # Step 2: Get provider and process text
-        providers = {
+        providers: Dict[str, Type[VLMProvider]] = {
             "nebius": NebiusProvider,
             "openrouter": OpenRouterProvider,
             "gemini": GeminiProvider,

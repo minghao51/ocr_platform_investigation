@@ -5,7 +5,7 @@ import ProcessingPage from './pages/ProcessingPage';
 import MethodologyPage from './pages/MethodologyPage';
 import HistoryPage from './pages/HistoryPage';
 import BenchmarksPage from './pages/BenchmarksPage';
-import { isAuthenticated, logout, getCurrentUser } from '@/lib/api';
+import { AUTH_CHANGE_EVENT, logout, getCurrentUser } from '@/lib/api';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
 const navItems: Array<{
@@ -46,13 +46,37 @@ function App() {
   const [authUser, setAuthUser] = useState(getCurrentUser());
 
   useEffect(() => {
-    setAuthUser(getCurrentUser());
+    const syncAuthUser = () => {
+      setAuthUser(getCurrentUser());
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncAuthUser();
+      }
+    };
+
+    syncAuthUser();
+
+    window.addEventListener('storage', syncAuthUser);
+    window.addEventListener(AUTH_CHANGE_EVENT, syncAuthUser);
+    window.addEventListener('focus', syncAuthUser);
+    window.addEventListener('pageshow', syncAuthUser);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('storage', syncAuthUser);
+      window.removeEventListener(AUTH_CHANGE_EVENT, syncAuthUser);
+      window.removeEventListener('focus', syncAuthUser);
+      window.removeEventListener('pageshow', syncAuthUser);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const handleAuthChanged = () => {
     setAuthUser(getCurrentUser());
   };
-  const authenticated = isAuthenticated();
+  const authenticated = authUser !== null;
 
   return (
     <ErrorBoundary>

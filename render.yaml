@@ -1,13 +1,14 @@
 services:
   - type: web
     name: ocr-platform
-    env: python
+    runtime: docker
     region: oregon
-    buildCommand: cd backend && pip install uv && uv sync --frozen --no-dev
-    startCommand: cd backend && uv run python -m database.migrations && uv run uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: DATABASE_URL
-        value: sqlite:///./data/ocr_platform.db
+        value: sqlite:////app/data/ocr_platform.db
       - key: NEBIUS_API_KEY
         sync: false
       - key: OPENROUTER_API_KEY
@@ -20,5 +21,5 @@ services:
         value: https://ocr-platform.onrender.com
     disk:
       enabled: true
-      mountPath: /opt/render/project/src/backend/data
-      size: 1GB
+      mountPath: /app/data
+      sizeGB: 1

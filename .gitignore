@@ -61,6 +61,15 @@ htmlcov/
 # Ruff
 .ruff_cache/
 
+# Claude Code - personal session data
+.claude/
+
+# Planning - personal planning notes
+.planning/
+
+# Playwright CLI - test artifacts
+.playwright-cli/
+
 # Secrets - do not commit
 DEMO_ACCOUNTS.md
 credentials.json

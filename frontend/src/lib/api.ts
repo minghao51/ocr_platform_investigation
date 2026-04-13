@@ -6,6 +6,13 @@ const API_BASE = '/api';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user';
+export const AUTH_CHANGE_EVENT = 'ocr-platform-auth-change';
+
+function notifyAuthChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
+  }
+}
 
 export interface AuthToken {
   access_token: string;
@@ -52,6 +59,7 @@ export function getCurrentUser(): AuthToken['user'] | null {
  */
 export function setAuthToken(tokenData: AuthToken): void {
   localStorage.setItem(AUTH_TOKEN_KEY, JSON.stringify(tokenData));
+  notifyAuthChanged();
 }
 
 /**
@@ -60,6 +68,7 @@ export function setAuthToken(tokenData: AuthToken): void {
 export function clearAuthToken(): void {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  notifyAuthChanged();
 }
 
 /**

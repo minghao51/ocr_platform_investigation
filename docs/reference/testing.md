@@ -27,11 +27,12 @@ There is no dedicated frontend test suite documented in the current repo state. 
 ## Manual Smoke Test
 
 1. Start backend and frontend.
-2. Log in.
-3. Upload a document.
-4. Submit a job.
-5. Confirm live status updates and final result.
-6. Confirm the job appears in History.
+2. Log in with an admin account and verify upload/process actions are allowed without limit errors.
+3. Log in with a demo-limited account and verify upload/process actions work until the configured cap is reached.
+4. Upload a document.
+5. Submit a job.
+6. Confirm live status updates and final result.
+7. Confirm the job appears in History.
 
 ## Useful Endpoints During Verification
 

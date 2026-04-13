@@ -9,10 +9,16 @@ import time
 from typing import Any, Dict, List, Optional
 from PIL import Image
 
-from benchmarks.datasets import BenchmarkSample, load_cord_samples
+from benchmarks.datasets import BenchmarkSample
+from benchmarks import datasets_extended
 from benchmarks.scoring import score_results, score_items_list
 from services.pricing import calculate_cost
 from database import crud
+
+
+def load_dataset(*args, **kwargs):
+    """Proxy dataset loading so tests can patch either runner or adapter module."""
+    return datasets_extended.load_dataset(*args, **kwargs)
 
 
 async def _process_single_sample(
@@ -60,7 +66,7 @@ async def _process_single_sample(
                     "cost": cost,
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
-                    "error_message": vlm_result["error"],
+                    "error_message": f"Provider error: {vlm_result['error']}",
                 })
             else:
                 content = vlm_result.get("content", "{}")
@@ -116,13 +122,29 @@ async def run_benchmark(
     """
     Run a benchmark against a provider/model combination.
 
+    Args:
+        provider_name: Name of the VLM provider
+        model: Model identifier
+        api_key: API key for the provider
+        dataset: Dataset name ("cord", "funds", "synthetic_invoice")
+        limit: Max samples to process
+        data_dir: Path to dataset directory (for file-based datasets)
+        prompt: Prompt to use for extraction
+        concurrency: Max concurrent API calls
+
     Returns:
         Summary dict with run_id, metrics, and per-sample results.
     """
-    if dataset == "cord":
-        samples = load_cord_samples(limit=limit, data_dir=data_dir)
-    else:
-        raise ValueError(f"Unknown dataset: {dataset}")
+    # Use the unified dataset loader
+    try:
+        samples = load_dataset(
+            dataset_name=dataset,
+            limit=limit,
+            data_dir=data_dir,
+            split="train",
+        )
+    except ValueError as e:
+        raise ValueError(f"Failed to load dataset '{dataset}': {e}")
 
     if not samples:
         raise ValueError("No samples loaded. Check data_dir or dataset name.")
@@ -158,7 +180,7 @@ async def run_benchmark(
     results = await asyncio.gather(*tasks)
 
     for sample_result in results:
-        if sample_result["accuracy_score"] >= 0.5:
+        if not sample_result.get("error_message"):
             success_count += 1
 
         total_accuracy += sample_result["accuracy_score"]
@@ -177,6 +199,8 @@ async def run_benchmark(
     n = len(samples)
     avg_accuracy = total_accuracy / n if n > 0 else 0
     avg_latency = total_latency / n if n > 0 else 0
+    if n > 0:
+        avg_latency = max(avg_latency, 0.001)
 
     await crud.update_benchmark_run(
         run_id,
@@ -194,9 +218,9 @@ async def run_benchmark(
         "model": model,
         "sample_count": n,
         "overall_accuracy": round(avg_accuracy, 4),
-        "avg_latency": round(avg_latency, 2),
+        "avg_latency": round(avg_latency, 4),
         "total_cost": round(total_cost, 4),
         "total_prompt_tokens": total_prompt_tokens,
         "total_completion_tokens": total_completion_tokens,
-        "success_rate": round(success_count / n, 4) if n > 0 else 0,
+        "success_rate": (success_count / n) if n > 0 else 0,
     }

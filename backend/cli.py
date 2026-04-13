@@ -29,17 +29,25 @@ from database.pool import connect
 from config import get_settings
 
 
+def _demo_limit_label() -> str:
+    return f"{get_settings().demo_daily_request_limit} requests/day"
+
+
 async def run_benchmark_cli():
     """Run a benchmark from CLI arguments."""
     import argparse
 
+    from benchmarks.datasets_extended import list_available_datasets
+
+    available_datasets = list_available_datasets()
+
     parser = argparse.ArgumentParser(description="Run OCR benchmark")
     parser.add_argument("--provider", required=True, help="Provider name (nebius, openrouter, gemini)")
     parser.add_argument("--model", required=True, help="Model identifier")
-    parser.add_argument("--dataset", default="cord", help="Dataset name (default: cord)")
+    parser.add_argument("--dataset", default="cord", choices=available_datasets, help=f"Dataset name (default: cord, available: {', '.join(available_datasets)})")
     parser.add_argument("--limit", type=int, default=20, help="Max samples to process (default: 20)")
     parser.add_argument("--data-dir", default=None, help="Path to dataset directory")
-    parser.add_argument("--prompt", default="Extract all information from this receipt as JSON.", help="Prompt")
+    parser.add_argument("--prompt", default="Extract all information from this document as JSON.", help="Prompt")
     parser.add_argument("--concurrency", type=int, default=5, help="Max concurrent API calls (default: 5)")
     args = parser.parse_args(sys.argv[2:])
 
@@ -160,6 +168,43 @@ async def show_benchmark_cli(run_id: int):
         print(tabulate(rows, headers=headers, tablefmt="grid"))
 
 
+async def export_benchmark_cli():
+    """Export benchmark results to markdown."""
+    import argparse
+
+    from benchmarks.datasets_extended import list_available_datasets
+
+    available_datasets = list_available_datasets()
+
+    parser = argparse.ArgumentParser(description="Export benchmark results to markdown")
+    parser.add_argument("--dataset", default="cord", choices=available_datasets, help=f"Dataset name (default: cord, available: {', '.join(available_datasets)})")
+    parser.add_argument("--output", "-o", default=None, help="Output file path (prints to stdout if not specified)")
+    parser.add_argument("--detailed", action="store_true", help="Generate detailed report with per-sample analysis")
+    parser.add_argument("--min-samples", type=int, default=10, help="Minimum sample count for inclusion (default: 10)")
+    args = parser.parse_args(sys.argv[2:])
+
+    from benchmarks.exporter import export_benchmark_results, export_detailed_comparison
+
+    print(f"Exporting benchmark results for dataset: {args.dataset}")
+
+    if args.detailed:
+        markdown = await export_detailed_comparison(
+            dataset=args.dataset,
+            output_path=args.output,
+        )
+    else:
+        markdown = await export_benchmark_results(
+            dataset=args.dataset,
+            output_path=args.output,
+            min_samples=args.min_samples,
+        )
+
+    if args.output:
+        print(f"✓ Results exported to: {args.output}")
+    else:
+        print("\n" + markdown)
+
+
 async def create_admin_user(username: str, password: str):
     """Create an admin user."""
     existing_user = await crud.get_user_by_username(username)
@@ -177,7 +222,7 @@ async def create_admin_user(username: str, password: str):
 
 
 async def create_demo_user(username: str, password: str):
-    """Create a limited demo user (for testing)."""
+    """Create a limited demo user with a daily OCR cap."""
     existing_user = await crud.get_user_by_username(username)
     if existing_user:
         print(f"✗ Error: User '{username}' already exists.")
@@ -190,7 +235,7 @@ async def create_demo_user(username: str, password: str):
     print(f"  Username: {username}")
     print(f"  Password: {password}")
     print(f"  User ID: {user_id}")
-    print("  Limit: 5 requests/day")
+    print(f"  Limit: {_demo_limit_label()}")
     return True
 
 
@@ -216,7 +261,7 @@ async def create_demo_users(count: int = 5):
     for username, password, uid in created:
         print(f"  {username} / {password}")
     print("-" * 40)
-    print("All users have: 5 requests/day limit")
+    print(f"All users have: {_demo_limit_label()} limit")
     return True
 
 
@@ -228,7 +273,7 @@ async def list_all_users():
         print("No users found.")
         return True
 
-    headers = ["ID", "Username", "Admin", "Created At"]
+    headers = ["ID", "Username", "Admin", "Limited", "Usage Today", "Created At"]
     rows = []
     for user in users:
         rows.append(
@@ -236,6 +281,8 @@ async def list_all_users():
                 user["id"],
                 user["username"],
                 "✓" if user["is_admin"] else "✗",
+                "✓" if user["is_limited"] else "✗",
+                user["daily_requests"] or 0,
                 user["created_at"],
             ]
         )
@@ -324,6 +371,7 @@ def print_help():
     print("  run-benchmark --provider <name> --model <name>  Run benchmark")
     print("  list-benchmarks                    List past benchmark runs")
     print("  show-benchmark <id>                Show detailed benchmark results")
+    print("  export-benchmark --dataset <name>   Export results to markdown")
     print("\nExamples:")
     print("  uv run python -m backend.cli create-admin admin1 securepass123")
     print("  uv run python -m backend.cli create-demo testuser1 pass123")
@@ -333,6 +381,7 @@ def print_help():
     print("  uv run python -m backend.cli run-benchmark --provider nebius --model Qwen/Qwen2.5-VL-72B-Instruct")
     print("  uv run python -m backend.cli list-benchmarks")
     print("  uv run python -m backend.cli show-benchmark 1")
+    print("  uv run python -m backend.cli export-benchmark --dataset cord -o docs/reference/benchmark-results-cord.md")
 
 
 async def main():
@@ -443,6 +492,9 @@ async def main():
             print("✗ Error: Run ID must be a number.")
             sys.exit(1)
         await show_benchmark_cli(run_id)
+
+    elif command == "export-benchmark":
+        await export_benchmark_cli()
 
     else:
         print(f"✗ Error: Unknown command '{command}'")

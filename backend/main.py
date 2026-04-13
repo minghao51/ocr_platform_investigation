@@ -42,6 +42,8 @@ app.add_middleware(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
+    path = request.url.path
+
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -49,6 +51,11 @@ async def add_security_headers(request: Request, call_next):
         "max-age=31536000; includeSubDomains"
     )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Keep demo sessions fresh while still allowing hashed frontend assets to cache.
+    if not path.startswith("/assets/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+
     return response
 
 

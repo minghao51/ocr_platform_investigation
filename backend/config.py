@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List
@@ -17,7 +18,10 @@ class Settings(BaseSettings):
     max_file_size: int = 10 * 1024 * 1024  # 10MB
 
     # CORS Origins (comma-separated list, will be parsed into list)
-    cors_origins_str: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins_str: str = Field(
+        default="http://localhost:5173,http://localhost:3000",
+        validation_alias=AliasChoices("CORS_ORIGINS_STR", "CORS_ORIGINS"),
+    )
 
     @property
     def cors_origins(self) -> List[str]:
@@ -35,6 +39,7 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     rate_limit_per_minute: int = 10
+    demo_daily_request_limit: int = 5
 
     class Config:
         env_file = "../.env"

@@ -27,6 +27,8 @@ docker compose up --build
 
 Open `http://localhost:8000`.
 
+This Compose file is now tuned for demo/staging use: it runs the built app in one container and persists only `./data`.
+
 ### Local Development
 
 Terminal 1:
@@ -58,7 +60,7 @@ At least one provider key is required:
 You also need:
 
 - `JWT_SECRET_KEY`
-- `CORS_ORIGINS`
+- `CORS_ORIGINS` or `CORS_ORIGINS_STR`
 
 See [docs/guides/setup.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/setup.md) for the full setup flow.
 
@@ -78,14 +80,15 @@ Administrative commands live in [backend/cli.py](/Users/minghao/Desktop/personal
 Examples:
 
 ```bash
-cd backend
 uv run python -m backend.cli create-admin admin strong-password
+uv run python -m backend.cli create-demo guest1 guest-password
 uv run python -m backend.cli list-users
 ```
 
 ## Documentation
 
 - Setup: [docs/guides/setup.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/setup.md)
+- Deployment: [docs/guides/deployment.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/deployment.md)
 - Using the app: [docs/guides/user-guide.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/user-guide.md)
 - Troubleshooting: [docs/guides/troubleshooting.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/troubleshooting.md)
 - API reference: [docs/reference/api.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/reference/api.md)

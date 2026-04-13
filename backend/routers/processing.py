@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from typing import Optional
 from models.schemas import ProcessRequest, ProcessResponse
 from database import crud
 from services.processing import run_processing_job, run_text_processing_job
 from services.document_classifier import DocumentClassifier
 from dependencies import check_daily_limit, increment_daily_limit, get_current_user
+from limiter import limiter, get_rate_limit_value
 from routers.job_serialization import serialize_job
+from routers.shared import ensure_file_access, ensure_job_access
 import json
 import logging
 
@@ -14,26 +16,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/process", tags=["processing"])
 
 
-def _is_admin(user: dict) -> bool:
-    return bool(user.get("is_admin", False))
-
-
-def _ensure_uploaded_file_access(file_record: dict, current_user: dict) -> None:
-    if _is_admin(current_user):
-        return
-    if file_record.get("user_id") != current_user.get("user_id"):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-
-def _ensure_job_access(job: dict, current_user: dict) -> None:
-    if _is_admin(current_user):
-        return
-    if job.get("user_id") != current_user.get("user_id"):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-
 @router.post("/", response_model=ProcessResponse)
+@limiter.limit(get_rate_limit_value)
 async def process_document(
+    http_request: Request,
     request: ProcessRequest,
     background_tasks: BackgroundTasks,
     extraction_method: Optional[
@@ -49,6 +35,7 @@ async def process_document(
     - "text": Force text extraction (pdfplumber + LLM) - fast & cheap
     - "vision": Force vision extraction (VLM) - accurate & expensive
     """
+    _ = http_request
 
     # Get schema definition
     if request.schema_id:
@@ -71,7 +58,7 @@ async def process_document(
     file_record = await crud.get_uploaded_file(request.file_id)
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
-    _ensure_uploaded_file_access(file_record, current_user)
+    ensure_file_access(file_record, current_user)
 
     # Verify file still exists on disk
     from pathlib import Path
@@ -185,6 +172,6 @@ async def get_job_status(job_id: int, current_user: dict = Depends(get_current_u
     job = await crud.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    _ensure_job_access(job, current_user)
+    ensure_job_access(job, current_user)
 
     return serialize_job(job)

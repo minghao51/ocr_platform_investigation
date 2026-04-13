@@ -50,8 +50,8 @@ class VLMProvider(ABC):
         pass
 
     @abstractmethod
-    def get_models(self) -> List[str]:
-        """Get list of available models"""
+    def get_models(self) -> List[Dict[str, Any]]:
+        """Get list of available models with metadata"""
         pass
 
     @abstractmethod

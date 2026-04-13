@@ -51,7 +51,7 @@ async def list_users() -> List[Dict[str, Any]]:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            """SELECT id, username, is_admin, created_at
+            """SELECT id, username, is_admin, is_limited, daily_requests, last_request_date, created_at
                FROM users
                ORDER BY created_at DESC"""
         )
@@ -161,17 +161,18 @@ async def update_job_status(
 
     if usage:
         prompt_tokens = usage.get("prompt_tokens") or usage.get("promptTokenCount")
-        completion_tokens = usage.get("completion_tokens") or usage.get("candidatesTokenCount")
+        completion_tokens = usage.get("completion_tokens") or usage.get(
+            "candidatesTokenCount"
+        )
         total_tokens = usage.get("total_tokens") or usage.get("totalTokenCount")
 
         if prompt_tokens is not None and completion_tokens is not None:
             from services.pricing import calculate_cost
 
-            # Try to get model from job record to calculate cost
             async with connect() as db_cost:
                 db_cost.row_factory = aiosqlite.Row
                 cursor = await db_cost.execute(
-                    "SELECT provider, model FROM processing_jobs WHERE id = ?", (job_id,)
+                    "SELECT model FROM processing_jobs WHERE id = ?", (job_id,)
                 )
                 row = await cursor.fetchone()
                 if row:
@@ -180,51 +181,32 @@ async def update_job_status(
                     )
 
     async with connect() as db:
+        completed_at = (
+            datetime.now().isoformat() if status in ("success", "error") else None
+        )
+        update_fields = {
+            "status": status,
+            "processing_time_seconds": processing_time,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "estimated_cost": estimated_cost,
+        }
         if status == "success":
-            completed_at = datetime.now().isoformat()
-            await db.execute(
-                """UPDATE processing_jobs
-                   SET status = ?, result = ?, completed_at = ?, processing_time_seconds = ?,
-                       prompt_tokens = ?, completion_tokens = ?, total_tokens = ?, estimated_cost = ?
-                   WHERE id = ?""",
-                (
-                    status,
-                    json.dumps(result) if result else None,
-                    completed_at,
-                    processing_time,
-                    prompt_tokens,
-                    completion_tokens,
-                    total_tokens,
-                    estimated_cost,
-                    job_id,
-                ),
-            )
+            update_fields["result"] = json.dumps(result) if result else None
+            update_fields["completed_at"] = completed_at
         elif status == "error":
-            completed_at = datetime.now().isoformat()
-            await db.execute(
-                """UPDATE processing_jobs
-                   SET status = ?, error_message = ?, completed_at = ?, processing_time_seconds = ?,
-                       prompt_tokens = ?, completion_tokens = ?, total_tokens = ?, estimated_cost = ?
-                   WHERE id = ?""",
-                (
-                    status,
-                    error_message,
-                    completed_at,
-                    processing_time,
-                    prompt_tokens,
-                    completion_tokens,
-                    total_tokens,
-                    estimated_cost,
-                    job_id,
-                ),
-            )
-        else:
-            await db.execute(
-                "UPDATE processing_jobs SET status = ? WHERE id = ?", (status, job_id)
-            )
+            update_fields["error_message"] = error_message
+            update_fields["completed_at"] = completed_at
+
+        await db.execute(
+            f"""UPDATE processing_jobs
+               SET {", ".join(f"{k} = ?" for k in update_fields)}
+               WHERE id = ?""",
+            (*update_fields.values(), job_id),
+        )
         await db.commit()
 
-        # Fetch and return the updated job
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT * FROM processing_jobs WHERE id = ?", (job_id,)
@@ -259,7 +241,7 @@ async def list_jobs(
         db.row_factory = aiosqlite.Row
 
         query = "SELECT * FROM processing_jobs WHERE 1=1"
-        params = []
+        params: List[Any] = []
 
         if status:
             query += " AND status = ?"

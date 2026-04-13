@@ -8,10 +8,6 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
-      # Development volume mounts for hot-reload
-      - ./backend:/app/backend
-      - ./frontend/src:/app/frontend/src
-      - ./frontend/dist:/app/frontend/dist
     env_file:
       - .env
     environment:

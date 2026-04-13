@@ -22,7 +22,7 @@ class SchemaService:
     @staticmethod
     def validate_data(
         data: Dict[str, Any], schema_definition: Dict[str, Any]
-    ) -> tuple[bool, Any, str]:
+    ) -> tuple[bool, Any, str | None]:
         """Validate data against schema"""
 
         try:

@@ -1,9 +1,11 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 from database import crud
 from dependencies import check_daily_limit, increment_daily_limit, get_current_user
+from limiter import limiter, get_rate_limit_value
 from routers.job_serialization import serialize_job
+from routers.shared import ensure_file_access, ensure_job_access
 
 router = APIRouter(prefix="/api/text", tags=["text-processing"])
 
@@ -15,26 +17,10 @@ class TextProcessRequest(BaseModel):
     schema_id: Optional[int] = None
 
 
-def _is_admin(user: dict) -> bool:
-    return bool(user.get("is_admin", False))
-
-
-def _ensure_uploaded_file_access(file_record: dict, current_user: dict) -> None:
-    if _is_admin(current_user):
-        return
-    if file_record.get("user_id") != current_user.get("user_id"):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-
-def _ensure_job_access(job: dict, current_user: dict) -> None:
-    if _is_admin(current_user):
-        return
-    if job.get("user_id") != current_user.get("user_id"):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-
 @router.post("/process")
+@limiter.limit(get_rate_limit_value)
 async def process_text_document(
+    http_request: Request,
     request: TextProcessRequest,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(check_daily_limit),
@@ -45,6 +31,8 @@ async def process_text_document(
     Processes PDF using pdfplumber text extraction + text-only LLM
     Note: Only supports PDF files. For images and scanned documents, use Vision Extraction.
     """
+    _ = http_request
+
     # Import here to avoid circular dependency
     from services.processing import run_text_processing_job
 
@@ -52,7 +40,7 @@ async def process_text_document(
     file_info = await crud.get_uploaded_file(request.file_id)
     if not file_info:
         raise HTTPException(status_code=404, detail="File not found")
-    _ensure_uploaded_file_access(file_info, current_user)
+    ensure_file_access(file_info, current_user)
 
     # Validate file type - text extraction only supports PDFs
     file_extension = (file_info.get("file_extension") or "").lower()
@@ -108,5 +96,5 @@ async def get_text_job_status(
     job = await crud.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    _ensure_job_access(job, current_user)
+    ensure_job_access(job, current_user)
     return serialize_job(job)

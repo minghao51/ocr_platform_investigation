@@ -86,6 +86,9 @@ Status updates are pushed over WebSocket while the job is running.
 - Login is required for OCR actions.
 - Uploads are limited to supported PDF and image types.
 - Default upload size limit is 10 MB.
+- OCR actions are rate-limited per minute for non-admin users.
+- Demo accounts can also have a daily OCR cap.
+- Admin or master accounts bypass these limits.
 - Provider availability depends on which API keys are configured.
 
 ## Common Workflow Tips
