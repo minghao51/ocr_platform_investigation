@@ -152,6 +152,39 @@ async def migrate_user_id_to_uploaded_files():
             print("✓ uploaded_files.user_id already exists")
 
 
+async def migrate_guest_tokens():
+    """Add guest ownership tokens to uploaded_files and processing_jobs."""
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(uploaded_files)")
+        uploaded_columns = [col[1] for col in await cursor.fetchall()]
+        if "guest_token" not in uploaded_columns:
+            print("Adding guest_token column to uploaded_files table...")
+            await db.execute("ALTER TABLE uploaded_files ADD COLUMN guest_token TEXT")
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_uploaded_files_guest_token ON uploaded_files(guest_token)"
+            )
+            await db.commit()
+            print("✓ Added uploaded_files.guest_token")
+        else:
+            print("✓ uploaded_files.guest_token already exists")
+
+        cursor = await db.execute("PRAGMA table_info(processing_jobs)")
+        job_columns = [col[1] for col in await cursor.fetchall()]
+        if "guest_token" not in job_columns:
+            print("Adding guest_token column to processing_jobs table...")
+            await db.execute("ALTER TABLE processing_jobs ADD COLUMN guest_token TEXT")
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_guest_token ON processing_jobs(guest_token)"
+            )
+            await db.commit()
+            print("✓ Added processing_jobs.guest_token")
+        else:
+            print("✓ processing_jobs.guest_token already exists")
+
+
 async def migrate_job_metadata_column():
     """Add metadata column to processing_jobs table"""
     db_path = _get_db_path()
@@ -181,7 +214,12 @@ async def migrate_cost_tracking_columns():
         columns = await cursor.fetchall()
         column_names = [col[1] for col in columns]
 
-        for col_name in ["prompt_tokens", "completion_tokens", "total_tokens", "estimated_cost"]:
+        for col_name in [
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+            "estimated_cost",
+        ]:
             if col_name not in column_names:
                 print(f"Adding {col_name} column to processing_jobs table...")
                 await db.execute(f"ALTER TABLE processing_jobs ADD COLUMN {col_name}")
@@ -220,8 +258,12 @@ async def migrate_benchmark_tables():
                     completed_at TIMESTAMP
                 )
             """)
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_dataset ON benchmark_runs(dataset)")
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_runs_provider ON benchmark_runs(provider)")
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_benchmark_runs_dataset ON benchmark_runs(dataset)"
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_benchmark_runs_provider ON benchmark_runs(provider)"
+            )
             await db.commit()
             print("✓ Created benchmark_runs table")
         else:
@@ -252,7 +294,9 @@ async def migrate_benchmark_tables():
                     FOREIGN KEY (run_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE
                 )
             """)
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_results_run_id ON benchmark_results(run_id)")
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_benchmark_results_run_id ON benchmark_results(run_id)"
+            )
             await db.commit()
             print("✓ Created benchmark_results table")
         else:
@@ -370,6 +414,156 @@ async def migrate_legacy_benchmark_data():
     print(f"✓ Imported {legacy_count} benchmark runs from legacy backend/data database")
 
 
+async def migrate_quality_gate():
+    """Add quality gate columns to processing_jobs table"""
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(processing_jobs)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+
+        for col_name in ["quality_score", "quality_checks", "preprocessing_applied"]:
+            if col_name not in column_names:
+                print(f"Adding {col_name} column to processing_jobs table...")
+                await db.execute(f"ALTER TABLE processing_jobs ADD COLUMN {col_name}")
+                await db.commit()
+                print(f"✓ Added {col_name} column")
+            else:
+                print(f"✓ processing_jobs.{col_name} already exists")
+
+
+async def migrate_phase23_tables():
+    """Add Phase 2/3 columns and tables."""
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("PRAGMA table_info(processing_jobs)")
+        job_columns = [col[1] for col in await cursor.fetchall()]
+
+        if "document_type" not in job_columns:
+            print("Adding document_type column to processing_jobs table...")
+            await db.execute(
+                "ALTER TABLE processing_jobs ADD COLUMN document_type TEXT"
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_document_type ON processing_jobs(document_type)"
+            )
+            await db.commit()
+            print("✓ Added processing_jobs.document_type")
+        else:
+            print("✓ processing_jobs.document_type already exists")
+
+        if "correction_status" not in job_columns:
+            print("Adding correction_status column to processing_jobs table...")
+            await db.execute(
+                "ALTER TABLE processing_jobs ADD COLUMN correction_status TEXT DEFAULT 'uncorrected'"
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_correction_status ON processing_jobs(correction_status)"
+            )
+            await db.commit()
+            print("✓ Added processing_jobs.correction_status")
+        else:
+            print("✓ processing_jobs.correction_status already exists")
+
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_suggestions'"
+        )
+        if await cursor.fetchone() is None:
+            print("Creating schema_suggestions table...")
+            await db.execute(
+                """
+                CREATE TABLE schema_suggestions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_ids TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    document_type TEXT,
+                    draft_name TEXT,
+                    schema_definition TEXT NOT NULL,
+                    field_descriptions TEXT,
+                    rationale TEXT,
+                    confidence REAL,
+                    status TEXT DEFAULT 'draft',
+                    created_by_user_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+                )
+                """
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_schema_suggestions_created_by ON schema_suggestions(created_by_user_id)"
+            )
+            await db.commit()
+            print("✓ Created schema_suggestions table")
+        else:
+            print("✓ schema_suggestions table already exists")
+
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='job_corrections'"
+        )
+        if await cursor.fetchone() is None:
+            print("Creating job_corrections table...")
+            await db.execute(
+                """
+                CREATE TABLE job_corrections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER NOT NULL,
+                    original_result TEXT NOT NULL,
+                    corrected_result TEXT NOT NULL,
+                    diff_summary TEXT,
+                    feedback_tags TEXT,
+                    notes TEXT,
+                    reviewer_user_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES processing_jobs(id) ON DELETE CASCADE,
+                    FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE SET NULL
+                )
+                """
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_job_corrections_job_id ON job_corrections(job_id)"
+            )
+            await db.commit()
+            print("✓ Created job_corrections table")
+        else:
+            print("✓ job_corrections table already exists")
+
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='prompt_learning_entries'"
+        )
+        if await cursor.fetchone() is None:
+            print("Creating prompt_learning_entries table...")
+            await db.execute(
+                """
+                CREATE TABLE prompt_learning_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    schema_name TEXT,
+                    provider TEXT,
+                    model TEXT,
+                    processing_method TEXT,
+                    entry_type TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    source_correction_count INTEGER DEFAULT 0,
+                    last_correction_id INTEGER,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (last_correction_id) REFERENCES job_corrections(id) ON DELETE SET NULL
+                )
+                """
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_prompt_learning_schema_name ON prompt_learning_entries(schema_name)"
+            )
+            await db.commit()
+            print("✓ Created prompt_learning_entries table")
+        else:
+            print("✓ prompt_learning_entries table already exists")
+
+
 async def run_migrations():
     """Run all database migrations"""
     db_path = _get_db_path()
@@ -380,10 +574,13 @@ async def run_migrations():
     await migrate_user_id_to_jobs()
     await migrate_user_usage_tracking()
     await migrate_user_id_to_uploaded_files()
+    await migrate_guest_tokens()
     await migrate_job_metadata_column()
     await migrate_cost_tracking_columns()
     await migrate_benchmark_tables()
     await migrate_legacy_benchmark_data()
+    await migrate_quality_gate()
+    await migrate_phase23_tables()
     print("All migrations completed successfully")
 
 

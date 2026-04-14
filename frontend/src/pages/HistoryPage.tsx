@@ -1,15 +1,13 @@
 import { useState, useEffect } from 'react';
 import { listJobs, getJob, deleteJob, Job } from '../lib/api';
 import ResultsDisplay from '../components/ResultsDisplay';
-import LoginPanel from '@/components/LoginPanel';
 import { SkeletonList } from '@/components/LoadingSpinner';
 
 interface HistoryPageProps {
   isAuthenticated: boolean;
-  onLoginSuccess: () => void;
 }
 
-export default function HistoryPage({ isAuthenticated, onLoginSuccess }: HistoryPageProps) {
+export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,17 +91,20 @@ export default function HistoryPage({ isAuthenticated, onLoginSuccess }: History
       <h1 className="text-3xl font-bold mb-6">Processing History</h1>
 
       {!isAuthenticated && (
-        <div className="max-w-xl">
-          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-100 p-4">
-            <p className="text-sm text-gray-700">
-              Login required to view your processing history and past OCR results.
-            </p>
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-700">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12A9 9 0 113 12a9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-amber-900">History is available after sign-in.</p>
+              <p className="mt-1 text-sm text-amber-800">
+                Use the top-right guest menu to log in with an admin or demo account, then your OCR jobs will appear here.
+              </p>
+            </div>
           </div>
-          <LoginPanel
-            onLoginSuccess={onLoginSuccess}
-            title="Login Required for History"
-            subtitle="Sign in to view, inspect, and delete your OCR jobs."
-          />
         </div>
       )}
 
@@ -178,9 +179,16 @@ export default function HistoryPage({ isAuthenticated, onLoginSuccess }: History
                           <span className={`px-2 py-1 rounded-full text-xs ${
                             job.processing_method === 'text'
                               ? 'bg-green-100 text-green-800'
-                              : 'bg-blue-100 text-blue-800'
+                              : job.processing_method === 'hybrid'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-blue-100 text-blue-800'
                           }`}>
                             {job.processing_method}
+                          </span>
+                        )}
+                        {job.correction_status === 'corrected' && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-800">
+                            corrected
                           </span>
                         )}
                         <span className={'px-2 py-1 rounded-full text-xs ' + getStatusColor(job.status)}>

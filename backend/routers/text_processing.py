@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 from database import crud
-from dependencies import check_daily_limit, increment_daily_limit, get_current_user
+from dependencies import check_and_increment_daily_limit, get_current_user
 from limiter import limiter, get_rate_limit_value
 from routers.job_serialization import serialize_job
 from routers.shared import ensure_file_access, ensure_job_access
@@ -23,7 +23,7 @@ async def process_text_document(
     http_request: Request,
     request: TextProcessRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(check_daily_limit),
+    current_user: dict = Depends(check_and_increment_daily_limit),
 ):
     """
     Start text extraction job
@@ -82,8 +82,6 @@ async def process_text_document(
 
     # Queue background processing
     background_tasks.add_task(run_text_processing_job, job_id, file_path)
-    if current_user.get("user_id"):
-        background_tasks.add_task(increment_daily_limit, current_user["user_id"])
 
     return {"job_id": job_id}
 

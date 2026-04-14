@@ -105,7 +105,7 @@ export default function LandingPage({ isAuthenticated, username }: LandingPagePr
           <p className="mt-3 text-sm text-gray-600">
             {isAuthenticated
               ? `Signed in${username ? ` as ${username}` : ''}. You can upload documents, process OCR jobs, and review history.`
-              : 'Guest mode is active. You can explore the app, but login is required for uploads and job history.'}
+              : 'Guest mode is active. You can explore the app now, then sign in from the top-right menu when you want to upload documents or open history.'}
           </p>
           <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Recommended next step</p>

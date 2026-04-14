@@ -7,6 +7,13 @@ interface AdvancedOptionsProps {
   onPromptChange: (prompt: string) => void;
   onTemperatureChange: (temperature: number) => void;
   onMaxTokensChange: (maxTokens: number) => void;
+  // Quality gate options
+  qualityThreshold: number;
+  autoPreprocess: boolean;
+  skipQuality: boolean;
+  onQualityThresholdChange: (threshold: number) => void;
+  onAutoPreprocessChange: (enabled: boolean) => void;
+  onSkipQualityChange: (skip: boolean) => void;
   errors?: {
     prompt?: string;
     temperature?: string;
@@ -21,6 +28,12 @@ export default function AdvancedOptions({
   onPromptChange,
   onTemperatureChange,
   onMaxTokensChange,
+  qualityThreshold,
+  autoPreprocess,
+  skipQuality,
+  onQualityThresholdChange,
+  onAutoPreprocessChange,
+  onSkipQualityChange,
   errors,
 }: AdvancedOptionsProps) {
   const handleTemperatureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,6 +151,96 @@ export default function AdvancedOptions({
         {errors?.maxTokens && (
           <p className="mt-1 text-sm text-red-600">{errors.maxTokens}</p>
         )}
+      </div>
+
+      {/* Quality Gate */}
+      <div className="pt-4 border-t border-gray-200">
+        <h4 className="text-sm font-medium text-gray-700 mb-3">Quality Gate</h4>
+        <div className="space-y-4">
+          {/* Skip quality gate */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label htmlFor="skipQuality" className="text-sm font-medium text-gray-700">
+                Skip Quality Check
+              </label>
+              <p className="text-xs text-gray-500">Bypass quality assessment to save time (not recommended)</p>
+            </div>
+            <button
+              id="skipQuality"
+              type="button"
+              role="switch"
+              aria-checked={skipQuality}
+              onClick={() => onSkipQualityChange(!skipQuality)}
+              className={`
+                relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                ${skipQuality ? 'bg-red-500' : 'bg-gray-300'}
+              `}
+            >
+              <span
+                className={`
+                  inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                  ${skipQuality ? 'translate-x-6' : 'translate-x-1'}
+                `}
+              />
+            </button>
+          </div>
+
+          {!skipQuality && (
+            <>
+              {/* Auto-preprocess */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label htmlFor="autoPreprocess" className="text-sm font-medium text-gray-700">
+                    Auto-Preprocess
+                  </label>
+                  <p className="text-xs text-gray-500">Automatically fix issues (deskew, denoise, contrast)</p>
+                </div>
+                <button
+                  id="autoPreprocess"
+                  type="button"
+                  role="switch"
+                  aria-checked={autoPreprocess}
+                  onClick={() => onAutoPreprocessChange(!autoPreprocess)}
+                  className={`
+                    relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                    ${autoPreprocess ? 'bg-blue-500' : 'bg-gray-300'}
+                  `}
+                >
+                  <span
+                    className={`
+                      inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                      ${autoPreprocess ? 'translate-x-6' : 'translate-x-1'}
+                    `}
+                  />
+                </button>
+              </div>
+
+              {/* Quality threshold */}
+              <div>
+                <label htmlFor="qualityThreshold" className="block text-sm font-medium text-gray-700 mb-1">
+                  Minimum Quality Score: {qualityThreshold.toFixed(0)}/100
+                </label>
+                <input
+                  type="range"
+                  id="qualityThreshold"
+                  min="0"
+                  max="80"
+                  step="5"
+                  value={qualityThreshold}
+                  onChange={(e) => onQualityThresholdChange(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <div className="mt-1 flex justify-between text-xs text-gray-500">
+                  <span>Lenient (0)</span>
+                  <span>Strict (80)</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Images scoring below this threshold will be rejected (after auto-preprocessing if enabled)
+                </p>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

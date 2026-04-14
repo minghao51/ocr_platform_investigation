@@ -1,8 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from database import crud
 from services.schema_service import SchemaService
+from services.schema_suggester import SchemaSuggestionService
+from services.provider_utils import choose_default_provider_model
+from dependencies import get_optional_user
+from routers.shared import ensure_file_access
+from models.schemas import SchemaSuggestRequest
+from config import get_settings
 import json
 
 router = APIRouter(prefix="/api/schemas", tags=["schemas"])
@@ -81,6 +87,71 @@ async def get_templates():
         }
         for name, definition in templates.items()
     ]
+
+
+@router.post("/suggestions")
+async def suggest_schema(
+    payload: SchemaSuggestRequest,
+    request: Request,
+    current_user: dict | None = Depends(get_optional_user),
+):
+    settings = get_settings()
+    provider_name = payload.provider
+    model = payload.model
+    if not provider_name or not model:
+        provider_name, model = choose_default_provider_model()
+
+    api_key = getattr(settings, f"{provider_name}_api_key")
+    if not api_key:
+        raise HTTPException(
+            status_code=400, detail=f"No API key configured for {provider_name}"
+        )
+
+    file_records = []
+    guest_token = request.headers.get("X-Guest-Token")
+    for file_id in payload.file_ids:
+        file_record = await crud.get_uploaded_file(file_id)
+        if not file_record:
+            raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
+        ensure_file_access(file_record, current_user, guest_token)
+        file_records.append(file_record)
+
+    suggester = SchemaSuggestionService()
+    try:
+        suggestion = await suggester.suggest_schema(
+            file_records=file_records,
+            provider_name=provider_name,
+            model=model,
+            api_key=api_key,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to generate schema suggestion: {exc}"
+        ) from exc
+
+    created_by_user_id = current_user.get("user_id") if current_user else None
+    suggestion_id = await crud.create_schema_suggestion(
+        file_ids=payload.file_ids,
+        provider=suggestion["provider"],
+        model=suggestion["model"],
+        document_type=suggestion["document_type"],
+        draft_name=suggestion["draft_name"],
+        schema_definition=suggestion["schema_definition"],
+        field_descriptions=suggestion["field_descriptions"],
+        rationale=suggestion["rationale"],
+        confidence=suggestion["confidence"],
+        created_by_user_id=created_by_user_id,
+    )
+    stored = await crud.get_schema_suggestion(suggestion_id)
+    return stored
+
+
+@router.get("/suggestions/list")
+async def list_schema_suggestion_history(
+    current_user: dict | None = Depends(get_optional_user),
+):
+    user_id = current_user.get("user_id") if current_user else None
+    return await crud.list_schema_suggestions(created_by_user_id=user_id)
 
 
 @router.get("/{schema_id}")

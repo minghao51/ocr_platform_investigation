@@ -2,6 +2,8 @@ import { Job } from '../lib/api';
 import ProcessingStatus from './ProcessingStatus';
 import ExtractedDataDisplay from './ExtractedDataDisplay';
 import type { ExtractionMethod } from './ExtractionModeSelector';
+import CorrectionReviewPanel from './CorrectionReviewPanel';
+import type { JobCorrection } from '@/lib/api';
 
 interface ResultsDisplayProps {
   job: Job;
@@ -131,6 +133,37 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
           <h2 className="text-xl font-semibold mb-4">Extracted Data</h2>
           <ExtractedDataDisplay result={job.result} fileName={job.file_name} />
         </section>
+      )}
+
+      {job.hybrid_diagnostics && (
+        <section className="rounded-lg border border-orange-200 bg-orange-50 p-5">
+          <h3 className="text-lg font-semibold text-orange-950">Hybrid Diagnostics</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-orange-700">Pages analyzed</p>
+              <p className="text-2xl font-semibold text-orange-950">{job.hybrid_diagnostics.layout_pages}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-orange-700">Complex pages</p>
+              <p className="text-2xl font-semibold text-orange-950">{job.hybrid_diagnostics.complex_pages.length}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-orange-700">Stage timings</p>
+              <p className="text-sm text-orange-900">
+                Layout {job.hybrid_diagnostics.timings.layout_seconds.toFixed(2)}s, vision {job.hybrid_diagnostics.timings.vision_seconds.toFixed(2)}s
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {job.status === 'success' && hasResult && (
+        <CorrectionReviewPanel
+          job={job}
+          onCorrectionSaved={(correction: JobCorrection) => {
+            console.log('Correction saved', correction.id);
+          }}
+        />
       )}
     </div>
   );

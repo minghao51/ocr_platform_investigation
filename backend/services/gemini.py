@@ -182,7 +182,9 @@ class GeminiProvider(VLMProvider):
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
                 "responseMimeType": "application/json",
-                "responseSchema": self._convert_json_schema_to_gemini(schema_definition),
+                "responseSchema": self._convert_json_schema_to_gemini(
+                    schema_definition
+                ),
             },
         }
 

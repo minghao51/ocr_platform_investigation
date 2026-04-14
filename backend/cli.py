@@ -42,13 +42,31 @@ async def run_benchmark_cli():
     available_datasets = list_available_datasets()
 
     parser = argparse.ArgumentParser(description="Run OCR benchmark")
-    parser.add_argument("--provider", required=True, help="Provider name (nebius, openrouter, gemini)")
+    parser.add_argument(
+        "--provider", required=True, help="Provider name (nebius, openrouter, gemini)"
+    )
     parser.add_argument("--model", required=True, help="Model identifier")
-    parser.add_argument("--dataset", default="cord", choices=available_datasets, help=f"Dataset name (default: cord, available: {', '.join(available_datasets)})")
-    parser.add_argument("--limit", type=int, default=20, help="Max samples to process (default: 20)")
+    parser.add_argument(
+        "--dataset",
+        default="cord",
+        choices=available_datasets,
+        help=f"Dataset name (default: cord, available: {', '.join(available_datasets)})",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=20, help="Max samples to process (default: 20)"
+    )
     parser.add_argument("--data-dir", default=None, help="Path to dataset directory")
-    parser.add_argument("--prompt", default="Extract all information from this document as JSON.", help="Prompt")
-    parser.add_argument("--concurrency", type=int, default=5, help="Max concurrent API calls (default: 5)")
+    parser.add_argument(
+        "--prompt",
+        default="Extract all information from this document as JSON.",
+        help="Prompt",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Max concurrent API calls (default: 5)",
+    )
     args = parser.parse_args(sys.argv[2:])
 
     settings = get_settings()
@@ -93,7 +111,9 @@ async def run_benchmark_cli():
     print(f"  Success Rate (>=50%): {summary['success_rate']:.2%}")
     print(f"  Avg Latency: {summary['avg_latency']:.1f}s")
     print(f"  Total Cost: ${summary['total_cost']:.4f}")
-    print(f"  Total Tokens: {summary['total_prompt_tokens'] + summary['total_completion_tokens']}")
+    print(
+        f"  Total Tokens: {summary['total_prompt_tokens'] + summary['total_completion_tokens']}"
+    )
     print(f"    Input: {summary['total_prompt_tokens']}")
     print(f"    Output: {summary['total_completion_tokens']}")
     print("=" * 60)
@@ -105,23 +125,41 @@ async def list_benchmarks_cli():
 
     if not runs:
         print("No benchmark runs found.")
-        print("Run: uv run python -m backend.cli run-benchmark --provider <name> --model <name>")
+        print(
+            "Run: uv run python -m backend.cli run-benchmark --provider <name> --model <name>"
+        )
         return
 
-    headers = ["ID", "Dataset", "Provider", "Model", "Samples", "Accuracy", "Latency", "Cost", "Date"]
+    headers = [
+        "ID",
+        "Dataset",
+        "Provider",
+        "Model",
+        "Samples",
+        "Accuracy",
+        "Latency",
+        "Cost",
+        "Date",
+    ]
     rows = []
     for run in runs:
-        rows.append([
-            run["id"],
-            run["dataset"],
-            run["provider"],
-            run["model"],
-            run["sample_count"],
-            f"{run['overall_accuracy']:.2%}" if run["overall_accuracy"] is not None else "N/A",
-            f"{run['avg_latency']:.1f}s" if run["avg_latency"] is not None else "N/A",
-            f"${run['total_cost']:.4f}" if run["total_cost"] is not None else "N/A",
-            run["started_at"][:19] if run["started_at"] else "N/A",
-        ])
+        rows.append(
+            [
+                run["id"],
+                run["dataset"],
+                run["provider"],
+                run["model"],
+                run["sample_count"],
+                f"{run['overall_accuracy']:.2%}"
+                if run["overall_accuracy"] is not None
+                else "N/A",
+                f"{run['avg_latency']:.1f}s"
+                if run["avg_latency"] is not None
+                else "N/A",
+                f"${run['total_cost']:.4f}" if run["total_cost"] is not None else "N/A",
+                run["started_at"][:19] if run["started_at"] else "N/A",
+            ]
+        )
 
     print("\n" + tabulate(rows, headers=headers, tablefmt="grid"))
     print(f"\nTotal: {len(runs)} run(s)")
@@ -143,9 +181,21 @@ async def show_benchmark_cli(run_id: int):
     print(f"  Provider: {run['provider']}")
     print(f"  Model: {run['model']}")
     print(f"  Samples: {run['sample_count']}")
-    print(f"  Overall Accuracy: {run['overall_accuracy']:.2%}" if run["overall_accuracy"] is not None else "  Overall Accuracy: N/A")
-    print(f"  Avg Latency: {run['avg_latency']:.1f}s" if run["avg_latency"] is not None else "  Avg Latency: N/A")
-    print(f"  Total Cost: ${run['total_cost']:.4f}" if run["total_cost"] is not None else "  Total Cost: N/A")
+    print(
+        f"  Overall Accuracy: {run['overall_accuracy']:.2%}"
+        if run["overall_accuracy"] is not None
+        else "  Overall Accuracy: N/A"
+    )
+    print(
+        f"  Avg Latency: {run['avg_latency']:.1f}s"
+        if run["avg_latency"] is not None
+        else "  Avg Latency: N/A"
+    )
+    print(
+        f"  Total Cost: ${run['total_cost']:.4f}"
+        if run["total_cost"] is not None
+        else "  Total Cost: N/A"
+    )
     print(f"  Started: {run['started_at']}")
     print(f"  Completed: {run['completed_at']}")
     print("=" * 70)
@@ -155,16 +205,24 @@ async def show_benchmark_cli(run_id: int):
         headers = ["#", "Accuracy", "Latency", "Cost", "Tokens", "Status"]
         rows = []
         for r in results:
-            status = "OK" if not r.get("error_message") else f"ERR: {r['error_message'][:30]}"
+            status = (
+                "OK"
+                if not r.get("error_message")
+                else f"ERR: {r['error_message'][:30]}"
+            )
             tokens = f"{r.get('prompt_tokens', 0)}/{r.get('completion_tokens', 0)}"
-            rows.append([
-                r["sample_index"] + 1,
-                f"{r['accuracy_score']:.2%}" if r["accuracy_score"] is not None else "N/A",
-                f"{r['latency']:.1f}s" if r["latency"] is not None else "N/A",
-                f"${r['cost']:.4f}" if r["cost"] is not None else "N/A",
-                tokens,
-                status,
-            ])
+            rows.append(
+                [
+                    r["sample_index"] + 1,
+                    f"{r['accuracy_score']:.2%}"
+                    if r["accuracy_score"] is not None
+                    else "N/A",
+                    f"{r['latency']:.1f}s" if r["latency"] is not None else "N/A",
+                    f"${r['cost']:.4f}" if r["cost"] is not None else "N/A",
+                    tokens,
+                    status,
+                ]
+            )
         print(tabulate(rows, headers=headers, tablefmt="grid"))
 
 
@@ -177,10 +235,29 @@ async def export_benchmark_cli():
     available_datasets = list_available_datasets()
 
     parser = argparse.ArgumentParser(description="Export benchmark results to markdown")
-    parser.add_argument("--dataset", default="cord", choices=available_datasets, help=f"Dataset name (default: cord, available: {', '.join(available_datasets)})")
-    parser.add_argument("--output", "-o", default=None, help="Output file path (prints to stdout if not specified)")
-    parser.add_argument("--detailed", action="store_true", help="Generate detailed report with per-sample analysis")
-    parser.add_argument("--min-samples", type=int, default=10, help="Minimum sample count for inclusion (default: 10)")
+    parser.add_argument(
+        "--dataset",
+        default="cord",
+        choices=available_datasets,
+        help=f"Dataset name (default: cord, available: {', '.join(available_datasets)})",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        help="Output file path (prints to stdout if not specified)",
+    )
+    parser.add_argument(
+        "--detailed",
+        action="store_true",
+        help="Generate detailed report with per-sample analysis",
+    )
+    parser.add_argument(
+        "--min-samples",
+        type=int,
+        default=10,
+        help="Minimum sample count for inclusion (default: 10)",
+    )
     args = parser.parse_args(sys.argv[2:])
 
     from benchmarks.exporter import export_benchmark_results, export_detailed_comparison
@@ -378,10 +455,14 @@ def print_help():
     print("  uv run python -m backend.cli create-demo-batch 10")
     print("  uv run python -m backend.cli list-users")
     print("  uv run python -m backend.cli change-password admin1 newpass456")
-    print("  uv run python -m backend.cli run-benchmark --provider nebius --model Qwen/Qwen2.5-VL-72B-Instruct")
+    print(
+        "  uv run python -m backend.cli run-benchmark --provider nebius --model Qwen/Qwen2.5-VL-72B-Instruct"
+    )
     print("  uv run python -m backend.cli list-benchmarks")
     print("  uv run python -m backend.cli show-benchmark 1")
-    print("  uv run python -m backend.cli export-benchmark --dataset cord -o docs/reference/benchmark-results-cord.md")
+    print(
+        "  uv run python -m backend.cli export-benchmark --dataset cord -o docs/reference/benchmark-results-cord.md"
+    )
 
 
 async def main():

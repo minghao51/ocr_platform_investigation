@@ -21,6 +21,12 @@ class TestPublicRoutes:
 
         for route in public_routes:
             response = client.get(route)
-            assert response.status_code == 200, f"Route {route} returned {response.status_code}"
-            assert "text/html" in response.headers.get("content-type", ""), f"Route {route} not HTML"
-            assert "OCR Platform" in response.text, f"Route {route} missing expected content"
+            assert response.status_code == 200, (
+                f"Route {route} returned {response.status_code}"
+            )
+            assert "text/html" in response.headers.get("content-type", ""), (
+                f"Route {route} not HTML"
+            )
+            assert "OCR Platform" in response.text, (
+                f"Route {route} missing expected content"
+            )

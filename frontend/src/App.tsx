@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import ProcessingPage from './pages/ProcessingPage';
@@ -7,6 +7,7 @@ import HistoryPage from './pages/HistoryPage';
 import BenchmarksPage from './pages/BenchmarksPage';
 import { AUTH_CHANGE_EVENT, logout, getCurrentUser } from '@/lib/api';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import LoginPanel from '@/components/LoginPanel';
 
 const navItems: Array<{
   to: string;
@@ -37,13 +38,15 @@ const navItems: Array<{
     label: 'Methodology',
   },
   {
-    to: '/benchmarks',
-    label: 'Benchmarks',
+    to: '/analytics',
+    label: 'Analytics',
   },
 ];
 
 function App() {
   const [authUser, setAuthUser] = useState(getCurrentUser());
+  const [authMenuOpen, setAuthMenuOpen] = useState(false);
+  const authMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const syncAuthUser = () => {
@@ -73,8 +76,35 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!authMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (authMenuRef.current && !authMenuRef.current.contains(event.target as Node)) {
+        setAuthMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAuthMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [authMenuOpen]);
+
   const handleAuthChanged = () => {
     setAuthUser(getCurrentUser());
+    setAuthMenuOpen(false);
   };
   const authenticated = authUser !== null;
 
@@ -108,7 +138,7 @@ function App() {
                   ))}
                 </div>
               </div>
-              <div className="flex items-center">
+              <div ref={authMenuRef} className="relative flex items-center">
                 {authenticated ? (
                   <>
                     <span className="text-sm text-gray-600 mr-4">
@@ -125,9 +155,27 @@ function App() {
                     </button>
                   </>
                 ) : (
-                  <span className="text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                    Guest mode (login required for OCR/history)
-                  </span>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMenuOpen((open) => !open)}
+                      className="text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                      aria-expanded={authMenuOpen}
+                      aria-haspopup="dialog"
+                    >
+                      Guest mode
+                    </button>
+                    {authMenuOpen && (
+                      <div className="absolute right-0 top-12 z-20 w-[22rem] rounded-xl border border-gray-200 bg-white p-4 shadow-lg">
+                        <LoginPanel
+                          onLoginSuccess={handleAuthChanged}
+                          title="Sign in"
+                          subtitle="Use an admin or demo account to upload documents, run OCR, and review history."
+                          compact={true}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -166,22 +214,17 @@ function App() {
             <Route
               path="/extract"
               element={
-                <ProcessingPage
-                  isAuthenticated={authenticated}
-                  onLoginSuccess={handleAuthChanged}
-                />
+                <ProcessingPage isAuthenticated={authenticated} />
               }
             />
             <Route
               path="/history"
               element={
-                <HistoryPage
-                  isAuthenticated={authenticated}
-                  onLoginSuccess={handleAuthChanged}
-                />
+                <HistoryPage isAuthenticated={authenticated} />
               }
             />
             <Route path="/methodology" element={<MethodologyPage />} />
+            <Route path="/analytics" element={<BenchmarksPage />} />
             <Route path="/benchmarks" element={<BenchmarksPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

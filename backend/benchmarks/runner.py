@@ -50,24 +50,35 @@ async def _process_single_sample(
 
             async with provider as prov:
                 vlm_result = await prov.process_image(
-                    image, prompt, sample.schema, model, temperature=0.1, max_tokens=4096
+                    image,
+                    prompt,
+                    sample.schema,
+                    model,
+                    temperature=0.1,
+                    max_tokens=4096,
                 )
 
             latency = time.time() - sample_start
             usage = vlm_result.get("usage", {})
-            prompt_tokens = usage.get("prompt_tokens", 0) or usage.get("promptTokenCount", 0)
-            completion_tokens = usage.get("completion_tokens", 0) or usage.get("candidatesTokenCount", 0)
+            prompt_tokens = usage.get("prompt_tokens", 0) or usage.get(
+                "promptTokenCount", 0
+            )
+            completion_tokens = usage.get("completion_tokens", 0) or usage.get(
+                "candidatesTokenCount", 0
+            )
             cost = calculate_cost(model, prompt_tokens, completion_tokens)
 
             if "error" in vlm_result:
-                sample_result.update({
-                    "accuracy_score": 0.0,
-                    "latency": latency,
-                    "cost": cost,
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "error_message": f"Provider error: {vlm_result['error']}",
-                })
+                sample_result.update(
+                    {
+                        "accuracy_score": 0.0,
+                        "latency": latency,
+                        "cost": cost,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "error_message": f"Provider error: {vlm_result['error']}",
+                    }
+                )
             else:
                 content = vlm_result.get("content", "{}")
                 try:
@@ -84,27 +95,33 @@ async def _process_single_sample(
                         sample.expected.get("items", []),
                         actual_data.get("items", []),
                     )
-                    scoring["overall_score"] = (scoring["overall_score"] + items_score["score"]) / 2
+                    scoring["overall_score"] = (
+                        scoring["overall_score"] + items_score["score"]
+                    ) / 2
 
-                sample_result.update({
-                    "accuracy_score": scoring["overall_score"],
-                    "latency": latency,
-                    "cost": cost,
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "expected_json": json.dumps(sample.expected),
-                    "actual_json": json.dumps(actual_data),
-                    "field_scores": json.dumps(scoring["field_scores"]),
-                })
+                sample_result.update(
+                    {
+                        "accuracy_score": scoring["overall_score"],
+                        "latency": latency,
+                        "cost": cost,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "expected_json": json.dumps(sample.expected),
+                        "actual_json": json.dumps(actual_data),
+                        "field_scores": json.dumps(scoring["field_scores"]),
+                    }
+                )
 
         except Exception as e:
             latency = time.time() - sample_start
-            sample_result.update({
-                "accuracy_score": 0.0,
-                "latency": latency,
-                "cost": 0.0,
-                "error_message": f"{type(e).__name__}: {str(e)}",
-            })
+            sample_result.update(
+                {
+                    "accuracy_score": 0.0,
+                    "latency": latency,
+                    "cost": 0.0,
+                    "error_message": f"{type(e).__name__}: {str(e)}",
+                }
+            )
 
         return sample_result
 
@@ -172,7 +189,14 @@ async def run_benchmark(
 
     tasks = [
         _process_single_sample(
-            idx, sample, provider_name, model, api_key, prompt, semaphore, processing_service
+            idx,
+            sample,
+            provider_name,
+            model,
+            api_key,
+            prompt,
+            semaphore,
+            processing_service,
         )
         for idx, sample in enumerate(samples)
     ]
@@ -191,10 +215,12 @@ async def run_benchmark(
 
         await crud.add_benchmark_result(run_id, **sample_result)
         results_summary.append(sample_result)
-        print(f"  Sample {sample_result['sample_index'] + 1}/{len(samples)}: "
-              f"accuracy={sample_result.get('accuracy_score', 0):.2f}, "
-              f"latency={sample_result.get('latency', 0):.1f}s, "
-              f"cost=${sample_result.get('cost', 0):.4f}")
+        print(
+            f"  Sample {sample_result['sample_index'] + 1}/{len(samples)}: "
+            f"accuracy={sample_result.get('accuracy_score', 0):.2f}, "
+            f"latency={sample_result.get('latency', 0):.1f}s, "
+            f"cost=${sample_result.get('cost', 0):.4f}"
+        )
 
     n = len(samples)
     avg_accuracy = total_accuracy / n if n > 0 else 0

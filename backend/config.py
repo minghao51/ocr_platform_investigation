@@ -38,7 +38,11 @@ class Settings(BaseSettings):
     jwt_expiration_hours: int = 24
 
     # Rate Limiting
+    # General API rate limit: 10 requests per minute (applies to all users via slowapi)
     rate_limit_per_minute: int = 10
+
+    # Demo user daily limit: 5 requests per day (for is_limited users)
+    # This is a separate cap that applies in addition to per-minute limits
     demo_daily_request_limit: int = 5
 
     class Config:

@@ -30,6 +30,9 @@ dependencies = [
     # "paddlepaddle>=3.3.0",
     # "paddleocr>=3.3.3",
     "huggingface-hub>=1.9.0",
+    # Image quality assessment and preprocessing
+    "opencv-python-headless>=4.9.0",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]

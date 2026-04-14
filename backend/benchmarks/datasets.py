@@ -14,6 +14,7 @@ from paths import BENCHMARKS_DIR
 @dataclass
 class BenchmarkSample:
     """A single benchmark sample with image and ground truth."""
+
     image_path: str
     expected: Dict[str, Any]
     schema: Dict[str, Any]
@@ -215,13 +216,15 @@ def load_cord_samples(
                 else:
                     continue
 
-            samples.append(BenchmarkSample(
-                image_path=img_path,
-                expected=expected,
-                schema=CORD_SCHEMA,
-                source="cord",
-                sample_index=idx,
-            ))
+            samples.append(
+                BenchmarkSample(
+                    image_path=img_path,
+                    expected=expected,
+                    schema=CORD_SCHEMA,
+                    source="cord",
+                    sample_index=idx,
+                )
+            )
         except Exception as e:
             print(f"Warning: Failed to load CORD sample {json_file}: {e}")
             continue

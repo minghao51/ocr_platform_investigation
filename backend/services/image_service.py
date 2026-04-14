@@ -38,7 +38,10 @@ class ImageService:
 
     @staticmethod
     def pdf_to_images(
-        pdf_path: str, dpi: int = 200, first_page: int | None = None, last_page: int | None = None
+        pdf_path: str,
+        dpi: int = 200,
+        first_page: int | None = None,
+        last_page: int | None = None,
     ) -> List[Image.Image]:
         """Convert PDF to list of images"""
 

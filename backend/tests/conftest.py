@@ -24,11 +24,15 @@ def auth_header():
 @pytest.fixture
 def test_user_auth_header():
     """Provide authorization header with non-admin test token."""
-    token = create_access_token(user_id=2, username="test_user_non_admin", is_admin=False)
+    token = create_access_token(
+        user_id=2, username="test_user_non_admin", is_admin=False
+    )
     return {"Authorization": f"Bearer {token}"}
 
 
-def get_auth_header(user_id: int = 1, username: str = "test_user", is_admin: bool = True):
+def get_auth_header(
+    user_id: int = 1, username: str = "test_user", is_admin: bool = True
+):
     """Get authorization header with custom test token.
 
     This is a convenience function for inline usage in tests.

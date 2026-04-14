@@ -14,6 +14,8 @@ from routers import (
     auth,
     websocket,
     benchmarks,
+    quality,
+    analytics,
 )
 from config import get_settings
 from limiter import limiter
@@ -75,6 +77,8 @@ app.include_router(jobs.router)
 app.include_router(providers.router)
 app.include_router(text_processing.router)
 app.include_router(benchmarks.router)
+app.include_router(quality.router)
+app.include_router(analytics.router)
 
 # Mount static files for frontend assets
 static_dir = REPO_ROOT / "frontend" / "dist"
@@ -119,6 +123,14 @@ async def spa_fallback(request: Request, call_next):
 
 
 # Graceful shutdown
+@app.on_event("startup")
+async def startup_event():
+    """Ensure the database schema is up to date before serving requests."""
+    from database.migrations import run_migrations
+
+    await run_migrations()
+
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Clean up resources on shutdown."""

@@ -1,11 +1,26 @@
 const API_BASE = '/api';
 
 // ============================================================================
+// Error Types
+// ============================================================================
+
+export interface RateLimitError {
+  detail: string;
+  limit_type?: "daily" | "per_minute";
+  retry_after?: number;
+}
+
+export function isRateLimitError(error: any): error is RateLimitError {
+  return error?.detail?.toLowerCase().includes("limit") || false;
+}
+
+// ============================================================================
 // Authentication Token Management
 // ============================================================================
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user';
+const GUEST_TOKEN_KEY = 'guest_token';
 export const AUTH_CHANGE_EVENT = 'ocr-platform-auth-change';
 
 function notifyAuthChanged(): void {
@@ -54,6 +69,14 @@ export function getCurrentUser(): AuthToken['user'] | null {
   }
 }
 
+export function getGuestToken(): string | null {
+  return localStorage.getItem(GUEST_TOKEN_KEY);
+}
+
+export function setGuestToken(token: string): void {
+  localStorage.setItem(GUEST_TOKEN_KEY, token);
+}
+
 /**
  * Set auth token (after login)
  */
@@ -80,6 +103,13 @@ function getAuthHeaders(): Record<string, string> {
 
   return {
     'Authorization': `Bearer ${token}`
+  };
+}
+
+function getAccessHeaders(): Record<string, string> {
+  return {
+    ...getAuthHeaders(),
+    ...(getGuestToken() ? { 'X-Guest-Token': getGuestToken() as string } : {}),
   };
 }
 
@@ -163,8 +193,56 @@ export interface Job {
   updated_at?: string;
   processing_time?: number;
   processing_method?: 'vision' | 'text' | 'hybrid';
+  document_type?: string;
+  correction_status?: 'uncorrected' | 'corrected';
+  correction_summary?: {
+    latest_correction_id: number;
+    feedback_tags: string[];
+    change_count: number;
+  };
+  hybrid_diagnostics?: {
+    layout_pages: number;
+    complex_pages: number[];
+    timings: {
+      layout_seconds: number;
+      vision_seconds: number;
+    };
+    page_diagnostics?: Array<{
+      page_number: number;
+      block_count: number;
+      image_count: number;
+      table_count: number;
+      is_complex: boolean;
+    }>;
+  };
   result?: unknown;
   error?: string;
+  // Quality gate fields
+  quality_score?: number;
+  quality_checks?: QualityReport;
+  preprocessing_applied?: string[];
+}
+
+export interface QualityCheck {
+  name: string;
+  severity: 'pass' | 'warn' | 'fail';
+  score: number;
+  value: number;
+  threshold: number;
+  message: string;
+  auto_fixable: boolean;
+  fix_recommendation: string;
+}
+
+export interface QualityReport {
+  passed: boolean;
+  overall_score: number;
+  level: 'excellent' | 'good' | 'acceptable' | 'poor' | 'critical';
+  checks: Record<string, QualityCheck>;
+  recommendations: string[];
+  auto_fixable_issues: string[];
+  should_reject: boolean;
+  rejection_reason: string;
 }
 
 export interface ProcessRequest {
@@ -177,11 +255,101 @@ export interface ProcessRequest {
   temperature?: number;
   max_tokens?: number;
   extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid';
+  quality_threshold?: number;
+  auto_preprocess?: boolean;
+  skip_quality?: boolean;
 }
 
 export interface ProcessResponse {
   job_id: number;
   status: string;
+  guest_token?: string;
+}
+
+export interface SchemaSuggestion {
+  id: number;
+  file_ids: string[];
+  provider: string;
+  model: string;
+  document_type?: string;
+  draft_name?: string;
+  schema_definition: Record<string, unknown>;
+  field_descriptions: Record<string, string>;
+  rationale: string;
+  confidence: number;
+  status: string;
+  created_at: string;
+}
+
+export interface JobCorrection {
+  id: number;
+  job_id: number;
+  original_result: unknown;
+  corrected_result: unknown;
+  diff_summary: Array<{
+    path: string;
+    change_type: string;
+    before: unknown;
+    after: unknown;
+  }>;
+  feedback_tags: string[];
+  notes?: string;
+  reviewer_username?: string;
+  created_at: string;
+}
+
+export interface AnalyticsOverview {
+  total_jobs: number;
+  successful_jobs: number;
+  total_cost: number;
+  avg_latency: number | null;
+  corrected_jobs: number;
+  success_rate: number;
+  production_correction_rate: number;
+  cost_per_successful_job: number;
+  cost_per_corrected_job: number;
+}
+
+export interface UsageAnalytics {
+  overview: AnalyticsOverview;
+  provider_breakdown: Array<{
+    provider: string;
+    model: string;
+    schema_name: string | null;
+    total_jobs: number;
+    successful_jobs: number;
+    total_cost: number;
+    avg_latency: number;
+    corrected_jobs: number;
+    success_rate: number;
+    correction_rate: number;
+    cost_per_successful_job: number;
+    cost_per_corrected_job: number;
+  }>;
+  pipeline_distribution: Array<{
+    processing_method: string;
+    job_count: number;
+    total_cost: number;
+    avg_latency: number;
+  }>;
+  daily_trend: Array<{
+    day: string;
+    total_jobs: number;
+    total_cost: number;
+    corrected_jobs: number;
+  }>;
+  benchmark_accuracy: Array<{
+    provider: string;
+    model: string;
+    benchmark_accuracy: number;
+    cost_per_document: number;
+    benchmark_latency: number;
+    run_count: number;
+  }>;
+  correction_patterns: Array<{
+    feedback_tag: string;
+    frequency: number;
+  }>;
 }
 
 // ============================================================================
@@ -189,13 +357,13 @@ export interface ProcessResponse {
 // ============================================================================
 
 // Upload
-export async function uploadFile(file: File): Promise<{ file_id: string; file_name: string; file_type: string; file_size: number }> {
+export async function uploadFile(file: File): Promise<{ file_id: string; file_name: string; file_type: string; file_size: number; guest_token?: string }> {
   const formData = new FormData();
   formData.append('file', file);
 
   const response = await fetch(`${API_BASE}/upload/`, {
     method: 'POST',
-    headers: getAuthHeaders(),
+    headers: getAccessHeaders(),
     body: formData,
   });
 
@@ -204,7 +372,11 @@ export async function uploadFile(file: File): Promise<{ file_id: string; file_na
     throw new Error(error.detail || 'Upload failed');
   }
 
-  return response.json();
+  const data = await response.json() as { file_id: string; file_name: string; file_type: string; file_size: number; guest_token?: string };
+  if (data.guest_token) {
+    setGuestToken(data.guest_token);
+  }
+  return data;
 }
 
 // Process
@@ -213,17 +385,25 @@ export async function processDocument(request: ProcessRequest): Promise<ProcessR
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...getAuthHeaders()
+      ...getAccessHeaders()
     },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      const error = await response.json() as RateLimitError;
+      throw new Error(error.detail || 'Rate limit exceeded');
+    }
     const error = await response.json();
     throw new Error(error.detail || 'Processing failed');
   }
 
-  return response.json();
+  const data = await response.json() as ProcessResponse;
+  if (data.guest_token) {
+    setGuestToken(data.guest_token);
+  }
+  return data;
 }
 
 // Text Extraction
@@ -257,8 +437,8 @@ export async function processTextDocument(
 
 // Unified job status endpoint (replaces getJobStatus and pollJobStatus)
 export async function getJobStatus(jobId: number): Promise<Job> {
-  const response = await fetch(`${API_BASE}/jobs/${jobId}`, {
-    headers: getAuthHeaders()
+  const response = await fetch(`${API_BASE}/process/status/${jobId}`, {
+    headers: getAccessHeaders()
   });
 
   if (!response.ok) {
@@ -314,6 +494,31 @@ export async function createSchema(schema: Omit<Schema, 'id' | 'created_at' | 'u
   return response.json();
 }
 
+export async function suggestSchema(
+  fileIds: string[],
+  provider?: string,
+  model?: string,
+): Promise<SchemaSuggestion> {
+  const response = await fetch(`${API_BASE}/schemas/suggestions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAccessHeaders(),
+    },
+    body: JSON.stringify({
+      file_ids: fileIds,
+      provider,
+      model,
+    }),
+  });
+
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to suggest schema');
+  }
+
+  return response.json();
+}
+
 // Jobs
 export async function listJobs(status?: string, provider?: string, limit = 50): Promise<Job[]> {
   const params = new URLSearchParams();
@@ -334,6 +539,44 @@ export async function getJob(jobId: number): Promise<Job> {
 
   if (!response.ok) {
     throw new Error('Job not found');
+  }
+
+  return response.json();
+}
+
+export async function listJobCorrections(jobId: number): Promise<JobCorrection[]> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/corrections`, {
+    headers: getAccessHeaders()
+  });
+
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load job corrections');
+  }
+
+  return response.json();
+}
+
+export async function createJobCorrection(
+  jobId: number,
+  correctedResult: Record<string, unknown>,
+  feedbackTags: string[],
+  notes?: string,
+): Promise<JobCorrection> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/corrections`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      corrected_result: correctedResult,
+      feedback_tags: feedbackTags,
+      notes,
+    }),
+  });
+
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to save job correction');
   }
 
   return response.json();
@@ -408,6 +651,18 @@ export interface ModelComparison {
   started_at: string | null;
 }
 
+async function parseApiError(response: Response, fallbackMessage: string): Promise<Error> {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    const payload = await response.json() as { detail?: string; message?: string };
+    return new Error(payload.detail || payload.message || fallbackMessage);
+  }
+
+  const text = await response.text();
+  return new Error(text || fallbackMessage);
+}
+
 export async function listBenchmarkRuns(
   limit = 50,
   dataset?: string,
@@ -421,6 +676,9 @@ export async function listBenchmarkRuns(
   const response = await fetch(`${API_BASE}/benchmarks/runs?${params}`, {
     headers: getAuthHeaders()
   });
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load benchmark runs');
+  }
   return response.json();
 }
 
@@ -429,7 +687,7 @@ export async function getBenchmarkRun(runId: number): Promise<BenchmarkRun> {
     headers: getAuthHeaders()
   });
   if (!response.ok) {
-    throw new Error('Benchmark run not found');
+    throw await parseApiError(response, 'Benchmark run not found');
   }
   return response.json();
 }
@@ -438,6 +696,9 @@ export async function getBenchmarkResults(runId: number): Promise<BenchmarkResul
   const response = await fetch(`${API_BASE}/benchmarks/runs/${runId}/results`, {
     headers: getAuthHeaders()
   });
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load benchmark results');
+  }
   return response.json();
 }
 
@@ -452,5 +713,74 @@ export async function compareModels(
   const response = await fetch(`${API_BASE}/benchmarks/compare?${params}`, {
     headers: getAuthHeaders()
   });
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load benchmark comparison');
+  }
+  return response.json();
+}
+
+export async function getUsageAnalytics(filters?: {
+  date_from?: string;
+  date_to?: string;
+  provider?: string;
+  model?: string;
+  schema_name?: string;
+  processing_method?: string;
+  document_type?: string;
+}): Promise<UsageAnalytics> {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value) {
+      params.append(key, value);
+    }
+  });
+
+  const response = await fetch(`${API_BASE}/analytics/usage?${params.toString()}`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load usage analytics');
+  }
+  return response.json();
+}
+
+// ============================================================================
+// Quality Gate
+// ============================================================================
+
+export async function checkFileQuality(fileId: string, estimatedDpi = 200): Promise<QualityReport> {
+  const response = await fetch(`${API_BASE}/quality/check`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAccessHeaders()
+    },
+    body: JSON.stringify({ file_id: fileId, estimated_dpi: estimatedDpi }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Quality check failed');
+  }
+
+  return response.json();
+}
+
+export async function checkUploadedImageQuality(file: File, estimatedDpi = 200): Promise<QualityReport> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('estimated_dpi', estimatedDpi.toString());
+
+  const response = await fetch(`${API_BASE}/quality/check-upload`, {
+    method: 'POST',
+    headers: getAccessHeaders(),
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Quality check failed');
+  }
+
   return response.json();
 }

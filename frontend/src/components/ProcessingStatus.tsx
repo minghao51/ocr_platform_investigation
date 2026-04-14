@@ -1,5 +1,6 @@
 import { Job } from '../lib/api';
 import { useState, useEffect } from 'react';
+import { QualityBadge, QualityScoreBadge } from './QualityBadge';
 
 interface ProcessingStatusProps {
   job: Job;
@@ -107,7 +108,26 @@ export default function ProcessingStatus({ job }: ProcessingStatusProps) {
             <span className="ml-2 font-medium">{formatDate(job.updated_at)}</span>
           </div>
         )}
+        {/* Quality Score */}
+        {job.quality_score !== undefined && job.quality_score !== null && (
+          <div className="col-span-2 flex items-center gap-2">
+            <span className="text-gray-500">Quality:</span>
+            <QualityScoreBadge score={job.quality_score} />
+            {job.preprocessing_applied && job.preprocessing_applied.length > 0 && (
+              <span className="text-xs text-blue-600">
+                (preprocessed: {job.preprocessing_applied.join(', ')})
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Detailed Quality Report (for completed jobs) */}
+      {isCompleted && job.quality_checks && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <QualityBadge report={job.quality_checks} compact={false} />
+        </div>
+      )}
 
       {/* Processing State */}
       {(job.status === 'pending' || job.status === 'processing') && (

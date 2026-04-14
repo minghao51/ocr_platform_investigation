@@ -13,7 +13,14 @@ def normalize_number(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        cleaned = value.strip().replace(",", "").replace("$", "").replace("€", "").replace("£", "").replace("¥", "")
+        cleaned = (
+            value.strip()
+            .replace(",", "")
+            .replace("$", "")
+            .replace("€", "")
+            .replace("£", "")
+            .replace("¥", "")
+        )
         try:
             return float(cleaned)
         except ValueError:
@@ -75,7 +82,7 @@ def normalize_string(value: str) -> str:
         return str(value)
     result = value.strip().lower()
     # Remove CORD modifier patterns: +, ++, and text after them
-    result = re.sub(r'\s*\+\s*', '', result)
+    result = re.sub(r"\s*\+\s*", "", result)
     result = result.replace(" ", "").replace("-", "").replace("_", "")
     return result
 
@@ -203,9 +210,7 @@ def score_results(expected: Dict[str, Any], actual: Dict[str, Any]) -> Dict[str,
     }
 
 
-def score_items_list(
-    expected_items: list, actual_items: list
-) -> Dict[str, Any]:
+def score_items_list(expected_items: list, actual_items: list) -> Dict[str, Any]:
     """Score a list of items (e.g. menu items on a receipt).
 
     Uses best-match bipartite matching. An item is considered matched
@@ -215,7 +220,11 @@ def score_items_list(
     if not expected_items and not actual_items:
         return {"score": 1.0, "matched": 0, "total": 0}
     if not expected_items or not actual_items:
-        return {"score": 0.0, "matched": 0, "total": max(len(expected_items), len(actual_items))}
+        return {
+            "score": 0.0,
+            "matched": 0,
+            "total": max(len(expected_items), len(actual_items)),
+        }
 
     matched = 0
     total = len(expected_items)
@@ -250,7 +259,9 @@ def score_items_list(
 
             # Weight: name is 60%, other fields average 40%
             if other_scores:
-                item_score = 0.6 * name_score + 0.4 * (sum(other_scores) / len(other_scores))
+                item_score = 0.6 * name_score + 0.4 * (
+                    sum(other_scores) / len(other_scores)
+                )
             else:
                 item_score = name_score
 

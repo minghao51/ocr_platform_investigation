@@ -4,10 +4,9 @@ import type { ExtractionMethod } from './BaseExtractionPage';
 
 interface ProcessingPageProps {
   isAuthenticated: boolean;
-  onLoginSuccess: () => void;
 }
 
-export default function ProcessingPage({ isAuthenticated, onLoginSuccess }: ProcessingPageProps) {
+export default function ProcessingPage({ isAuthenticated }: ProcessingPageProps) {
   const processWrapper = async (
     fileId: string,
     provider: string,
@@ -17,7 +16,10 @@ export default function ProcessingPage({ isAuthenticated, onLoginSuccess }: Proc
     schemaDefinition?: Record<string, unknown>,
     prompt?: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    qualityThreshold?: number,
+    autoPreprocess?: boolean,
+    skipQuality?: boolean,
   ) => {
     const request: ProcessRequest = {
       file_id: fileId,
@@ -29,6 +31,9 @@ export default function ProcessingPage({ isAuthenticated, onLoginSuccess }: Proc
       prompt,
       temperature,
       max_tokens: maxTokens,
+      quality_threshold: qualityThreshold,
+      auto_preprocess: autoPreprocess,
+      skip_quality: skipQuality,
     };
 
     return processDocument(request);
@@ -42,7 +47,6 @@ export default function ProcessingPage({ isAuthenticated, onLoginSuccess }: Proc
       processingMethod="auto"
       showModeSelector={true}
       isAuthenticated={isAuthenticated}
-      onLoginSuccess={onLoginSuccess}
     />
   );
 }

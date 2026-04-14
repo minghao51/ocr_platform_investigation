@@ -12,6 +12,7 @@ BENCHMARKS_DIR = DATA_DIR / "benchmarks"
 def get_db_path() -> Path:
     """Get database path from settings URL. Only SQLite is supported."""
     from config import get_settings
+
     database_url = get_settings().database_url
     if not database_url.startswith("sqlite:///"):
         raise ValueError(f"Only SQLite databases are supported. Got: {database_url}")

@@ -11,6 +11,12 @@
 - [reference/testing.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/reference/testing.md)
 - [reference/project-structure.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/reference/project-structure.md)
 
+## Reports
+
+- [reports/audit_and_roadmap.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/reports/audit_and_roadmap.md)
+- [reports/changelog.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/reports/changelog.md)
+
+
 ## Archive
 
 Historical implementation notes, plans, and reports are under [archive/](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/archive).

@@ -4,9 +4,11 @@ import {
   getBenchmarkRun,
   getBenchmarkResults,
   compareModels,
+  getUsageAnalytics,
   BenchmarkRun,
   BenchmarkResult,
   ModelComparison,
+  UsageAnalytics,
 } from '../lib/api';
 
 export default function BenchmarksPage() {
@@ -15,24 +17,29 @@ export default function BenchmarksPage() {
   const [selectedRun, setSelectedRun] = useState<BenchmarkRun | null>(null);
   const [selectedResults, setSelectedResults] = useState<BenchmarkResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [runsError, setRunsError] = useState<string | null>(null);
   const [datasetFilter, setDatasetFilter] = useState('cord');
+  const [analytics, setAnalytics] = useState<UsageAnalytics | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
   useEffect(() => {
     loadComparison();
     loadRuns();
+    loadAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetFilter]);
 
   const loadComparison = async () => {
     try {
       setLoading(true);
-      setError(null);
+      setComparisonError(null);
       const data = await compareModels(datasetFilter, 50);
       setComparison(data.runs || []);
     } catch (err) {
       console.error('Failed to load comparison:', err);
-      setError('Failed to load benchmark comparison');
+      setComparisonError(err instanceof Error ? err.message : 'Failed to load benchmark comparison');
+      setComparison([]);
     } finally {
       setLoading(false);
     }
@@ -40,10 +47,25 @@ export default function BenchmarksPage() {
 
   const loadRuns = async () => {
     try {
+      setRunsError(null);
       const data = await listBenchmarkRuns(100);
       setRuns(data);
     } catch (err) {
       console.error('Failed to load runs:', err);
+      setRunsError(err instanceof Error ? err.message : 'Failed to load benchmark runs');
+      setRuns([]);
+    }
+  };
+
+  const loadAnalytics = async () => {
+    try {
+      setAnalyticsError(null);
+      const data = await getUsageAnalytics();
+      setAnalytics(data);
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+      setAnalyticsError(err instanceof Error ? err.message : 'Failed to load usage analytics');
+      setAnalytics(null);
     }
   };
 
@@ -70,6 +92,121 @@ export default function BenchmarksPage() {
       <h1 className="text-3xl font-bold mb-6">Model Benchmarks</h1>
 
       <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">Enterprise Usage Analytics</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Production cost, throughput, correction rates, and benchmark accuracy in one view.
+                </p>
+              </div>
+              <button
+                onClick={loadAnalytics}
+                className="px-4 py-2 bg-slate-900 text-white text-sm rounded-md hover:bg-slate-800"
+              >
+                Refresh Analytics
+              </button>
+            </div>
+
+            {analyticsError && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                {analyticsError}
+              </div>
+            )}
+
+            {analytics && (
+              <div className="mt-6 space-y-6">
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <div className="text-sm text-slate-500">Jobs</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">{analytics.overview.total_jobs}</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <div className="text-sm text-slate-500">Success Rate</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">
+                      {(analytics.overview.success_rate * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <div className="text-sm text-slate-500">Total Cost</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">
+                      ${analytics.overview.total_cost.toFixed(4)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <div className="text-sm text-slate-500">Correction Rate</div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-900">
+                      {(analytics.overview.production_correction_rate * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="rounded-lg border border-gray-200">
+                    <div className="border-b border-gray-200 px-4 py-3">
+                      <h3 className="font-semibold text-gray-900">Provider / Model Breakdown</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left">Model</th>
+                            <th className="px-4 py-2 text-right">Jobs</th>
+                            <th className="px-4 py-2 text-right">Cost</th>
+                            <th className="px-4 py-2 text-right">Correction</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {analytics.provider_breakdown.slice(0, 8).map((row) => (
+                            <tr key={`${row.provider}-${row.model}-${row.schema_name || 'none'}`}>
+                              <td className="px-4 py-2">
+                                <div className="font-medium text-gray-900">{row.model}</div>
+                                <div className="text-xs text-gray-500">{row.provider}{row.schema_name ? ` • ${row.schema_name}` : ''}</div>
+                              </td>
+                              <td className="px-4 py-2 text-right">{row.total_jobs}</td>
+                              <td className="px-4 py-2 text-right">${row.total_cost.toFixed(4)}</td>
+                              <td className="px-4 py-2 text-right">{(row.correction_rate * 100).toFixed(1)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-gray-200">
+                    <div className="border-b border-gray-200 px-4 py-3">
+                      <h3 className="font-semibold text-gray-900">Pipeline Distribution</h3>
+                    </div>
+                    <div className="divide-y divide-gray-200">
+                      {analytics.pipeline_distribution.map((row) => (
+                        <div key={row.processing_method} className="flex items-center justify-between px-4 py-3 text-sm">
+                          <div>
+                            <div className="font-medium text-gray-900">{row.processing_method}</div>
+                            <div className="text-gray-500">Avg latency {row.avg_latency.toFixed(2)}s</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-medium text-gray-900">{row.job_count} jobs</div>
+                            <div className="text-gray-500">${row.total_cost.toFixed(4)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-200 px-4 py-3">
+                      <h4 className="text-sm font-semibold text-gray-900">Top correction patterns</h4>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {analytics.correction_patterns.map((item) => (
+                          <span key={item.feedback_tag} className="rounded-full bg-amber-100 px-3 py-1 text-xs text-amber-800">
+                            {item.feedback_tag} ({item.frequency})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Dataset Filter */}
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center gap-4">
@@ -90,9 +227,9 @@ export default function BenchmarksPage() {
             </div>
           </div>
 
-          {error && (
+          {comparisonError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800">{error}</p>
+              <p className="text-red-800">{comparisonError}</p>
             </div>
           )}
 
@@ -195,6 +332,13 @@ export default function BenchmarksPage() {
               <h2 className="text-xl font-semibold">Recent Benchmark Runs</h2>
             </div>
             <div className="divide-y divide-gray-200">
+              {runsError && (
+                <div className="p-6">
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                    <p className="text-sm text-red-800">{runsError}</p>
+                  </div>
+                </div>
+              )}
               {runs.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">No benchmark runs yet</div>
               ) : (

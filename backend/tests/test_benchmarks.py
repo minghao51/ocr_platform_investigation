@@ -16,7 +16,9 @@ def get_auth_header():
 def test_list_benchmark_runs_passes_filters_to_crud():
     mock_runs = [{"id": 1, "dataset": "cord", "provider": "gemini"}]
 
-    with patch("routers.benchmarks.crud.list_benchmark_runs", new_callable=AsyncMock) as mock_list:
+    with patch(
+        "routers.benchmarks.crud.list_benchmark_runs", new_callable=AsyncMock
+    ) as mock_list:
         mock_list.return_value = mock_runs
 
         response = client.get(
@@ -75,7 +77,9 @@ def test_compare_models_returns_latest_run_per_model_and_respects_limit():
         },
     ]
 
-    with patch("routers.benchmarks.crud.list_benchmark_runs", new_callable=AsyncMock) as mock_list:
+    with patch(
+        "routers.benchmarks.crud.list_benchmark_runs", new_callable=AsyncMock
+    ) as mock_list:
         mock_list.return_value = mock_runs
 
         response = client.get(

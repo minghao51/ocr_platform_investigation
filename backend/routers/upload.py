@@ -3,9 +3,10 @@ from fastapi.responses import JSONResponse
 from pathlib import Path
 from config import get_settings
 from database import crud
-from dependencies import get_current_user
+from dependencies import get_optional_user
 from limiter import limiter, get_rate_limit_value
 import uuid
+import secrets
 from paths import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -19,10 +20,13 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict | None = Depends(get_optional_user),
 ):
     """Upload a file for processing"""
     settings = get_settings()
+    guest_token = request.headers.get("X-Guest-Token")
+    if current_user is None:
+        guest_token = guest_token or secrets.token_urlsafe(32)
 
     content = await file.read()
     if len(content) > settings.max_file_size:
@@ -37,8 +41,7 @@ async def upload_file(
         raise HTTPException(
             status_code=400,
             detail=(
-                "Invalid file type. Allowed: "
-                f"{', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
             ),
         )
 
@@ -68,14 +71,17 @@ async def upload_file(
         file_path=str(file_path),
         file_size=len(content),
         content_type=content_type,
-        user_id=current_user.get("user_id"),
+        user_id=current_user.get("user_id") if current_user else None,
+        guest_token=guest_token,
     )
 
-    return JSONResponse(
-        {
-            "file_id": file_id,
-            "file_name": file.filename,
-            "file_type": file_type,
-            "file_size": len(content),
-        }
-    )
+    payload = {
+        "file_id": file_id,
+        "file_name": file.filename,
+        "file_type": file_type,
+        "file_size": len(content),
+    }
+    if current_user is None:
+        payload["guest_token"] = guest_token
+
+    return JSONResponse(payload)

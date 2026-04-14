@@ -7,7 +7,6 @@ from slowapi.util import get_remote_address
 from fastapi import Request
 from auth import verify_token
 from config import get_settings
-import time
 
 
 def _get_request_user(request: Request) -> dict | None:
@@ -19,7 +18,12 @@ def _get_request_user(request: Request) -> dict | None:
     authorization = request.headers.get("Authorization", "")
     payload = None
     if authorization.startswith("Bearer "):
-        payload = verify_token(authorization.split(" ", 1)[1])
+        try:
+            payload = verify_token(authorization.split(" ", 1)[1])
+        except Exception:
+            # Invalid token - continue as unauthenticated user
+            # Don't log to avoid spamming logs with malformed requests
+            pass
 
     request.state.rate_limit_user = payload
     return payload
@@ -28,9 +32,9 @@ def _get_request_user(request: Request) -> dict | None:
 def get_rate_limit_key(request: Request) -> str:
     """Prefer authenticated user IDs so shared demo IPs do not collide."""
     user = _get_request_user(request)
-    if user and user.get("is_admin", False) and user.get("user_id") is not None:
-        return f"admin:{user['user_id']}:{time.time_ns()}"
     if user and user.get("user_id") is not None:
+        if user.get("is_admin", False):
+            return f"admin:{user['user_id']}"
         return f"user:{user['user_id']}"
     return get_remote_address(request)
 

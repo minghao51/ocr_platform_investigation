@@ -8,6 +8,9 @@ from services.openrouter import OpenRouterProvider
 from services.gemini import GeminiProvider
 from services.image_service import ImageService
 from services.schema_service import SchemaService
+from services.quality_gate import QualityGate
+from services.image_preprocessor import ImagePreprocessor
+from services.hybrid_processing import HybridProcessingService
 from database import crud
 
 settings = get_settings()
@@ -86,9 +89,9 @@ async def update_job_status_with_broadcast(
 
 
 class ProcessingService:
-    """Main processing pipeline"""
+    """Main processing pipeline with quality gate"""
 
-    def __init__(self):
+    def __init__(self, quality_threshold: float = 40.0, auto_preprocess: bool = True):
         self.providers = {
             "nebius": NebiusProvider,
             "openrouter": OpenRouterProvider,
@@ -96,6 +99,11 @@ class ProcessingService:
         }
         self.image_service = ImageService()
         self.schema_service = SchemaService()
+        self.quality_gate = QualityGate()
+        self.preprocessor = ImagePreprocessor()
+        self.hybrid_service = HybridProcessingService()
+        self.quality_threshold = quality_threshold
+        self.auto_preprocess = auto_preprocess
 
     def get_provider(self, provider_name: str, api_key: str):
         """Get provider instance"""
@@ -117,6 +125,7 @@ class ProcessingService:
         **kwargs,
     ) -> Dict[str, Any]:
         """Process a file (image or PDF)"""
+        extraction_method = kwargs.pop("extraction_method", "vision")
 
         # Get API key
         api_key = getattr(settings, f"{provider_name}_api_key")
@@ -124,6 +133,10 @@ class ProcessingService:
             raise ValueError(f"No API key configured for {provider_name}")
 
         async with self.get_provider(provider_name, api_key) as provider:
+            if file_type == "pdf" and extraction_method == "hybrid":
+                return await self.hybrid_service.process_pdf(
+                    file_path, provider, model, schema_definition, prompt, **kwargs
+                )
             if file_type == "image":
                 return await self._process_single_image(
                     file_path, provider, model, schema_definition, prompt, **kwargs
@@ -140,12 +153,72 @@ class ProcessingService:
         model: str,
         schema_definition: Dict[str, Any],
         prompt: str,
+        job_id: Optional[int] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        """Process a single image"""
+        """Process a single image with quality gate"""
 
         # Load image
         image = self.image_service.load_image(image_path)
+
+        # Quality gate check
+        quality_report = self.quality_gate.assess(image)
+
+        # Save quality info to job if job_id provided
+        if job_id is not None:
+            await crud.update_quality_info(
+                job_id=job_id,
+                quality_score=quality_report.overall_score,
+                quality_checks=self.quality_gate.to_dict(quality_report),
+            )
+
+        # Check if quality is too low
+        if not quality_report.passed:
+            if self.auto_preprocess and quality_report.auto_fixable_issues:
+                # Try to auto-fix
+                preprocess_result = self.preprocessor.fix(
+                    image, quality_report=quality_report
+                )
+                image = preprocess_result.processed
+
+                # Re-assess after preprocessing
+                post_quality = self.quality_gate.assess(image)
+
+                # Update job with preprocessing info
+                if job_id is not None:
+                    await crud.update_quality_info(
+                        job_id=job_id,
+                        quality_score=post_quality.overall_score,
+                        quality_checks=self.quality_gate.to_dict(post_quality),
+                        preprocessing_applied=preprocess_result.applied,
+                    )
+
+                quality_report = post_quality
+
+                # If still below threshold after preprocessing, reject
+                if quality_report.overall_score < self.quality_threshold:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Image quality is too poor for reliable extraction "
+                            f"(score: {quality_report.overall_score}/100, "
+                            f"threshold: {self.quality_threshold}). "
+                            f"Issues: {'; '.join(quality_report.recommendations)}"
+                        ),
+                        "quality_report": self.quality_gate.to_dict(quality_report),
+                    }
+            else:
+                # No auto-preprocess or no fixable issues — reject
+                return {
+                    "success": False,
+                    "error": (
+                        f"Image quality is too poor for reliable extraction "
+                        f"(score: {quality_report.overall_score}/100, "
+                        f"threshold: {self.quality_threshold}). "
+                        f"Issues: {'; '.join(quality_report.recommendations)}"
+                    ),
+                    "quality_report": self.quality_gate.to_dict(quality_report),
+                }
 
         # Resize for provider
         target_size = provider.get_default_image_size()
@@ -162,6 +235,7 @@ class ProcessingService:
                 "success": False,
                 "error": f"Provider error: {result['error']}",
                 "raw_response": result,
+                "quality_report": self.quality_gate.to_dict(quality_report),
             }
 
         # Validate result
@@ -176,12 +250,14 @@ class ProcessingService:
                 "success": True,
                 "data": validation_result["data"],
                 "raw_response": result,
+                "quality_report": self.quality_gate.to_dict(quality_report),
             }
         else:
             return {
                 "success": False,
                 "error": validation_result["error"],
                 "raw_response": result,
+                "quality_report": self.quality_gate.to_dict(quality_report),
             }
 
     async def _process_pdf(
@@ -191,17 +267,51 @@ class ProcessingService:
         model: str,
         schema_definition: Dict[str, Any],
         prompt: str,
+        job_id: Optional[int] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        """Process PDF (multiple pages)"""
+        """Process PDF (multiple pages) with quality gate"""
 
         # Convert PDF to images
         images = self.image_service.pdf_to_images(pdf_path)
 
         results = []
         errors = []
+        page_quality_reports = []
 
         for i, image in enumerate(images):
+            # Quality gate check per page
+            quality_report = self.quality_gate.assess(image)
+            page_quality_reports.append(quality_report)
+
+            # Auto-preprocess if needed
+            if (
+                not quality_report.passed
+                and self.auto_preprocess
+                and quality_report.auto_fixable_issues
+            ):
+                preprocess_result = self.preprocessor.fix(
+                    image, quality_report=quality_report
+                )
+                image = preprocess_result.processed
+                quality_report = self.quality_gate.assess(image)
+
+                if job_id is not None:
+                    # Track preprocessing operations per page
+                    prev = await crud.get_job(job_id)
+                    existing_preproc = []
+                    if prev and prev.get("preprocessing_applied"):
+                        try:
+                            existing_preproc = json.loads(prev["preprocessing_applied"])
+                        except Exception:
+                            pass
+                    merged = list(set(existing_preproc + preprocess_result.applied))
+                    await crud.update_quality_info(
+                        job_id=job_id,
+                        quality_checks=self.quality_gate.to_dict(quality_report),
+                        preprocessing_applied=merged,
+                    )
+
             # Resize
             target_size = provider.get_default_image_size()
             resized = self.image_service.resize_image(image, target_size)
@@ -227,12 +337,27 @@ class ProcessingService:
             else:
                 errors.append(f"Page {i + 1}: {validation_result['error']}")
 
+        # Save aggregate quality info for PDF
+        if job_id is not None and page_quality_reports:
+            avg_score = sum(r.overall_score for r in page_quality_reports) / len(
+                page_quality_reports
+            )
+            # Save the first page's detailed checks as representative
+            await crud.update_quality_info(
+                job_id=job_id,
+                quality_score=round(avg_score, 1),
+                quality_checks=self.quality_gate.to_dict(page_quality_reports[0]),
+            )
+
         return {
             "success": len(errors) == 0,
             "data": results,
             "errors": errors if errors else None,
             "total_pages": len(images),
             "successful_pages": len(results),
+            "quality_report": self.quality_gate.to_dict(page_quality_reports[0])
+            if page_quality_reports
+            else None,
         }
 
 
@@ -243,6 +368,9 @@ async def run_processing_job(
     prompt_override: Optional[str] = None,
     temperature_override: Optional[float] = None,
     max_tokens_override: Optional[int] = None,
+    quality_threshold: Optional[float] = None,
+    auto_preprocess: Optional[bool] = None,
+    extraction_method_override: Optional[str] = None,
 ) -> None:
     """
     Run vision extraction job (processes images/PDFs as images using VLMs).
@@ -281,15 +409,13 @@ async def run_processing_job(
     max_tokens = 4096 if max_tokens_override is None else max_tokens_override
 
     # Process
-    service = ProcessingService()
+    service = ProcessingService(
+        quality_threshold=quality_threshold if quality_threshold is not None else 40.0,
+        auto_preprocess=auto_preprocess if auto_preprocess is not None else True,
+    )
     start_time = time.time()
 
     try:
-        print(f"Starting processing for job {job_id}")
-        print(f"  File: {file_path}")
-        print(f"  Provider: {job['provider']}")
-        print(f"  Model: {job['model']}")
-
         result = await service.process_file(
             file_id=str(job_id),  # Use job_id as file_id reference
             file_path=file_path,  # Use the provided file_path
@@ -300,16 +426,23 @@ async def run_processing_job(
             prompt=prompt,
             temperature=temperature,
             max_tokens=max_tokens,
+            job_id=job_id,
+            extraction_method=extraction_method_override
+            or job.get("processing_method")
+            or "vision",
         )
 
-        print(f"Processing completed for job {job_id}")
-        print(f"  Result: {result.get('success')}")
+        print(f"Processing completed for job {job_id} Result: {result.get('success')}")
 
         processing_time = time.time() - start_time
 
         if result["success"]:
             raw_response = result.get("raw_response", {})
-            usage = raw_response.get("usage") if isinstance(raw_response, dict) else None
+            usage = (
+                raw_response.get("usage") if isinstance(raw_response, dict) else None
+            )
+            if result.get("metadata"):
+                await crud.update_job_metadata(job_id, result["metadata"])
             await update_job_status_with_broadcast(
                 job_id,
                 "success",
@@ -319,7 +452,11 @@ async def run_processing_job(
             )
         else:
             raw_response = result.get("raw_response", {})
-            usage = raw_response.get("usage") if isinstance(raw_response, dict) else None
+            usage = (
+                raw_response.get("usage") if isinstance(raw_response, dict) else None
+            )
+            if result.get("metadata"):
+                await crud.update_job_metadata(job_id, result["metadata"])
             await update_job_status_with_broadcast(
                 job_id,
                 "error",
@@ -401,9 +538,6 @@ async def run_text_processing_job(
 
     try:
         print(f"Starting TEXT processing for job {job_id}")
-        print(f"  File: {file_path}")
-        print(f"  Provider: {job['provider']}")
-        print(f"  Model: {job['model']}")
 
         # Step 1: Extract text using pdfplumber
         text_service = TextExtractionService()
@@ -418,9 +552,6 @@ async def run_text_processing_job(
             )
             return
 
-        print(f"  Extracted {len(extracted_text)} characters")
-
-        # Step 2: Get provider and process text
         providers: Dict[str, Type[VLMProvider]] = {
             "nebius": NebiusProvider,
             "openrouter": OpenRouterProvider,
