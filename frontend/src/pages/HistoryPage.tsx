@@ -142,7 +142,6 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 >
                   <option value="">All</option>
-                  <option value="nebius">Nebius</option>
                   <option value="openrouter">OpenRouter</option>
                   <option value="gemini">Gemini</option>
                 </select>

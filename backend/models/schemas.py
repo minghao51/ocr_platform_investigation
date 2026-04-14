@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, Literal, List
 
 class ProcessRequest(BaseModel):
     file_id: str
-    provider: str  # 'nebius', 'openrouter', 'gemini'
+    provider: str  # 'openrouter', 'gemini'
     model: str
     schema_id: Optional[int] = None
     schema_definition: Optional[Dict[str, Any]] = None

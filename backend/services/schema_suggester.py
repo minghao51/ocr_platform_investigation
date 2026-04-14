@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from services.gemini import GeminiProvider
-from services.nebius import NebiusProvider
 from services.openrouter import OpenRouterProvider
 from services.provider_utils import choose_default_provider_model
 from services.text_extraction import TextExtractionService
@@ -15,7 +14,6 @@ class SchemaSuggestionService:
         self.providers = {
             "gemini": GeminiProvider,
             "openrouter": OpenRouterProvider,
-            "nebius": NebiusProvider,
         }
 
     def _build_response_schema(self) -> Dict[str, Any]:

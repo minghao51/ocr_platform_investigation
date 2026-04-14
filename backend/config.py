@@ -7,7 +7,6 @@ from paths import DB_PATH
 
 class Settings(BaseSettings):
     # VLM Provider API Keys
-    nebius_api_key: str = ""
     openrouter_api_key: str = ""
     gemini_api_key: str = ""
 

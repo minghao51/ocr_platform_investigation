@@ -3,7 +3,6 @@ import json
 from typing import Dict, Any, Optional, Type
 from config import get_settings
 from services.vlm_provider import VLMProvider
-from services.nebius import NebiusProvider
 from services.openrouter import OpenRouterProvider
 from services.gemini import GeminiProvider
 from services.image_service import ImageService
@@ -93,7 +92,6 @@ class ProcessingService:
 
     def __init__(self, quality_threshold: float = 40.0, auto_preprocess: bool = True):
         self.providers = {
-            "nebius": NebiusProvider,
             "openrouter": OpenRouterProvider,
             "gemini": GeminiProvider,
         }
@@ -553,7 +551,6 @@ async def run_text_processing_job(
             return
 
         providers: Dict[str, Type[VLMProvider]] = {
-            "nebius": NebiusProvider,
             "openrouter": OpenRouterProvider,
             "gemini": GeminiProvider,
         }

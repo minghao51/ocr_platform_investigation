@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-from services.nebius import NebiusProvider
 from services.openrouter import OpenRouterProvider
 from services.gemini import GeminiProvider
 from config import get_settings
@@ -13,24 +12,6 @@ async def list_providers():
     settings = get_settings()
 
     providers = []
-
-    # Nebius
-    nebius_has_key = bool(settings.nebius_api_key and settings.nebius_api_key.strip())
-    nebius_models = []
-    if nebius_has_key:
-        try:
-            nebius = NebiusProvider(settings.nebius_api_key)
-            nebius_models = nebius.get_models()
-        except Exception as e:
-            print(f"Error loading Nebius models: {e}")
-    providers.append(
-        {
-            "name": "nebius",
-            "display_name": "Nebius",
-            "models": nebius_models,
-            "has_api_key": nebius_has_key,
-        }
-    )
 
     # OpenRouter
     openrouter_has_key = bool(

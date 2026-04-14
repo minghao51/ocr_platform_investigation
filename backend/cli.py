@@ -43,7 +43,7 @@ async def run_benchmark_cli():
 
     parser = argparse.ArgumentParser(description="Run OCR benchmark")
     parser.add_argument(
-        "--provider", required=True, help="Provider name (nebius, openrouter, gemini)"
+        "--provider", required=True, help="Provider name (openrouter, gemini)"
     )
     parser.add_argument("--model", required=True, help="Model identifier")
     parser.add_argument(

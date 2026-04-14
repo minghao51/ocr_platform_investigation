@@ -123,9 +123,7 @@ def get_pricing_for_provider_models(provider: str) -> list[dict]:
     """
     results = []
     for model_id, pricing in MODEL_PRICING.items():
-        if provider == "nebius" and model_id.startswith("Qwen/"):
-            results.append({"id": model_id, **pricing})
-        elif provider == "openrouter" and "/" in model_id:
+        if provider == "openrouter" and "/" in model_id:
             results.append({"id": model_id, **pricing})
         elif provider == "gemini" and model_id.startswith("gemini-"):
             results.append({"id": model_id, **pricing})
