@@ -1,6 +1,7 @@
 import time
 import json
 from typing import Dict, Any, Optional, Type
+from pathlib import Path
 from config import get_settings
 from services.vlm_provider import VLMProvider
 from services.openrouter import OpenRouterProvider
@@ -10,7 +11,13 @@ from services.schema_service import SchemaService
 from services.quality_gate import QualityGate
 from services.image_preprocessor import ImagePreprocessor
 from services.hybrid_processing import HybridProcessingService
+from services.docling_service import DoclingService
+from services.chunking_service import MarkdownSplitter
+from services.transcription_service import TranscriptionService
 from database import crud
+
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 15MB
+CHUNK_THRESHOLD_RATIO = 0.8
 
 settings = get_settings()
 
@@ -100,6 +107,9 @@ class ProcessingService:
         self.quality_gate = QualityGate()
         self.preprocessor = ImagePreprocessor()
         self.hybrid_service = HybridProcessingService()
+        self.docling_service = DoclingService()
+        self.chunking_service = MarkdownSplitter()
+        self.transcription_service = TranscriptionService()
         self.quality_threshold = quality_threshold
         self.auto_preprocess = auto_preprocess
 
@@ -110,6 +120,256 @@ class ProcessingService:
             raise ValueError(f"Unknown provider: {provider_name}")
 
         return provider_class(api_key)
+
+    def _validate_file_size(self, file_path: str) -> None:
+        """Validate file is under size limit"""
+        size = Path(file_path).stat().st_size
+        if size > MAX_FILE_SIZE:
+            raise ValueError(f"File too large ({size/1024/1024:.1f}MB). Max: {MAX_FILE_SIZE/1024/1024}MB")
+
+    def _should_chunk(self, text: str, model: str) -> bool:
+        """Check if document needs chunking"""
+        # Get model context window (simplified)
+        context_windows = {
+            "gpt-4o": 128000,
+            "gpt-4o-mini": 128000,
+            "gemini-2.0-flash": 1000000,
+        }
+        max_tokens = context_windows.get(model, 128000)
+        threshold = int(max_tokens * CHUNK_THRESHOLD_RATIO)
+
+        return self.chunking_service.count_tokens(text) > threshold
+
+    async def _process_via_docling(
+        self,
+        file_path: str,
+        provider,
+        model: str,
+        schema_definition: Dict[str, Any],
+        prompt: str,
+        is_transcription: bool = False,
+        job_id: Optional[int] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Process document using Docling for extraction.
+
+        This method uses DoclingService to extract structured content from documents,
+        with optional transcription for audio files and chunking for large documents.
+        """
+        try:
+            # Validate file size
+            self._validate_file_size(file_path)
+
+            # Handle transcription for audio files
+            if is_transcription:
+                transcription_result = await self.transcription_service.transcribe(file_path)
+                if not transcription_result["success"]:
+                    return {
+                        "success": False,
+                        "error": f"Transcription failed: {transcription_result.get('error', 'Unknown error')}",
+                    }
+                markdown_content = transcription_result["text"]
+            else:
+                # Extract content using Docling
+                try:
+                    markdown_content = self.docling_service.parse_document(file_path)
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"Docling extraction failed: {str(e)}",
+                    }
+
+            # Check if chunking is needed
+            if self._should_chunk(markdown_content, model):
+                return await self._process_chunked_document(
+                    markdown_content,
+                    provider,
+                    model,
+                    schema_definition,
+                    prompt,
+                    job_id,
+                    **kwargs,
+                )
+
+            # Process as single document
+            result = await provider.process_text(
+                text=markdown_content,
+                prompt=prompt,
+                schema_definition=schema_definition,
+                model=model,
+                **kwargs,
+            )
+
+            # Check for provider-level errors
+            if "error" in result:
+                return {
+                    "success": False,
+                    "error": f"Provider error: {result['error']}",
+                    "raw_response": result,
+                }
+
+            # Validate result
+            content = result.get("content", "{}")
+            validation_result = parse_and_validate_response(
+                content, schema_definition, self.schema_service
+            )
+
+            if validation_result["success"]:
+                return {
+                    "success": True,
+                    "data": validation_result["data"],
+                    "raw_response": result,
+                    "metadata": {
+                        "extraction_method": "docling",
+                        "chunked": False,
+                    },
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": validation_result["error"],
+                    "raw_response": result,
+                }
+
+        except Exception as e:
+            # Check if it's a docling-related error
+            error_type = type(e).__name__
+            if "docling" in str(e).lower() or "Docling" in error_type:
+                return {
+                    "success": False,
+                    "error": f"Docling error: {str(e)}",
+                }
+            else:
+                raise
+        except ValueError as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+        except Exception as e:
+            import traceback
+
+            return {
+                "success": False,
+                "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
+                "traceback": traceback.format_exc(),
+            }
+
+    async def _process_chunked_document(
+        self,
+        markdown_content: str,
+        provider,
+        model: str,
+        schema_definition: Dict[str, Any],
+        prompt: str,
+        job_id: Optional[int] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Process large document by splitting into chunks and merging results.
+
+        This method chunks the document, processes each chunk separately,
+        and merges the results intelligently.
+        """
+        try:
+            # Split document into chunks
+            chunks = self.chunking_service.split(markdown_content)
+
+            if not chunks:
+                return {
+                    "success": False,
+                    "error": "Failed to split document into chunks",
+                }
+
+            results = []
+            errors = []
+
+            # Process each chunk
+            for i, chunk in enumerate(chunks):
+                chunk_prompt = f"{prompt}\n\n(Process chunk {i + 1} of {len(chunks)})"
+
+                try:
+                    result = await provider.process_text(
+                        text=chunk,
+                        prompt=chunk_prompt,
+                        schema_definition=schema_definition,
+                        model=model,
+                        **kwargs,
+                    )
+
+                    # Check for provider-level errors
+                    if "error" in result:
+                        errors.append(f"Chunk {i + 1}: {result['error']}")
+                        continue
+
+                    # Validate result
+                    content = result.get("content", "{}")
+                    validation_result = parse_and_validate_response(
+                        content, schema_definition, self.schema_service
+                    )
+
+                    if validation_result["success"]:
+                        results.append(validation_result["data"])
+                    else:
+                        errors.append(f"Chunk {i + 1}: {validation_result['error']}")
+
+                except Exception as e:
+                    errors.append(f"Chunk {i + 1}: {type(e).__name__}: {str(e)}")
+
+            # Merge results
+            if not results:
+                return {
+                    "success": False,
+                    "error": f"All chunks failed to process: {'; '.join(errors)}",
+                    "errors": errors,
+                }
+
+            # Simple merge: combine all results
+            # For more sophisticated merging, you might implement field-specific logic
+            merged_data = {}
+            for result in results:
+                if isinstance(result, dict):
+                    for key, value in result.items():
+                        if key not in merged_data:
+                            merged_data[key] = value
+                        elif isinstance(value, list):
+                            # Append to existing list
+                            if isinstance(merged_data[key], list):
+                                merged_data[key].extend(value)
+                            else:
+                                # Convert to list if needed
+                                merged_data[key] = [merged_data[key]] + value
+                        elif isinstance(value, dict) and isinstance(merged_data.get(key), dict):
+                            # Merge nested dicts
+                            merged_data[key].update(value)
+
+            return {
+                "success": len(errors) == 0,
+                "data": merged_data,
+                "raw_response": {
+                    "total_chunks": len(chunks),
+                    "successful_chunks": len(results),
+                    "failed_chunks": len(errors),
+                    "chunk_results": results,
+                },
+                "errors": errors if errors else None,
+                "metadata": {
+                    "extraction_method": "docling",
+                    "chunked": True,
+                    "total_chunks": len(chunks),
+                    "successful_chunks": len(results),
+                },
+            }
+
+        except Exception as e:
+            import traceback
+
+            return {
+                "success": False,
+                "error": f"Chunk processing error: {type(e).__name__}: {str(e)}",
+                "traceback": traceback.format_exc(),
+            }
 
     async def process_file(
         self,
@@ -123,7 +383,8 @@ class ProcessingService:
         **kwargs,
     ) -> Dict[str, Any]:
         """Process a file (image or PDF)"""
-        extraction_method = kwargs.pop("extraction_method", "vision")
+        extraction_method = kwargs.pop("extraction_method", "docling")  # Default to docling
+        is_transcription = kwargs.pop("is_transcription", False)
 
         # Get API key
         api_key = getattr(settings, f"{provider_name}_api_key")
@@ -131,11 +392,15 @@ class ProcessingService:
             raise ValueError(f"No API key configured for {provider_name}")
 
         async with self.get_provider(provider_name, api_key) as provider:
-            if file_type == "pdf" and extraction_method == "hybrid":
+            if extraction_method == "docling":
+                return await self._process_via_docling(
+                    file_path, provider, model, schema_definition, prompt, is_transcription, **kwargs
+                )
+            elif file_type == "pdf" and extraction_method == "hybrid":
                 return await self.hybrid_service.process_pdf(
                     file_path, provider, model, schema_definition, prompt, **kwargs
                 )
-            if file_type == "image":
+            elif file_type == "image":
                 return await self._process_single_image(
                     file_path, provider, model, schema_definition, prompt, **kwargs
                 )
