@@ -1,0 +1,151 @@
+# Docling Best Practices
+
+> Source: docling-project/docling (Context7)
+> Last updated: 2026-04-16
+
+## CPU-Optimized Configuration
+
+```python
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+from docling.datamodel.pipeline_options import ThreadedPdfPipelineOptions
+from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
+
+# CPU-optimized accelerator settings
+accelerator_options = AcceleratorOptions(
+    device=AcceleratorDevice.CPU,
+    num_threads=4
+)
+
+# Threaded pipeline with CPU batch sizes
+pipeline_options = ThreadedPdfPipelineOptions()
+pipeline_options.ocr_batch_size = 16      # CPU: 16-32, GPU: 64+
+pipeline_options.layout_batch_size = 16   # CPU: 16-32, GPU: 64+
+pipeline_options.table_batch_size = 2     # CPU: 2-4, GPU: 4-8
+pipeline_options.images_scale = 1.0       # 72 DPI, prevent memory growth
+
+# Table structure: use FAST mode for CPU
+from docling.datamodel.pipeline_options import TableStructureOptions, TableFormerMode
+pipeline_options.table_structure_options = TableStructureOptions(
+    do_cell_matching=True,
+    mode=TableFormerMode.FAST  # FAST for CPU, ACCURATE for GPU
+)
+```
+
+## Format-Specific Pipelines
+
+```python
+from docling.document_converter import (
+    DocumentConverter,
+    PdfFormatOption,
+    WordFormatOption,
+    PowerpointFormatOption,
+)
+from docling.pipeline.simple_pipeline import SimplePipeline
+from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
+
+converter = DocumentConverter(
+    format_options={
+        # PDF: Use PyPdfium backend with Standard pipeline
+        InputFormat.PDF: PdfFormatOption(
+            backend=PyPdfiumDocumentBackend,
+            pipeline_cls=StandardPdfPipeline,
+            pipeline_options=pipeline_options
+        ),
+        # DOCX/PPTX: Use Simple pipeline (no OCR needed)
+        InputFormat.DOCX: WordFormatOption(pipeline_cls=SimplePipeline),
+        InputFormat.PPTX: PowerpointFormatOption(pipeline_cls=SimplePipeline),
+    },
+    accelerator_options=accelerator_options
+)
+```
+
+## Memory Optimization
+
+- `images_scale=1.0` (72 DPI) — prevents exponential memory growth
+- `generate_page_images=False` — disable if not needed for text extraction
+- `generate_picture_images=False` — disable embedded image extraction
+- `max_file_size` — set limit in `convert_all()` for batch processing
+
+## Batch Processing
+
+```python
+for result in converter.convert_all(
+    input_paths,
+    raises_on_error=False,      # Continue on individual failures
+    max_num_pages=100,          # Limit pages per document
+    max_file_size=50 * 1024 * 1024,  # 50MB limit
+):
+    if result.status == ConversionStatus.SUCCESS:
+        result.document.save_as_markdown(f"output/{result.input.file.stem}.md")
+    elif result.status == ConversionStatus.PARTIAL_SUCCESS:
+        # Handle partial success
+        for error in result.errors:
+            print(f"Error: {error.error_message}")
+```
+
+## OCR Configuration
+
+```python
+# EasyOCR (default)
+from docling.datamodel.pipeline_options import EasyOcrOptions
+pipeline_options.ocr_options = EasyOcrOptions(
+    lang=["en"],
+    use_gpu=False,  # CPU mode
+    confidence_threshold=0.5
+)
+
+# Tesseract (alternative)
+from docling.datamodel.pipeline_options import TesseractOcrOptions
+pipeline_options.ocr_options = TesseractOcrOptions(lang=["eng"])
+
+# RapidOCR (faster alternative)
+from docling.datamodel.pipeline_options import RapidOcrOptions
+pipeline_options.ocr_options = RapidOcrOptions(backend="onnxruntime")
+```
+
+## Smart OCR Detection
+
+Detect if PDF is text-searchable before enabling OCR:
+
+```python
+from PyPDF2 import PdfReader
+
+def is_text_searchable(file_path: str) -> bool:
+    with open(file_path, 'rb') as f:
+        reader = PdfReader(f)
+        page = reader.pages[0]
+        text = page.extract_text()
+        return bool(text and text.strip())
+
+# Configure pipeline based on detection
+is_searchable = is_text_searchable(pdf_path)
+pipeline_options.do_ocr = not is_searchable
+```
+
+## Page Range for Chunking
+
+```python
+# Process specific page range for large documents
+doc = converter.convert(
+    "large.pdf",
+    page_range=range(0, 10)  # Pages 0-9
+)
+```
+
+## Chunking (Built-in)
+
+Docling has built-in chunking with `DocChunk` transform:
+- Strategy: `'li_markdown'` for Markdown-aware chunking
+- Default: 128 tokens, 30 overlap
+- Use for: Embedding, retrieval, pre-processing
+
+For LLM extraction with map-reduce synthesis, custom chunking after `export_to_markdown()` is recommended.
+
+## Key Takeaways
+
+1. **Use PyPdfiumDocumentBackend** — 2-3x faster than default
+2. **ThreadedPdfPipelineOptions** — enables parallel processing
+3. **Format-specific pipelines** — SimplePipeline for Office docs
+4. **CPU batch sizes** — 16 for OCR/layout, 2 for tables
+5. **Memory limits** — images_scale=1.0, max_file_size in batches
+6. **Smart OCR** — detect text-searchable PDFs first

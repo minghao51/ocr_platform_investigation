@@ -1,0 +1,319 @@
+# Pulumi Best Practices for OCR Platform
+
+## Overview
+
+This project uses Pulumi IaC with TypeScript for deploying to Google Cloud Run. Below are best practices for infrastructure management.
+
+## Project Structure
+
+```
+infra/
+├── Pulumi.yaml              # Pulumi project config
+├── Pulumi.dev.yaml          # Stack-specific config (gitignored)
+├── Pulumi.prod.yaml         # Production stack config
+├── package.json             # Node.js dependencies
+├── tsconfig.json           # TypeScript config
+├── index.ts               # Main entry point
+├── artifact-registry.ts   # Container registry setup
+├── cloudrun.ts            # Cloud Run v2 service
+├── iam.ts                 # IAM permissions
+└── README.md             # Deployment documentation
+```
+
+## Commands
+
+### Setup
+
+```bash
+cd infra
+
+# Install dependencies
+npm install
+
+# Login to Pulumi (local state for simplicity)
+pulumi login --local
+
+# Create stack
+pulumi stack init dev
+
+# Configure stack
+pulumi config set gcp:project YOUR_PROJECT_ID
+pulumi config set gcp:region us-central1
+pulumi config set ocr-platform:environment dev
+```
+
+### Deployment
+
+```bash
+# Preview changes
+pulumi preview
+
+# Deploy (builds Docker, pushes to Artifact Registry, deploys Cloud Run)
+pulumi up
+
+# Destroy all resources
+pulumi destroy
+```
+
+## Best Practices
+
+### 1. Use Cloud Run v2 API
+
+```typescript
+// ✅ CORRECT - Use gcp.cloudrunv2.Service
+const service = new gcp.cloudrunv2.Service("ocr-service", {
+    location: region,
+    template: {
+        spec: {
+            containers: [{ image: imageUri }],
+        },
+    },
+});
+
+// ❌ AVOID - Classic gcp.cloudrun.Service (deprecated features)
+const oldService = new gcp.cloudrun.Service("old-service", { ... });
+```
+
+### 2. Enable APIs Before Use
+
+```typescript
+// Always enable required APIs first
+const enableCloudRun = new gcp.projects.Service("enable-cloudrun", {
+    service: "run.googleapis.com",
+});
+
+const service = new gcp.cloudrunv2.Service("my-service", {
+    // ...
+}, { dependsOn: [enableCloudRun] });
+```
+
+### 3. Separate Project for IaC
+
+For production, use separate GCP projects per environment:
+
+```bash
+# Separate projects per environment
+gcloud projects create ocr-platform-dev
+gcloud projects create ocr-platform-prod
+```
+
+### 4. Use Artifact Registry (Not GCR)
+
+GCR was deprecated March 2025. Use Artifact Registry:
+
+```typescript
+const registry = new gcp.artifactregistry.Repository("ocr-repo", {
+    location: "us-central1",
+    repositoryFormat: "docker",
+    mode: "STANDARD_REPOSITORY",
+});
+```
+
+### 5. Build and Push in IaC
+
+Let Pulumi build the Docker image as part of deployment:
+
+```typescript
+const image = new docker.Image("ocr-image", {
+    imageName: pulumi.interpolate`${region}-docker.pkg.dev/${project}/${registry.name}/ocr:latest`,
+    build: {
+        context: "..",           // From project root
+        dockerfile: "../Dockerfile",
+        platform: "linux/amd64", // Required for GCP
+    },
+});
+```
+
+### 6. Scale to Zero for Cost Efficiency
+
+```typescript
+scaling: {
+    minInstanceCount: 0,  // Scale to zero when idle
+    maxInstanceCount: 10,
+},
+```
+
+### 7. Use Pulumi ESC for Secrets
+
+```typescript
+// ✅ CORRECT - Reference secrets from Pulumi ESC
+const config = new pulumi.Config();
+const apiKey = config.requireSecret("api-key");
+
+// ❌ AVOID - Hardcoded secrets
+const apiKey = "super-secret-key"; // Never do this!
+```
+
+### 8. Use Config for Environment-Specific Values
+
+```typescript
+const config = new pulumi.Config();
+const environment = config.get("ocr-platform:environment") || "dev";
+const region = config.get("gcp:region") || "us-central1";
+```
+
+### 9. Export Important Outputs
+
+```typescript
+export const serviceUrl = service.urls;
+export const imageUri = image.imageName;
+export const artifactRepoUrl = registry.repositoryUrl;
+```
+
+### 10. Use Stack Configurations
+
+**Pulumi.dev.yaml:**
+```yaml
+config:
+  ocr-platform:environment: dev
+  gcp:region: us-central1
+```
+
+**Pulumi.prod.yaml:**
+```yaml
+config:
+  ocr-platform:environment: prod
+  gcp:region: us-central1
+```
+
+Deploy with:
+```bash
+pulumi stack select prod
+pulumi up
+```
+
+## Docker Image Best Practices
+
+### Use Multi-Stage Builds
+
+Your Dockerfile already follows this pattern. Key points:
+
+```dockerfile
+# Stage 1: Dependencies
+FROM python:3.11-slim-bookworm AS backend
+RUN uv sync --frozen --no-dev
+
+# Stage 2: Build frontend
+FROM node:20-alpine AS frontend
+RUN npm ci && npm run build
+
+# Stage 3: Runtime (small)
+FROM python:3.11-slim-bookworm AS runtime
+COPY --from=backend /app ./
+COPY --from=frontend /app/frontend/dist ./
+```
+
+### Image Size Optimization
+
+- Use `--no-dev` and `--no-install-project` in Docker builds
+- Use slim base images (debian-slim, alpine)
+- Clean up apt cache (`rm -rf /var/lib/apt/lists/*`)
+
+## Cloud Run Configuration
+
+### Recommended Settings
+
+```typescript
+{
+    ingress: "INGRESS_TRAFFIC_ALL",
+    template: {
+        scaling: { minInstanceCount: 0, maxInstanceCount: 10 },
+        containers: [{
+            image: imageUri,
+            resources: {
+                limits: {
+                    cpu: "2",
+                    memory: "2Gi",
+                },
+            },
+            ports: { containerPort: 8000 },
+        }],
+    },
+}
+```
+
+### Port Mapping
+
+Cloud Run expects port 8080 by default. Your app uses 8000, so specify:
+
+```typescript
+ports: { containerPort: 8000 },
+env: [{ name: "PORT", value: "8000" }],
+```
+
+## IAM Best Practices
+
+### Use Non-Authoritative IAM
+
+```typescript
+// ✅ CORRECT - Use IamMember for adding permissions
+const iam = new gcp.cloudrun.IamMember("public-access", {
+    service: service.name,
+    role: "roles/run.invoker",
+    member: "allUsers",
+});
+
+// ❌ AVOID - IamPolicy replaces entire policy
+const policy = new gcp.cloudrun.IamPolicy("policy", {
+    // ... replaces all existing policies
+});
+```
+
+### Service Account Least Privilege
+
+```typescript
+// Create dedicated service account
+const sa = new gcp.serviceaccount.Account("ocr-sa", {
+    displayName: "OCR Platform Service Account",
+});
+
+// Grant only required roles
+new gcp.serviceaccount.IamMember("artifact-reader", {
+    serviceAccountId: sa.email,
+    role: "roles/artifactregistry.reader",
+});
+```
+
+## Troubleshooting
+
+### Image Build Fails
+```bash
+# Test locally first
+cd ..
+docker build -t test .
+
+# Check Dockerfile path in Pulumi
+build: {
+    context: "..",
+    dockerfile: "../Dockerfile",  // Must be relative to context
+}
+```
+
+### Pulumi State Issues
+```bash
+# Refresh state from cloud
+pulumi refresh
+
+# Export state
+pulumi stack export > state.json
+
+# Import state (if needed)
+pulumi stack import < state.json
+```
+
+### Permission Errors
+```bash
+# Ensure gcloud is configured
+gcloud auth login
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+# Check IAM permissions
+gcloud projects get-iam-policy YOUR_PROJECT
+```
+
+## References
+
+- [Pulumi GCP Cloud Run Guide](https://www.pulumi.com/guides/how-to/gcp-cloud-run-service/)
+- [Cloud Run v2 API](https://www.pulumi.com/registry/packages/gcp/api-docs/cloudrunv2/service/)
+- [Artifact Registry](https://www.pulumi.com/registry/packages/gcp/api-docs/artifactregistry/repository/)
+- [Pulumi ESC for Secrets](https://www.pulumi.com/docs/idp/guides/best-practices/)
