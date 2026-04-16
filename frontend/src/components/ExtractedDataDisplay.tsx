@@ -1,12 +1,33 @@
 import { useMemo, useState } from 'react';
+import MarkdownViewer from './MarkdownViewer';
 
 interface ExtractedDataDisplayProps {
   result: unknown;
   fileName: string;
+  processingMethod?: 'docling' | 'transcription' | string;
 }
 
-export default function ExtractedDataDisplay({ result, fileName }: ExtractedDataDisplayProps) {
+export default function ExtractedDataDisplay({ result, fileName, processingMethod }: ExtractedDataDisplayProps) {
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // Check if result is markdown content
+  const isMarkdownResult = processingMethod === 'docling' || processingMethod === 'transcription';
+
+  if (isMarkdownResult && typeof result === 'string') {
+    return <MarkdownViewer markdown={result} fileName={fileName} />;
+  }
+
+  // Handle markdown within JSON result (e.g., { markdown: "..." })
+  if (result && typeof result === 'object' && 'markdown' in result && typeof result.markdown === 'string') {
+    return <MarkdownViewer markdown={result.markdown} fileName={fileName} />;
+  }
+
+  // Handle markdown within JSON result (e.g., { text: "..." })
+  if (result && typeof result === 'object' && 'text' in result && typeof result.text === 'string' && isMarkdownResult) {
+    return <MarkdownViewer markdown={result.text} fileName={fileName} />;
+  }
+
+  // Default JSON display
   const formattedJson = useMemo(
     () => JSON.stringify(result, null, 2),
     [result]

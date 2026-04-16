@@ -17,12 +17,20 @@ export default function FileUpload({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const acceptedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+  const acceptedTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+    'text/plain',
+    'text/markdown',
+    'text/html',
+  ];
   const maxSize = 10 * 1024 * 1024; // 10MB
 
   const validateFile = (file: File): string | null => {
     if (!acceptedTypes.includes(file.type)) {
-      return 'Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF.';
+      return 'Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP), PDF, DOCX, PPTX, TXT, MD, or HTML file.';
     }
     if (file.size > maxSize) {
       return 'File size exceeds 10MB limit.';
@@ -117,7 +125,7 @@ export default function FileUpload({
             {disabled ? disabledMessage : 'Drag and drop, or click to browse'}
           </p>
           <p className="text-xs text-gray-400 mt-2">
-            Supports: JPEG, PNG, GIF, WebP, PDF (max 10MB)
+            Supports: JPEG, PNG, GIF, WebP, PDF, DOCX, PPTX, TXT, MD, HTML (max 10MB)
           </p>
         </div>
 

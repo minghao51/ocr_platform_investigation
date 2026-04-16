@@ -192,7 +192,7 @@ export interface Job {
   created_at?: string;
   updated_at?: string;
   processing_time?: number;
-  processing_method?: 'vision' | 'text' | 'hybrid';
+  processing_method?: 'vision' | 'text' | 'hybrid' | 'docling' | 'transcription';
   document_type?: string;
   correction_status?: 'uncorrected' | 'corrected';
   correction_summary?: {
@@ -254,7 +254,7 @@ export interface ProcessRequest {
   prompt?: string;
   temperature?: number;
   max_tokens?: number;
-  extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid';
+  extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid' | 'docling' | 'transcription';
   quality_threshold?: number;
   auto_preprocess?: boolean;
   skip_quality?: boolean;

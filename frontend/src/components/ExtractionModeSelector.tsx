@@ -1,5 +1,5 @@
 
-export type ExtractionMethod = 'auto' | 'text' | 'vision' | 'hybrid';
+export type ExtractionMethod = 'auto' | 'text' | 'vision' | 'hybrid' | 'docling' | 'transcription';
 
 interface ExtractionModeSelectorProps {
   value: ExtractionMethod;
@@ -57,6 +57,30 @@ const modes = [
     description: 'Combines text extraction and vision processing. Extracts text first, then uses vision to validate and enhance results.',
     color: 'orange',
   },
+  {
+    id: 'docling' as ExtractionMethod,
+    name: 'Docling',
+    shortName: 'Docling',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    description: 'Advanced document parsing with Docling. Handles complex layouts, tables, and multi-column documents. Outputs structured Markdown.',
+    color: 'indigo',
+  },
+  {
+    id: 'transcription' as ExtractionMethod,
+    name: 'Transcription',
+    shortName: 'Transcription',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+      </svg>
+    ),
+    description: 'Full document transcription to Markdown. Ideal for documents, reports, and articles where you need the complete text content.',
+    color: 'teal',
+  },
 ];
 
 export default function ExtractionModeSelector({ value, onChange, fileType }: ExtractionModeSelectorProps) {
@@ -113,6 +137,20 @@ export default function ExtractionModeSelector({ value, onChange, fileType }: Ex
       text: 'text-orange-900',
       selected: 'border-orange-500 ring-orange-500',
       icon: 'text-orange-600',
+    },
+    indigo: {
+      bg: 'bg-indigo-50',
+      border: 'border-indigo-200',
+      text: 'text-indigo-900',
+      selected: 'border-indigo-500 ring-indigo-500',
+      icon: 'text-indigo-600',
+    },
+    teal: {
+      bg: 'bg-teal-50',
+      border: 'border-teal-200',
+      text: 'text-teal-900',
+      selected: 'border-teal-500 ring-teal-500',
+      icon: 'text-teal-600',
     },
   };
 

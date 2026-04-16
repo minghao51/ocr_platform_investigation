@@ -24,6 +24,10 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'bg-blue-100 text-blue-800';
       case 'hybrid':
         return 'bg-orange-100 text-orange-800';
+      case 'docling':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'transcription':
+        return 'bg-teal-100 text-teal-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -39,6 +43,10 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'Vision Extraction';
       case 'hybrid':
         return 'Hybrid Extraction';
+      case 'docling':
+        return 'Docling Parser';
+      case 'transcription':
+        return 'Transcription';
       default:
         return 'Unknown';
     }
@@ -80,6 +88,10 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'High accuracy for images and scanned documents';
       case 'hybrid':
         return 'Combines text extraction and vision processing';
+      case 'docling':
+        return 'Advanced document parsing with layout analysis';
+      case 'transcription':
+        return 'Full document transcription to Markdown';
       default:
         return '';
     }
@@ -131,7 +143,7 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
       {job.status === 'success' && hasResult && (
         <section>
           <h2 className="text-xl font-semibold mb-4">Extracted Data</h2>
-          <ExtractedDataDisplay result={job.result} fileName={job.file_name} />
+          <ExtractedDataDisplay result={job.result} fileName={job.file_name} processingMethod={job.processing_method} />
         </section>
       )}
 
