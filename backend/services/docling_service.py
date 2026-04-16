@@ -29,6 +29,11 @@ import pypdfium2
 logger = logging.getLogger(__name__)
 
 
+class DoclingError(Exception):
+    """Raised when Docling fails to parse a document"""
+    pass
+
+
 class DoclingService:
     """
     CPU-optimized document parsing service using Docling.
