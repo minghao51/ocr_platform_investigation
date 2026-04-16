@@ -37,11 +37,15 @@ async def process_document(
     - None or "auto": Automatically detect best pipeline (recommended)
     - "text": Force text extraction (pdfplumber + LLM) - fast & cheap
     - "vision": Force vision extraction (VLM) - accurate & expensive
+    - "docling": Force Docling-based extraction with markdown parsing
+    - "transcription": Force audio transcription mode (schema optional)
     """
     if current_user is not None:
         current_user = await check_and_increment_daily_limit(current_user)
 
-    # Get schema definition
+    # Get schema definition (optional for transcription mode)
+    is_transcription = extraction_method == "transcription" or payload.extraction_method == "transcription"
+
     if payload.schema_id:
         schema_record = await crud.get_schema(payload.schema_id)
         if not schema_record:
@@ -52,6 +56,10 @@ async def process_document(
     elif payload.schema_definition:
         _schema_definition = payload.schema_definition
         schema_name = "Custom"
+    elif is_transcription:
+        # Schema is optional for transcription mode
+        _schema_definition = None
+        schema_name = "Transcription"
     else:
         raise HTTPException(
             status_code=400,
@@ -81,6 +89,7 @@ async def process_document(
     processing_method = effective_extraction_method
     classification_info = None
     document_type = None
+    is_transcription = effective_extraction_method == "transcription"
 
     # Auto-detect if not specified or set to "auto"
     if not effective_extraction_method or effective_extraction_method == "auto":
@@ -119,10 +128,10 @@ async def process_document(
             document_type = "image"
 
     # Validate extraction method
-    if processing_method not in ["text", "vision", "hybrid"]:
+    if processing_method not in ["text", "vision", "hybrid", "docling", "transcription"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid extraction_method: {processing_method}. Must be 'text', 'vision', or 'hybrid'",
+            detail=f"Invalid extraction_method: {processing_method}. Must be 'text', 'vision', 'hybrid', 'docling', or 'transcription'",
         )
 
     # For images, force vision processing
@@ -162,12 +171,13 @@ async def process_document(
         "quality_threshold": payload.quality_threshold,
         "auto_preprocess": payload.auto_preprocess,
         "extraction_method_override": processing_method,
+        "is_transcription": is_transcription,
     }
     if processing_method == "text":
         background_tasks.add_task(
             run_text_processing_job, job_id, str(file_path), **worker_kwargs
         )
-    else:  # "vision" or "hybrid"
+    else:  # "vision", "hybrid", "docling", or "transcription"
         background_tasks.add_task(
             run_processing_job, job_id, str(file_path), **worker_kwargs
         )

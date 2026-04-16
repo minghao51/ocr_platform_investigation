@@ -60,6 +60,7 @@ class ConnectionManager:
                     "processing_method": job.get("processing_method"),
                     "created_at": job["created_at"],
                     "completed_at": job.get("completed_at"),
+                    "chunking_progress": job.get("metadata", {}).get("chunking_progress"),
                 },
             }
         )
