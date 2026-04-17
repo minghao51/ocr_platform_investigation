@@ -20,6 +20,11 @@ data/
 *.db
 *.db-journal
 
+# CORD dataset (benchmark data)
+backend/benchmarks/cord/
+backend/benchmarks/datasets/
+backend/database.sqlite
+
 # Environment
 .env
 .env.local
@@ -75,3 +80,15 @@ DEMO_ACCOUNTS.md
 credentials.json
 *.pem
 *.key
+.env.keys
+
+# Local development artifacts
+.context/
+backend/scripts/
+backend/tests/conftest.py.bak
+frontend/test-results/
+
+# Documentation extras
+docs/benchmarks/
+docs/features/
+docs/handoffs/
