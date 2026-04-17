@@ -10,7 +10,7 @@ This script creates sample documents for testing:
 - image_only.pdf
 """
 
-import os
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -19,19 +19,13 @@ def check_dependencies():
     """Check if required dependencies are installed."""
     missing = []
 
-    try:
-        import docx
-    except ImportError:
+    if importlib.util.find_spec("docx") is None:
         missing.append("python-docx")
 
-    try:
-        import pptx
-    except ImportError:
+    if importlib.util.find_spec("pptx") is None:
         missing.append("python-pptx")
 
-    try:
-        import reportlab
-    except ImportError:
+    if importlib.util.find_spec("reportlab") is None:
         missing.append("reportlab")
 
     if missing:
@@ -50,15 +44,15 @@ def create_sample_docx(output_path):
     from docx import Document
 
     doc = Document()
-    doc.add_heading('Test Document', level=1)
-    doc.add_paragraph('This is a test paragraph for DOCX parsing.')
-    doc.add_paragraph('Another paragraph with some content.')
+    doc.add_heading("Test Document", level=1)
+    doc.add_paragraph("This is a test paragraph for DOCX parsing.")
+    doc.add_paragraph("Another paragraph with some content.")
 
-    doc.add_heading('Section 1', level=2)
-    doc.add_paragraph('Content for section 1 with some details.')
+    doc.add_heading("Section 1", level=2)
+    doc.add_paragraph("Content for section 1 with some details.")
 
-    doc.add_heading('Section 2', level=2)
-    doc.add_paragraph('Content for section 2 with more information.')
+    doc.add_heading("Section 2", level=2)
+    doc.add_paragraph("Content for section 2 with more information.")
 
     doc.save(output_path)
     print(f"Created: {output_path}")
@@ -107,10 +101,16 @@ def create_searchable_pdf(output_path):
 
     styles = getSampleStyleSheet()
     story = []
-    story.append(Paragraph("Searchable PDF Document", styles['Heading1']))
-    story.append(Paragraph("This is a test paragraph for searchable PDF parsing.", styles['Normal']))
-    story.append(Paragraph("Another paragraph with searchable text content.", styles['Normal']))
-    story.append(Paragraph("This PDF should be parsed without OCR.", styles['Normal']))
+    story.append(Paragraph("Searchable PDF Document", styles["Heading1"]))
+    story.append(
+        Paragraph(
+            "This is a test paragraph for searchable PDF parsing.", styles["Normal"]
+        )
+    )
+    story.append(
+        Paragraph("Another paragraph with searchable text content.", styles["Normal"])
+    )
+    story.append(Paragraph("This PDF should be parsed without OCR.", styles["Normal"]))
 
     doc.build(story)
     print(f"Created: {output_path}")
@@ -121,23 +121,25 @@ def create_image_only_pdf(output_path):
     from PIL import Image, ImageDraw, ImageFont
 
     # Create image with text
-    img = Image.new('RGB', (800, 600), color='white')
+    img = Image.new("RGB", (800, 600), color="white")
     draw = ImageDraw.Draw(img)
 
     try:
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 40)
-    except:
+    except Exception:
         try:
             font = ImageFont.truetype("arial.ttf", 40)
-        except:
+        except Exception:
             font = ImageFont.load_default()
 
-    draw.text((50, 50), "Image-Only PDF", fill='black', font=font)
-    draw.text((50, 100), "This text is embedded in an image", fill='black', font=font)
-    draw.text((50, 150), "OCR is required to extract this text", fill='black', font=font)
+    draw.text((50, 50), "Image-Only PDF", fill="black", font=font)
+    draw.text((50, 100), "This text is embedded in an image", fill="black", font=font)
+    draw.text(
+        (50, 150), "OCR is required to extract this text", fill="black", font=font
+    )
 
     # Save as PDF
-    img.save(output_path, 'PDF')
+    img.save(output_path, "PDF")
     print(f"Created: {output_path}")
 
 
@@ -154,15 +156,17 @@ def create_large_pdf(output_path, num_pages=50):
 
     # Create pages with substantial content
     for i in range(num_pages):
-        story.append(Paragraph(f"Chapter {i+1}", styles['Heading1']))
-        story.append(Paragraph(
-            f"This is the content for chapter {i+1}. " * 20,
-            styles['Normal']
-        ))
-        story.append(Paragraph(
-            f"Additional details for section {i+1}. " * 10,
-            styles['Normal']
-        ))
+        story.append(Paragraph(f"Chapter {i + 1}", styles["Heading1"]))
+        story.append(
+            Paragraph(
+                f"This is the content for chapter {i + 1}. " * 20, styles["Normal"]
+            )
+        )
+        story.append(
+            Paragraph(
+                f"Additional details for section {i + 1}. " * 10, styles["Normal"]
+            )
+        )
         if i < num_pages - 1:
             story.append(PageBreak())
 
@@ -206,6 +210,7 @@ def main():
     except Exception as e:
         print(f"\n✗ Error generating fixtures: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

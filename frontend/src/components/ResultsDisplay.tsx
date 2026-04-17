@@ -24,8 +24,10 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'bg-blue-100 text-blue-800';
       case 'hybrid':
         return 'bg-orange-100 text-orange-800';
-      case 'docling':
+      case 'docling-parse':
         return 'bg-indigo-100 text-indigo-800';
+      case 'docling-extract':
+        return 'bg-emerald-100 text-emerald-800';
       case 'transcription':
         return 'bg-teal-100 text-teal-800';
       default:
@@ -43,8 +45,10 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'Vision Extraction';
       case 'hybrid':
         return 'Hybrid Extraction';
-      case 'docling':
-        return 'Docling Parser';
+      case 'docling-parse':
+        return 'Docling Parse';
+      case 'docling-extract':
+        return 'Docling Extract';
       case 'transcription':
         return 'Transcription';
       default:
@@ -88,8 +92,10 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'High accuracy for images and scanned documents';
       case 'hybrid':
         return 'Combines text extraction and vision processing';
-      case 'docling':
-        return 'Advanced document parsing with layout analysis';
+      case 'docling-parse':
+        return 'Multi-format support with cost-optimized extraction';
+      case 'docling-extract':
+        return 'Best accuracy with local VLM (86% on CORD)';
       case 'transcription':
         return 'Full document transcription to Markdown';
       default:

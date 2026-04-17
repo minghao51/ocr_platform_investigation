@@ -1,5 +1,5 @@
 
-export type ExtractionMethod = 'auto' | 'text' | 'vision' | 'hybrid' | 'docling' | 'transcription';
+export type ExtractionMethod = 'auto' | 'text' | 'vision' | 'hybrid' | 'docling-parse' | 'docling-extract' | 'transcription';
 
 interface ExtractionModeSelectorProps {
   value: ExtractionMethod;
@@ -58,16 +58,28 @@ const modes = [
     color: 'orange',
   },
   {
-    id: 'docling' as ExtractionMethod,
-    name: 'Docling',
-    shortName: 'Docling',
+    id: 'docling-parse' as ExtractionMethod,
+    name: 'Docling Parse',
+    shortName: 'Parse',
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
-    description: 'Advanced document parsing with Docling. Handles complex layouts, tables, and multi-column documents. Outputs structured Markdown.',
+    description: 'Multi-format support (PDF, DOCX, PPTX, images). Free extraction + cheap structuring. Use for cost-sensitive processing.',
     color: 'indigo',
+  },
+  {
+    id: 'docling-extract' as ExtractionMethod,
+    name: 'Docling Extract',
+    shortName: 'Extract',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    description: 'Best accuracy (86%). Local VLM, completely free, 100% private. Slower (~26s) but no API costs. Use for accuracy-critical applications.',
+    color: 'emerald',
   },
   {
     id: 'transcription' as ExtractionMethod,
@@ -151,6 +163,13 @@ export default function ExtractionModeSelector({ value, onChange, fileType }: Ex
       text: 'text-teal-900',
       selected: 'border-teal-500 ring-teal-500',
       icon: 'text-teal-600',
+    },
+    emerald: {
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200',
+      text: 'text-emerald-900',
+      selected: 'border-emerald-500 ring-emerald-500',
+      icon: 'text-emerald-600',
     },
   };
 

@@ -119,12 +119,34 @@ Request fields:
 - `provider`
 - `model`
 - either `schema_id` or `schema_definition`
-- optional `extraction_method`
+- `extraction_method` (required for non-PDF files)
 - optional `prompt`
 - optional `temperature`
 - optional `max_tokens`
 
-Example:
+**Extraction Methods:**
+
+- `auto` - Recommended for PDFs. Auto-routes based on document analysis
+- `text` - For PDFs with extractable text layer
+- `vision` - For images, scans, and visually complex documents
+- `docling-parse` - Multi-format support (PDF, DOCX, PPTX, images), free extraction + cheap structuring
+- `docling-extract` - Local VLM extraction, best accuracy (86%), completely free, private
+- `hybrid` - Combined text + vision approach
+- `transcription` - Faithful Markdown output without JSON schema constraints
+
+**Extraction Method Comparison:**
+
+| Method | Accuracy | Speed | Cost/1000 docs | Privacy | Best For |
+|--------|----------|-------|----------------|---------|----------|
+| `docling-extract` | 86% | 26s | $0 | ✅ | Accuracy, privacy |
+| `docling-parse` | 69%* | 5-10s | $0.01-0.10 | ✅ | Multi-format |
+| `vision` | 69% | 2-4s | $0.13-1.21 | ❌ | Speed |
+| `text` | 65% | 3-5s | $0.01-0.05 | ⚠️ | Pre-extracted |
+| `hybrid` | 70% | 4-8s | $0.05-0.50 | ⚠️ | Balanced |
+
+*Depends on VLM quality after Docling markdown extraction
+
+Example (PDF with auto routing):
 
 ```json
 {
@@ -133,6 +155,60 @@ Example:
   "model": "gemini-2.5-flash",
   "schema_id": 1,
   "extraction_method": "auto"
+}
+```
+
+Example (DOCX with Docling-Parse):
+
+```json
+{
+  "file_id": "uuid",
+  "provider": "nebius",
+  "model": "meta-llama/Llama-3.2-90B-Vision-Instruct",
+  "extraction_method": "docling-parse",
+  "schema_definition": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "content": { "type": "string" }
+    }
+  }
+}
+```
+
+Example (Receipt with Docling-Extract - local VLM, no API costs):
+
+```json
+{
+  "file_id": "uuid",
+  "extraction_method": "docling-extract",
+  "schema_definition": {
+    "type": "object",
+    "properties": {
+      "total": { "type": "number" },
+      "items": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "name": { "type": "string" },
+            "price": { "type": "number" },
+            "quantity": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Example (Transcription mode - no schema):
+
+```json
+{
+  "file_id": "uuid",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "extraction_method": "transcription"
 }
 ```
 

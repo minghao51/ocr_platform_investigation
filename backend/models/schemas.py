@@ -8,7 +8,17 @@ class ProcessRequest(BaseModel):
     model: str
     schema_id: Optional[int] = None
     schema_definition: Optional[Dict[str, Any]] = None
-    extraction_method: Optional[Literal["auto", "text", "vision", "hybrid", "docling", "transcription"]] = "auto"
+    extraction_method: Optional[
+        Literal[
+            "auto",
+            "text",
+            "vision",
+            "hybrid",
+            "docling-parse",
+            "docling-extract",
+            "transcription",
+        ]
+    ] = "auto"
     prompt: Optional[str] = "Extract all information from this document"
     temperature: Optional[float] = 0.1
     max_tokens: Optional[int] = 4096

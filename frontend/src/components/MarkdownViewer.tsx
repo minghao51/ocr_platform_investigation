@@ -32,7 +32,7 @@ export default function MarkdownViewer({ markdown, fileName }: MarkdownViewerPro
 
   // Simple markdown-to-HTML converter for preview
   const renderMarkdown = (text: string) => {
-    let html = text
+    const html = text
       // Headers
       .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
       .replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>')

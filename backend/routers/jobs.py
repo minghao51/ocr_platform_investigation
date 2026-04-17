@@ -5,7 +5,7 @@ from routers.job_serialization import serialize_job
 from routers.shared import ensure_job_access
 from models.schemas import JobCorrectionRequest
 from services.prompt_learning import PromptLearningService
-from typing import Any
+from typing import Any, Optional
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -91,7 +91,7 @@ def _diff_results(original: Any, corrected: Any, path: str = "") -> list[dict]:
 
 @router.get("/")
 async def list_jobs(
-    status: str = None,
+    status: Optional[str] = None,
     provider: str = None,
     limit: int = 50,
     current_user: dict = Depends(get_current_user),

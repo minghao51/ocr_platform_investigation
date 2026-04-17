@@ -1,19 +1,18 @@
-from typing import Dict, Any, Type
-from pydantic import BaseModel, ValidationError
+from typing import Any, Dict
+from pydantic import ValidationError
 
 
 class SchemaService:
     """Service for validating and managing Pydantic schemas"""
 
     @staticmethod
-    def create_pydantic_model(schema_definition: Dict[str, Any]) -> Type[BaseModel]:
+    def create_pydantic_model(schema_definition: Dict[str, Any]) -> Any:
         """Create a Pydantic model from a schema definition"""
 
         # Use TypeAdapter for complex nested schemas
         from pydantic import TypeAdapter
 
         try:
-            # Create a TypeAdapter from the schema
             adapter = TypeAdapter(schema_definition)
             return adapter
         except Exception as e:

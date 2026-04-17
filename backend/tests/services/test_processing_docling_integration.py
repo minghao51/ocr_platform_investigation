@@ -4,16 +4,16 @@ Integration tests for ProcessingService with Docling, Chunking, and Transcriptio
 Note: These tests are designed to verify the integration without requiring
 full configuration setup. They test the core logic of the new methods.
 """
-import pytest
-from pathlib import Path
-
-# Constants from processing.py
-MAX_FILE_SIZE = 15 * 1024 * 1024  # 15MB
-CHUNK_THRESHOLD_RATIO = 0.8
 
 from services.chunking_service import MarkdownSplitter
 from services.transcription_service import TranscriptionService
 from services.docling_service import DoclingService
+
+import pytest
+
+# Constants from processing.py
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 15MB
+CHUNK_THRESHOLD_RATIO = 0.8
 
 
 class TestDoclingIntegration:
@@ -81,7 +81,7 @@ class TestDoclingIntegration:
 
         # Test with small file (within limit)
         small_file = "/tmp/test_small.txt"
-        with open(small_file, 'w') as f:
+        with open(small_file, "w") as f:
             f.write("x" * 1000)
 
         size = os.path.getsize(small_file)
@@ -89,7 +89,7 @@ class TestDoclingIntegration:
 
         # Test with large file (exceeds limit)
         large_file = "/tmp/test_large.txt"
-        with open(large_file, 'wb') as f:
+        with open(large_file, "wb") as f:
             f.write(b"x" * (MAX_FILE_SIZE + 1))
 
         size = os.path.getsize(large_file)
@@ -152,7 +152,9 @@ class TestChunkingLogic:
         large_text = "word " * 100000  # Much larger text
 
         # Use preserve_structure=False for simple text splitting
-        chunks = chunking_service.split(large_text, max_tokens=2000, preserve_structure=False)
+        chunks = chunking_service.split(
+            large_text, max_tokens=2000, preserve_structure=False
+        )
 
         # Verify chunks were created
         assert len(chunks) > 1

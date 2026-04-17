@@ -10,8 +10,9 @@ export interface RateLimitError {
   retry_after?: number;
 }
 
-export function isRateLimitError(error: any): error is RateLimitError {
-  return error?.detail?.toLowerCase().includes("limit") || false;
+export function isRateLimitError(error: unknown): error is RateLimitError {
+  if (typeof error !== 'object' || error === null) return false;
+  return 'detail' in error && typeof error.detail === 'string' && error.detail.toLowerCase().includes("limit");
 }
 
 // ============================================================================
@@ -192,7 +193,7 @@ export interface Job {
   created_at?: string;
   updated_at?: string;
   processing_time?: number;
-  processing_method?: 'vision' | 'text' | 'hybrid' | 'docling' | 'transcription';
+  processing_method?: 'vision' | 'text' | 'hybrid' | 'docling-parse' | 'docling-extract' | 'docling' | 'transcription';
   document_type?: string;
   correction_status?: 'uncorrected' | 'corrected';
   correction_summary?: {
@@ -254,7 +255,7 @@ export interface ProcessRequest {
   prompt?: string;
   temperature?: number;
   max_tokens?: number;
-  extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid' | 'docling' | 'transcription';
+  extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid' | 'docling-parse' | 'docling-extract' | 'docling' | 'transcription';
   quality_threshold?: number;
   auto_preprocess?: boolean;
   skip_quality?: boolean;

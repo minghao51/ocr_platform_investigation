@@ -9,8 +9,7 @@ with support for:
 - Integration with existing extraction pipeline
 """
 
-import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import tiktoken
 
 
@@ -52,7 +51,7 @@ class MarkdownSplitter:
     def split(
         self,
         text: str,
-        max_tokens: int = None,
+        max_tokens: Optional[int] = None,
         preserve_structure: bool = True,
     ) -> List[str]:
         """
@@ -94,7 +93,6 @@ class MarkdownSplitter:
 
         # Split into sections based on headers
         lines = text.split("\n")
-        section_start = 0
 
         for i, line in enumerate(lines):
             # Check if this line is a header
@@ -148,7 +146,6 @@ class MarkdownSplitter:
         tokens = self.encoding.encode(text)
         chunks = []
         start = 0
-        step = max_tokens - self.overlap_tokens
 
         while start < len(tokens):
             end = min(start + max_tokens, len(tokens))
@@ -179,7 +176,7 @@ class MarkdownSplitter:
         if overlap_tokens > self.overlap_tokens * 1.5:
             # Truncate overlap if too long
             lines = overlap.split("\n")
-            overlap_lines = []
+            overlap_lines: list[str] = []
             for line in reversed(lines):
                 overlap_lines.insert(0, line)
                 if self.count_tokens("\n".join(overlap_lines)) > self.overlap_tokens:
@@ -252,7 +249,7 @@ class MarkdownSplitter:
     def split_with_progress(
         self,
         text: str,
-        max_tokens: int = None,
+        max_tokens: Optional[int] = None,
         websocket_callback=None,
     ) -> List[str]:
         """
@@ -288,12 +285,14 @@ class MarkdownSplitter:
                 # Send progress update
                 if websocket_callback:
                     progress = len(chunks) / estimated_chunks
-                    websocket_callback({
-                        "type": "chunking_progress",
-                        "progress": min(progress, 1.0),
-                        "chunks_completed": len(chunks),
-                        "estimated_total": estimated_chunks,
-                    })
+                    websocket_callback(
+                        {
+                            "type": "chunking_progress",
+                            "progress": min(progress, 1.0),
+                            "chunks_completed": len(chunks),
+                            "estimated_total": estimated_chunks,
+                        }
+                    )
 
                 # Start new chunk with overlap
                 overlap_text = self._get_overlap(current_chunk)
@@ -312,10 +311,12 @@ class MarkdownSplitter:
 
         # Send final progress update
         if websocket_callback:
-            websocket_callback({
-                "type": "chunking_complete",
-                "progress": 1.0,
-                "total_chunks": len(chunks),
-            })
+            websocket_callback(
+                {
+                    "type": "chunking_complete",
+                    "progress": 1.0,
+                    "total_chunks": len(chunks),
+                }
+            )
 
         return chunks

@@ -1,14 +1,42 @@
 # OCR Platform
 
-OCR Platform is a FastAPI + React application for extracting structured data from PDFs and images with vision-language models. It supports authenticated uploads, schema-based extraction, job history, and real-time status updates over WebSocket.
+OCR Platform is a FastAPI + React application for extracting structured data from documents with vision-language models. It supports authenticated uploads, schema-based extraction, job history, and real-time status updates over WebSocket.
 
 ## What It Does
 
-- Upload PDF and image documents
+- Upload documents: PDF, images, DOCX, PPTX, TXT, MD, HTML (up to 15MB)
 - Run OCR/data extraction with Nebius, OpenRouter, or Gemini
 - Use built-in templates or provide your own JSON Schema
-- Auto-route PDFs between text and vision pipelines
+- Smart document routing: Docling for digital docs, vision for scans
+- Automatic chunking for documents exceeding context window
+- Transcription mode for faithful Markdown output
 - Track jobs and inspect prior results
+
+## Phase 1 Features (Latest)
+
+### New Extraction Methods
+
+- **Docling Mode**: Fast, CPU-optimized processing for digital documents (DOCX, PPTX, PDFs with extractable text). Uses smart OCR detection with PyPdfiumDocumentBackend and ThreadedPdfPipelineOptions.
+- **Transcription Mode**: Faithful Markdown output without JSON schema constraints. Preserves document structure while extracting text content.
+- **Auto Chunking**: Documents exceeding 80% of model context window automatically split using header-aware Markdown splitting with token overlap.
+
+### Supported File Types
+
+| Type | Extension | Best Extraction Method |
+|------|-----------|------------------------|
+| PDF | `.pdf` | Docling (default) or Vision |
+| Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff` | Vision |
+| Word | `.docx` | Docling |
+| PowerPoint | `.pptx` | Docling |
+| Text | `.txt`, `.md` | Docling or Transcription |
+| HTML | `.html` | Docling |
+
+### Performance Optimizations
+
+- PyPdfiumDocumentBackend: 2-3x faster PDF parsing
+- ThreadedPdfPipelineOptions: Batch processing (ocr_batch_size=16, layout_batch_size=16)
+- CPU-optimized: AcceleratorOptions(device=CPU, num_threads=4)
+- Format-specific pipelines: StandardPdfPipeline for PDF, SimplePipeline for DOCX/PPTX
 
 ## Stack
 
@@ -87,6 +115,7 @@ uv run python -m backend.cli list-users
 
 ## Documentation
 
+- **Phase 1 Features**: [docs/features/phase1.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/features/phase1.md) - New extraction methods, file types, chunking
 - Setup: [docs/guides/setup.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/setup.md)
 - Deployment: [docs/guides/deployment.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/deployment.md)
 - Using the app: [docs/guides/user-guide.md](/Users/minghao/Desktop/personal/ocr_platform_testdrive/docs/guides/user-guide.md)

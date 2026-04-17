@@ -41,51 +41,275 @@ export default function MethodologyPage() {
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feature</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-purple-600 uppercase tracking-wider">Smart Auto</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Vision</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-green-600 uppercase tracking-wider">Text</th>
+                                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feature</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-purple-600 uppercase tracking-wider">Auto</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-emerald-600 uppercase tracking-wider">Docling Ext</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-indigo-600 uppercase tracking-wider">Docling Parse</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Vision</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-green-600 uppercase tracking-wider">Text</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             <tr>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Technology</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Intelligent classifier + adaptive routing</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Vision Language Models (VLMs)</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Programmatic Parser (pdfplumber) + LLM</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Technology</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Intelligent routing</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Local VLM (NuExtract)</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">OCR + Cloud VLM</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Cloud VLM</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Parser + LLM</td>
                             </tr>
                             <tr>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">How it "reads"</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Analyzes document type first, then routes</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Visually (like a human eye)</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Raw text layer extraction</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Accuracy (CORD)</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Adaptive</td>
+                                <td className="px-3 py-3 text-xs text-gray-500 font-semibold">86%</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">70-75%</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">64-69%</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">N/A</td>
                             </tr>
                             <tr>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Best for</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Mixed workloads (recommended default)</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Scanned docs, handwriting, complex layouts</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Digital PDFs, large text volumes</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Speed</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Adaptive</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">~26s</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">5-10s</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">2-4s</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">&lt;0.5s</td>
                             </tr>
                             <tr>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Speed</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Adaptive: &lt;0.5s (digital) / 3-10s (scanned)</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Slower (3-10s avg)</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Fast (&lt;0.5s)</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Cost/1K docs</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Variable</td>
+                                <td className="px-3 py-3 text-xs text-gray-500 font-semibold text-green-600">$0</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">$10-50</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">$13-121</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">$5-20</td>
                             </tr>
                             <tr>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Cost</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">60-90% savings vs. Vision-only</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">More expensive</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Cheapest (90% vs. Vision)</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Privacy</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Depends</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">✅ Local</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
                             </tr>
                             <tr>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Handling Images</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Routes to Vision when detected</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Native understanding</td>
-                                <td className="px-6 py-4 text-sm text-gray-500">Ignored (cannot see images)</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Best for</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Mixed workloads</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Accuracy, privacy</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Cost optimization</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Speed, complex</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Digital PDFs</td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </section>
+
+            {/* Pipeline Diagrams */}
+            <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900 mb-6">Extraction Pipelines</h2>
+
+                <div className="space-y-8">
+                    {/* Docling Extract */}
+                    <div className="border border-emerald-200 rounded-lg overflow-hidden">
+                        <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-200">
+                            <h3 className="font-semibold text-emerald-800">Docling Extract (Local VLM)</h3>
+                            <p className="text-sm text-emerald-600">Best accuracy • 100% private • Free</p>
+                        </div>
+                        <div className="p-4">
+                            <div className="flex items-center justify-center space-x-4 text-sm">
+                                <div className="bg-gray-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium">Document</div>
+                                    <div className="text-xs text-gray-500">PDF/Image</div>
+                                </div>
+                                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-emerald-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-emerald-800">NuExtract</div>
+                                    <div className="text-xs text-emerald-600">Local VLM</div>
+                                </div>
+                                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-emerald-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-emerald-800">Structured JSON</div>
+                                    <div className="text-xs text-emerald-600">Direct output</div>
+                                </div>
+                            </div>
+                            <div className="mt-3 text-xs text-gray-600 text-center">
+                                Uses local vision model (729 weights) • No API calls • ~26s per document
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Docling Parse */}
+                    <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                        <div className="bg-indigo-50 px-4 py-3 border-b border-indigo-200">
+                            <h3 className="font-semibold text-indigo-800">Docling Parse (Hybrid)</h3>
+                            <p className="text-sm text-indigo-600">Multi-format • Cost optimized • Fast OCR</p>
+                        </div>
+                        <div className="p-4">
+                            <div className="flex items-center justify-center space-x-3 text-sm">
+                                <div className="bg-gray-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium">Document</div>
+                                    <div className="text-xs text-gray-500">Any format</div>
+                                </div>
+                                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-indigo-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-indigo-800">Docling OCR</div>
+                                    <div className="text-xs text-indigo-600">EasyOCR + Layout</div>
+                                </div>
+                                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-gray-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium">Markdown</div>
+                                    <div className="text-xs text-gray-500">Structured text</div>
+                                </div>
+                                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-blue-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-blue-800">Cloud VLM</div>
+                                    <div className="text-xs text-blue-600">Structure</div>
+                                </div>
+                                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-blue-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-blue-800">JSON</div>
+                                    <div className="text-xs text-blue-600">Final output</div>
+                                </div>
+                            </div>
+                            <div className="mt-3 text-xs text-gray-600 text-center">
+                                Free extraction + cheap structuring • Supports PDF, DOCX, PPTX • ~5-10s per document
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Vision */}
+                    <div className="border border-blue-200 rounded-lg overflow-hidden">
+                        <div className="bg-blue-50 px-4 py-3 border-b border-blue-200">
+                            <h3 className="font-semibold text-blue-800">Vision (Cloud VLM)</h3>
+                            <p className="text-sm text-blue-600">Fastest • Simplest • Best for complex layouts</p>
+                        </div>
+                        <div className="p-4">
+                            <div className="flex items-center justify-center space-x-4 text-sm">
+                                <div className="bg-gray-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium">Image</div>
+                                    <div className="text-xs text-gray-500">Document</div>
+                                </div>
+                                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-blue-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-blue-800">Cloud VLM</div>
+                                    <div className="text-xs text-blue-600">Gemini/Qwen</div>
+                                </div>
+                                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-blue-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-blue-800">Structured JSON</div>
+                                    <div className="text-xs text-blue-600">Direct output</div>
+                                </div>
+                            </div>
+                            <div className="mt-3 text-xs text-gray-600 text-center">
+                                Processes image directly • Understands layout • ~2-4s per document
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Text */}
+                    <div className="border border-green-200 rounded-lg overflow-hidden">
+                        <div className="bg-green-50 px-4 py-3 border-b border-green-200">
+                            <h3 className="font-semibold text-green-800">Text (Digital PDFs)</h3>
+                            <p className="text-sm text-green-600">Fastest • Cheapest • Digital PDFs only</p>
+                        </div>
+                        <div className="p-4">
+                            <div className="flex items-center justify-center space-x-4 text-sm">
+                                <div className="bg-gray-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium">Digital PDF</div>
+                                    <div className="text-xs text-gray-500">With text layer</div>
+                                </div>
+                                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-green-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-green-800">Parser</div>
+                                    <div className="text-xs text-green-600">pdfplumber</div>
+                                </div>
+                                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-green-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-green-800">LLM</div>
+                                    <div className="text-xs text-green-600">Structure</div>
+                                </div>
+                                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                <div className="bg-green-100 px-3 py-2 rounded text-center">
+                                    <div className="font-medium text-green-800">JSON</div>
+                                    <div className="text-xs text-green-600">Output</div>
+                                </div>
+                            </div>
+                            <div className="mt-3 text-xs text-gray-600 text-center">
+                                Extracts text layer • No OCR • &lt;0.5s per document
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Benchmark Results */}
+            <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Benchmark Results (CORD Dataset)</h2>
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 className="font-semibold text-gray-800 mb-3">Accuracy Comparison</h3>
+                        <div className="space-y-2">
+                            {[
+                                { name: 'Docling Extract', acc: 86, color: 'bg-emerald-500' },
+                                { name: 'Gemini 3 Flash', acc: 69, color: 'bg-blue-500' },
+                                { name: 'Gemini 2.5 Flash', acc: 67, color: 'bg-blue-400' },
+                                { name: 'Qwen 3.5 Flash', acc: 64, color: 'bg-blue-300' },
+                            ].map((method) => (
+                                <div key={method.name} className="flex items-center">
+                                    <div className="w-32 text-sm text-gray-600">{method.name}</div>
+                                    <div className="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden">
+                                        <div className={`${method.color} h-full rounded-full`} style={{ width: `${method.acc}%` }}></div>
+                                    </div>
+                                    <div className="w-12 text-sm text-gray-800 text-right font-medium">{method.acc}%</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-gray-800 mb-3">Cost Comparison (per 1000 docs)</h3>
+                        <div className="space-y-2">
+                            {[
+                                { name: 'Docling Extract', cost: 0, color: 'bg-emerald-500' },
+                                { name: 'Docling Parse', cost: 30, color: 'bg-indigo-500' },
+                                { name: 'Text + LLM', cost: 15, color: 'bg-green-500' },
+                                { name: 'Qwen 3.5 Flash', cost: 13, color: 'bg-blue-300' },
+                                { name: 'Gemini 2.5 Flash', cost: 13, color: 'bg-blue-400' },
+                                { name: 'Gemini 3 Flash', cost: 121, color: 'bg-blue-500' },
+                            ].map((method) => (
+                                <div key={method.name} className="flex items-center">
+                                    <div className="w-32 text-sm text-gray-600">{method.name}</div>
+                                    <div className="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden">
+                                        <div className={`${method.color} h-full rounded-full`} style={{ width: `${Math.min(method.cost / 1.5, 100)}%` }}></div>
+                                    </div>
+                                    <div className="w-16 text-sm text-gray-800 text-right font-medium">${method.cost}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-4 text-xs text-gray-500">
+                    *Benchmark results from CORD receipt dataset (50 samples). Docling Extract: 86% accuracy, $0 cost.
                 </div>
             </section>
 
@@ -319,6 +543,8 @@ export default function MethodologyPage() {
                     <p className="text-purple-700">
                         <strong>Manual Selection (Advanced Users)</strong><br />
                         <span className="text-sm">
+                            • <strong>Docling Extract</strong> — Highest accuracy (86%), privacy-critical, cost-sensitive (free)<br />
+                            • <strong>Docling Parse</strong> — Multi-format support (PDF, DOCX, PPTX), cost optimization<br />
                             • <strong>Vision Extraction</strong> — Scanned documents, handwritten forms, image-only PDFs<br />
                             • <strong>Text Extraction</strong> — Known digital PDFs (e.g., invoices exported from accounting software)
                         </span>

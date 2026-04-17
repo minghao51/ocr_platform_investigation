@@ -37,14 +37,25 @@ async def process_document(
     - None or "auto": Automatically detect best pipeline (recommended)
     - "text": Force text extraction (pdfplumber + LLM) - fast & cheap
     - "vision": Force vision extraction (VLM) - accurate & expensive
-    - "docling": Force Docling-based extraction with markdown parsing
+    - "hybrid": Combined text + vision approach
+    - "docling-parse": Docling DocumentConverter → Markdown → VLM structures it
+      * Multi-format support (PDF, DOCX, PPTX, images)
+      * Free extraction, cheap structuring
+      * Use for: Multi-format, cost-sensitive, unstructured output
+    - "docling-extract": Docling DocumentExtractor (local VLM) → Structured JSON
+      * Direct schema extraction, no cloud API needed
+      * Best accuracy (86%), free, private
+      * Use for: Accuracy-critical, privacy-sensitive, high-volume
     - "transcription": Force audio transcription mode (schema optional)
     """
     if current_user is not None:
         current_user = await check_and_increment_daily_limit(current_user)
 
     # Get schema definition (optional for transcription mode)
-    is_transcription = extraction_method == "transcription" or payload.extraction_method == "transcription"
+    is_transcription = (
+        extraction_method == "transcription"
+        or payload.extraction_method == "transcription"
+    )
 
     if payload.schema_id:
         schema_record = await crud.get_schema(payload.schema_id)
@@ -128,10 +139,17 @@ async def process_document(
             document_type = "image"
 
     # Validate extraction method
-    if processing_method not in ["text", "vision", "hybrid", "docling", "transcription"]:
+    if processing_method not in [
+        "text",
+        "vision",
+        "hybrid",
+        "docling-parse",
+        "docling-extract",
+        "transcription",
+    ]:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid extraction_method: {processing_method}. Must be 'text', 'vision', 'hybrid', 'docling', or 'transcription'",
+            detail=f"Invalid extraction_method: {processing_method}. Must be 'text', 'vision', 'hybrid', 'docling-parse', 'docling-extract', or 'transcription'",
         )
 
     # For images, force vision processing

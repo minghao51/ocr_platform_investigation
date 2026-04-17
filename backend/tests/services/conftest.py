@@ -1,7 +1,7 @@
 """
 Minimal conftest for docling service tests.
 """
-import pytest
+
 import sys
 from pathlib import Path
 

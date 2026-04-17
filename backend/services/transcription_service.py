@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ Requirements:
 
 Return ONLY the Markdown, no additional commentary."""
 
-    def __init__(self, prompt: str = None):
+    def __init__(self, prompt: Optional[str] = None):
         self.prompt = prompt or self.DEFAULT_PROMPT
 
     async def transcribe(
@@ -32,7 +32,7 @@ Return ONLY the Markdown, no additional commentary."""
         provider,
         model: str,
         temperature: float = 0.1,
-        max_tokens: int = 16384
+        max_tokens: int = 16384,
     ) -> str:
         """
         Transcribe document to clean Markdown.
@@ -57,7 +57,7 @@ Return ONLY the Markdown, no additional commentary."""
                 schema_definition=None,  # No schema for transcription
                 model=model,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
             if "error" in result:

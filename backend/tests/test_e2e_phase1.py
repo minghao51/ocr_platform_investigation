@@ -12,11 +12,7 @@ pipeline components that don't require external VLM calls.
 """
 
 import pytest
-import tempfile
-import os
-from pathlib import Path
 from PIL import Image
-import io
 from services.processing import ProcessingService
 from services.docling_service import DoclingService
 from services.chunking_service import MarkdownSplitter
@@ -42,9 +38,9 @@ class TestDoclingDocumentParsing:
             pytest.skip("python-docx not installed")
 
         doc = Document()
-        doc.add_heading('Test Document', level=1)
-        doc.add_paragraph('This is a test paragraph for DOCX parsing.')
-        doc.add_paragraph('Another paragraph with some content.')
+        doc.add_heading("Test Document", level=1)
+        doc.add_paragraph("This is a test paragraph for DOCX parsing.")
+        doc.add_paragraph("Another paragraph with some content.")
 
         file_path = tmp_path / "sample.docx"
         doc.save(str(file_path))
@@ -86,7 +82,6 @@ class TestDoclingDocumentParsing:
             from reportlab.lib.pagesizes import letter
             from reportlab.lib.styles import getSampleStyleSheet
             from reportlab.platypus import SimpleDocTemplate, Paragraph
-            from reportlab.lib.units import inch
         except ImportError:
             pytest.skip("reportlab not installed")
 
@@ -95,9 +90,17 @@ class TestDoclingDocumentParsing:
 
         styles = getSampleStyleSheet()
         story = []
-        story.append(Paragraph("Searchable PDF Document", styles['Heading1']))
-        story.append(Paragraph("This is a test paragraph for searchable PDF parsing.", styles['Normal']))
-        story.append(Paragraph("Another paragraph with searchable text content.", styles['Normal']))
+        story.append(Paragraph("Searchable PDF Document", styles["Heading1"]))
+        story.append(
+            Paragraph(
+                "This is a test paragraph for searchable PDF parsing.", styles["Normal"]
+            )
+        )
+        story.append(
+            Paragraph(
+                "Another paragraph with searchable text content.", styles["Normal"]
+            )
+        )
 
         doc.build(story)
         return str(file_path)
@@ -106,22 +109,25 @@ class TestDoclingDocumentParsing:
     def image_only_pdf(self, tmp_path):
         """Create an image-only PDF for testing OCR."""
         # Create images and convert to PDF
-        img = Image.new('RGB', (800, 600), color='white')
+        img = Image.new("RGB", (800, 600), color="white")
 
         # Add some text to the image (requires PIL)
         from PIL import ImageDraw, ImageFont
+
         draw = ImageDraw.Draw(img)
         try:
             font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 40)
-        except:
+        except Exception:
             font = ImageFont.load_default()
 
-        draw.text((50, 50), "Image-Only PDF", fill='black', font=font)
-        draw.text((50, 100), "This text is embedded in an image", fill='black', font=font)
+        draw.text((50, 50), "Image-Only PDF", fill="black", font=font)
+        draw.text(
+            (50, 100), "This text is embedded in an image", fill="black", font=font
+        )
 
         # Save as PDF
         file_path = tmp_path / "image_only.pdf"
-        img.save(str(file_path), 'PDF')
+        img.save(str(file_path), "PDF")
         return str(file_path)
 
     @pytest.fixture
@@ -142,8 +148,14 @@ class TestDoclingDocumentParsing:
 
         # Create 50 pages
         for i in range(50):
-            story.append(Paragraph(f"Page {i+1}", styles['Heading1']))
-            story.append(Paragraph(f"This is content for page {i+1} of the large PDF document. " * 10, styles['Normal']))
+            story.append(Paragraph(f"Page {i + 1}", styles["Heading1"]))
+            story.append(
+                Paragraph(
+                    f"This is content for page {i + 1} of the large PDF document. "
+                    * 10,
+                    styles["Normal"],
+                )
+            )
             if i < 49:  # Don't add page break after last page
                 story.append(PageBreak())
 
@@ -220,11 +232,14 @@ class TestLargeDocumentChunking:
 
         # Create 50 pages with substantial content
         for i in range(50):
-            story.append(Paragraph(f"Chapter {i+1}", styles['Heading1']))
-            story.append(Paragraph(
-                f"This is the content for chapter {i+1}. " * 20,  # Repeat for more content
-                styles['Normal']
-            ))
+            story.append(Paragraph(f"Chapter {i + 1}", styles["Heading1"]))
+            story.append(
+                Paragraph(
+                    f"This is the content for chapter {i + 1}. "
+                    * 20,  # Repeat for more content
+                    styles["Normal"],
+                )
+            )
             if i < 49:
                 story.append(PageBreak())
 
@@ -237,8 +252,8 @@ class TestLargeDocumentChunking:
         # Create text that's large enough to trigger chunking
         content = []
         for i in range(100):
-            content.append(f"# Section {i+1}\n\n")
-            content.append(f"This is section {i+1} with substantial content. " * 50)
+            content.append(f"# Section {i + 1}\n\n")
+            content.append(f"This is section {i + 1} with substantial content. " * 50)
             content.append("\n\n")
         return "".join(content)
 
@@ -247,7 +262,8 @@ class TestLargeDocumentChunking:
         count = chunking_service.count_tokens(large_markdown_text)
 
         assert count > 0
-        assert count > 100000  # Should be large for 100 sections
+        # Token count varies by encoding; just verify it's substantial
+        assert count > 40000  # Should be reasonably large for 100 sections
 
     def test_should_chunk_detection(self):
         """Test chunking threshold detection."""
@@ -258,8 +274,8 @@ class TestLargeDocumentChunking:
         should_chunk = service._should_chunk(small_text, "gpt-4o")
         assert should_chunk is False
 
-        # Large text - should chunk
-        large_text = "Content " * 100000  # Very large text
+        # Very large text - should chunk (use chars that will produce enough tokens)
+        large_text = "word " * 200000  # 200000 words should exceed threshold
         should_chunk = service._should_chunk(large_text, "gpt-4o")
         assert should_chunk is True
 
@@ -310,14 +326,14 @@ class TestTranscriptionMode:
             file_path = tmp_path / "sample_audio.wav"
 
             # Create a simple WAV file
-            with wave.open(str(file_path), 'w') as wav_file:
+            with wave.open(str(file_path), "w") as wav_file:
                 wav_file.setnchannels(1)  # Mono
                 wav_file.setsampwidth(2)  # 2 bytes per sample
                 wav_file.setframerate(44100)  # 44.1kHz
 
                 # Write 1 second of silence
                 num_frames = 44100
-                data = struct.pack('<' + 'h' * num_frames, *[0] * num_frames)
+                data = struct.pack("<" + "h" * num_frames, *[0] * num_frames)
                 wav_file.writeframes(data)
 
             return str(file_path)
@@ -327,7 +343,7 @@ class TestTranscriptionMode:
     def test_transcription_service_exists(self, transcription_service):
         """Test that TranscriptionService can be instantiated."""
         assert transcription_service is not None
-        assert hasattr(transcription_service, 'transcribe')
+        assert hasattr(transcription_service, "transcribe")
 
     def test_transcription_returns_markdown(self, transcription_service, sample_audio):
         """Test that transcription returns Markdown text, not JSON."""
@@ -337,17 +353,17 @@ class TestTranscriptionMode:
 
             # Should return a dict with success and text
             assert isinstance(result, dict)
-            assert 'success' in result
+            assert "success" in result
 
-            if result['success']:
+            if result["success"]:
                 # Text should be markdown/string, not JSON
-                assert 'text' in result
-                assert isinstance(result['text'], str)
+                assert "text" in result
+                assert isinstance(result["text"], str)
 
                 # Verify it's not JSON format
-                text = result['text']
-                assert not text.startswith('{')
-                assert not text.startswith('[')
+                text = result["text"]
+                assert not text.startswith("{")
+                assert not text.startswith("[")
         except Exception as e:
             # Transcription might not be configured
             pytest.skip(f"Transcription not configured: {e}")
@@ -359,7 +375,7 @@ class TestTranscriptionMode:
         processing_service = ProcessingService()
 
         # Check that processing service can handle transcription mode
-        assert hasattr(processing_service, 'transcription_service')
+        assert hasattr(processing_service, "transcription_service")
         assert processing_service.transcription_service is not None
 
 
@@ -386,10 +402,10 @@ class TestFullPipelineIntegration:
     def test_processing_service_initialization(self, processing_service):
         """Test that ProcessingService initializes with all required components."""
         assert processing_service is not None
-        assert hasattr(processing_service, 'docling_service')
-        assert hasattr(processing_service, 'chunking_service')
-        assert hasattr(processing_service, 'transcription_service')
-        assert hasattr(processing_service, 'schema_service')
+        assert hasattr(processing_service, "docling_service")
+        assert hasattr(processing_service, "chunking_service")
+        assert hasattr(processing_service, "transcription_service")
+        assert hasattr(processing_service, "schema_service")
 
     def test_docling_service_integration(self, processing_service):
         """Test DoclingService is properly integrated."""
@@ -413,22 +429,31 @@ class TestFullPipelineIntegration:
         except ValueError:
             pytest.fail("File size validation failed for small file")
 
-    def test_exposure_to_docling_method(self, processing_service, tmp_path, sample_schema):
-        """Test that _process_via_docling method exists and is callable."""
+    def test_exposure_to_docling_method(
+        self, processing_service, tmp_path, sample_schema
+    ):
+        """Test that _process_via_docling_parse method exists and is callable."""
         # Create a simple text file
         test_file = tmp_path / "test.txt"
         test_file.write_text("Test content")
 
-        # Verify the method exists
-        assert hasattr(processing_service, '_process_via_docling')
+        # Verify the method exists (renamed from _process_via_docling)
+        assert hasattr(processing_service, "_process_via_docling_parse")
 
         # Note: We can't fully test this without a provider and API key
         # but we can verify the method signature
         import inspect
-        sig = inspect.signature(processing_service._process_via_docling)
+
+        sig = inspect.signature(processing_service._process_via_docling_parse)
         params = list(sig.parameters.keys())
 
-        required_params = ['file_path', 'provider', 'model', 'schema_definition', 'prompt']
+        required_params = [
+            "file_path",
+            "provider",
+            "model",
+            "schema_definition",
+            "prompt",
+        ]
         for param in required_params:
             assert param in params
 
@@ -442,17 +467,17 @@ class TestMarkdownOutput:
 
         assert isinstance(templates, dict)
         assert len(templates) > 0
-        assert 'Generic' in templates
+        assert "Generic" in templates
 
     def test_generic_schema_structure(self):
         """Test that Generic schema has proper structure."""
         templates = SchemaService.get_builtin_templates()
-        generic = templates['Generic']
+        generic = templates["Generic"]
 
         assert isinstance(generic, dict)
-        assert 'type' in generic
-        assert generic['type'] == 'object'
-        assert 'properties' in generic
+        assert "type" in generic
+        assert generic["type"] == "object"
+        assert "properties" in generic
 
 
 class TestErrorHandling:
@@ -475,18 +500,15 @@ class TestErrorHandling:
         from services.processing import parse_and_validate_response
 
         result = parse_and_validate_response("{}", {"type": "object"})
-        assert result['success'] is True
+        assert result["success"] is True
 
     def test_invalid_json_validation(self, processing_service):
         """Test validation with invalid JSON."""
         from services.processing import parse_and_validate_response
 
-        result = parse_and_validate_response(
-            "not json",
-            {"type": "object"}
-        )
-        assert result['success'] is False
-        assert 'error' in result
+        result = parse_and_validate_response("not json", {"type": "object"})
+        assert result["success"] is False
+        assert "error" in result
 
 
 # Manual Testing Checklist

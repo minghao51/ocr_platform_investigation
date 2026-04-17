@@ -7,7 +7,6 @@ components that can be tested independently.
 """
 
 import pytest
-import os
 from pathlib import Path
 
 
@@ -58,16 +57,19 @@ class TestServiceModulesExist:
     def test_docling_service_module_exists(self):
         """Test that docling_service module exists."""
         from services.docling_service import DoclingService
+
         assert DoclingService is not None
 
     def test_chunking_service_module_exists(self):
         """Test that chunking_service module exists."""
         from services.chunking_service import MarkdownSplitter
+
         assert MarkdownSplitter is not None
 
     def test_transcription_service_module_exists(self):
         """Test that transcription_service module exists."""
         from services.transcription_service import TranscriptionService
+
         assert TranscriptionService is not None
 
     def test_processing_service_integration(self):
@@ -75,13 +77,14 @@ class TestServiceModulesExist:
         from services.processing import ProcessingService
 
         service = ProcessingService()
-        assert hasattr(service, 'docling_service')
-        assert hasattr(service, 'chunking_service')
-        assert hasattr(service, 'transcription_service')
+        assert hasattr(service, "docling_service")
+        assert hasattr(service, "chunking_service")
+        assert hasattr(service, "transcription_service")
 
     def test_schema_service_module_exists(self):
         """Test that schema_service module exists."""
         from services.schema_service import SchemaService
+
         assert SchemaService is not None
 
 
@@ -97,12 +100,13 @@ class TestDoclingServiceFunctionality:
     def docling_service(self):
         """Provide DoclingService instance."""
         from services.docling_service import DoclingService
+
         return DoclingService()
 
     def test_docling_service_initialization(self, docling_service):
         """Test that DoclingService can be initialized."""
         assert docling_service is not None
-        assert hasattr(docling_service, 'converter')
+        assert hasattr(docling_service, "converter")
 
     def test_parse_searchable_pdf(self, docling_service, fixtures_dir):
         """Test parsing a searchable PDF."""
@@ -142,12 +146,13 @@ class TestChunkingServiceFunctionality:
     def chunking_service(self):
         """Provide MarkdownSplitter instance."""
         from services.chunking_service import MarkdownSplitter
+
         return MarkdownSplitter()
 
     def test_chunking_service_initialization(self, chunking_service):
         """Test that MarkdownSplitter can be initialized."""
         assert chunking_service is not None
-        assert hasattr(chunking_service, 'split')
+        assert hasattr(chunking_service, "split")
 
     def test_count_tokens(self, chunking_service):
         """Test token counting functionality."""
@@ -180,12 +185,13 @@ class TestTranscriptionServiceFunctionality:
     def transcription_service(self):
         """Provide TranscriptionService instance."""
         from services.transcription_service import TranscriptionService
+
         return TranscriptionService()
 
     def test_transcription_service_initialization(self, transcription_service):
         """Test that TranscriptionService can be initialized."""
         assert transcription_service is not None
-        assert hasattr(transcription_service, 'transcribe')
+        assert hasattr(transcription_service, "transcribe")
 
 
 class TestSchemaServiceFunctionality:
@@ -195,6 +201,7 @@ class TestSchemaServiceFunctionality:
     def schema_service(self):
         """Provide SchemaService instance."""
         from services.schema_service import SchemaService
+
         return SchemaService()
 
     def test_schema_service_initialization(self, schema_service):
@@ -206,17 +213,17 @@ class TestSchemaServiceFunctionality:
         templates = schema_service.get_builtin_templates()
         assert isinstance(templates, dict)
         assert len(templates) > 0
-        assert 'Generic' in templates
+        assert "Generic" in templates
 
     def test_generic_template_structure(self, schema_service):
         """Test that Generic template has proper structure."""
         templates = schema_service.get_builtin_templates()
-        generic = templates['Generic']
+        generic = templates["Generic"]
 
         assert isinstance(generic, dict)
-        assert 'type' in generic
-        assert generic['type'] == 'object'
-        assert 'properties' in generic
+        assert "type" in generic
+        assert generic["type"] == "object"
+        assert "properties" in generic
 
 
 class TestProcessingServiceIntegration:
@@ -226,14 +233,15 @@ class TestProcessingServiceIntegration:
     def processing_service(self):
         """Provide ProcessingService instance."""
         from services.processing import ProcessingService
+
         return ProcessingService()
 
     def test_processing_service_initialization(self, processing_service):
         """Test that ProcessingService initializes with all Phase 1 components."""
         assert processing_service is not None
-        assert hasattr(processing_service, 'docling_service')
-        assert hasattr(processing_service, 'chunking_service')
-        assert hasattr(processing_service, 'transcription_service')
+        assert hasattr(processing_service, "docling_service")
+        assert hasattr(processing_service, "chunking_service")
+        assert hasattr(processing_service, "transcription_service")
 
     def test_should_chunk_detection(self, processing_service):
         """Test chunking threshold detection."""
@@ -242,8 +250,8 @@ class TestProcessingServiceIntegration:
         should_chunk = processing_service._should_chunk(small_text, "gpt-4o")
         assert should_chunk is False
 
-        # Large text - should chunk
-        large_text = "Content " * 100000  # Very large text
+        # Very large text - should chunk (use words that will produce enough tokens)
+        large_text = "word " * 200000  # 200000 words should exceed threshold
         should_chunk = processing_service._should_chunk(large_text, "gpt-4o")
         assert should_chunk is True
 
@@ -260,13 +268,13 @@ class TestProcessingServiceIntegration:
             pytest.fail("File size validation failed for small file")
 
     def test_exposure_to_docling_method(self, processing_service):
-        """Test that _process_via_docling method exists."""
-        assert hasattr(processing_service, '_process_via_docling')
-        assert callable(processing_service._process_via_docling)
+        """Test that _process_via_docling_parse method exists."""
+        assert hasattr(processing_service, "_process_via_docling_parse")
+        assert callable(processing_service._process_via_docling_parse)
 
     def test_process_chunked_document_method(self, processing_service):
         """Test that _process_chunked_document method exists."""
-        assert hasattr(processing_service, '_process_chunked_document')
+        assert hasattr(processing_service, "_process_chunked_document")
         assert callable(processing_service._process_chunked_document)
 
 
@@ -287,18 +295,15 @@ class TestErrorHandling:
         from services.processing import parse_and_validate_response
 
         result = parse_and_validate_response("{}", {"type": "object"})
-        assert result['success'] is True
+        assert result["success"] is True
 
     def test_invalid_json_validation(self):
         """Test validation with invalid JSON."""
         from services.processing import parse_and_validate_response
 
-        result = parse_and_validate_response(
-            "not json",
-            {"type": "object"}
-        )
-        assert result['success'] is False
-        assert 'error' in result
+        result = parse_and_validate_response("not json", {"type": "object"})
+        assert result["success"] is False
+        assert "error" in result
 
 
 # Manual Testing Documentation

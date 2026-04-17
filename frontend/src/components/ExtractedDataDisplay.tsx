@@ -13,6 +13,12 @@ export default function ExtractedDataDisplay({ result, fileName, processingMetho
   // Check if result is markdown content
   const isMarkdownResult = processingMethod === 'docling' || processingMethod === 'transcription';
 
+  // Compute formattedJson unconditionally (hooks can't be called conditionally)
+  const formattedJson = useMemo(
+    () => JSON.stringify(result, null, 2),
+    [result]
+  );
+
   if (isMarkdownResult && typeof result === 'string') {
     return <MarkdownViewer markdown={result} fileName={fileName} />;
   }
@@ -26,12 +32,6 @@ export default function ExtractedDataDisplay({ result, fileName, processingMetho
   if (result && typeof result === 'object' && 'text' in result && typeof result.text === 'string' && isMarkdownResult) {
     return <MarkdownViewer markdown={result.text} fileName={fileName} />;
   }
-
-  // Default JSON display
-  const formattedJson = useMemo(
-    () => JSON.stringify(result, null, 2),
-    [result]
-  );
 
   const handleCopy = async () => {
     try {

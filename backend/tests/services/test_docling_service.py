@@ -11,7 +11,11 @@ def docling_service():
 @pytest.fixture
 def sample_pdf():
     """Use an existing PDF from the data/uploads directory."""
-    pdf_path = Path(__file__).parent.parent.parent.parent / "data/uploads" / "31d89b79-e526-4b7a-aa13-44e09f058e85.pdf"
+    pdf_path = (
+        Path(__file__).parent.parent.parent.parent
+        / "data/uploads"
+        / "31d89b79-e526-4b7a-aa13-44e09f058e85.pdf"
+    )
     if not pdf_path.exists():
         pytest.skip(f"Sample PDF not found at {pdf_path}")
     return str(pdf_path)
