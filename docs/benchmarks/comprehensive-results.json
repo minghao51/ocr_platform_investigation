@@ -1,0 +1,17 @@
+{
+  "dataset": "CORD",
+  "sample_count": 3,
+  "methods": {
+    "docling-extract": {
+      "mean_accuracy": 0.7534,
+      "median_accuracy": 0.7692,
+      "std_accuracy": 0.0426,
+      "mean_latency": 23.53,
+      "median_latency": 19.16,
+      "total_cost": 0.0,
+      "cost_per_1000": 0.0,
+      "success_rate": 1.0,
+      "sample_count": 3
+    }
+  }
+}
