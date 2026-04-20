@@ -87,6 +87,11 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
         "input_per_1m": 1.25,
         "output_per_1m": 10.00,
     },
+    # LiteLLM / OpenRouter models
+    "google/gemma-4-31b-it": {
+        "input_per_1m": 0.13,
+        "output_per_1m": 0.38,
+    },
 }
 
 
@@ -126,5 +131,7 @@ def get_pricing_for_provider_models(provider: str) -> list[dict]:
         if provider == "openrouter" and "/" in model_id:
             results.append({"id": model_id, **pricing})
         elif provider == "gemini" and model_id.startswith("gemini-"):
+            results.append({"id": model_id, **pricing})
+        elif provider == "litellm":
             results.append({"id": model_id, **pricing})
     return results

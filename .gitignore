@@ -87,3 +87,4 @@ credentials.json
 backend/scripts/
 backend/tests/conftest.py.bak
 frontend/test-results/
+.superset

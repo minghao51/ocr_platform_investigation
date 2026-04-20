@@ -4,14 +4,14 @@ import MarkdownViewer from './MarkdownViewer';
 interface ExtractedDataDisplayProps {
   result: unknown;
   fileName: string;
-  processingMethod?: 'docling' | 'transcription' | string;
+  processingMethod?: 'docling-parse' | 'transcription' | string;
 }
 
 export default function ExtractedDataDisplay({ result, fileName, processingMethod }: ExtractedDataDisplayProps) {
   const [copySuccess, setCopySuccess] = useState(false);
 
   // Check if result is markdown content
-  const isMarkdownResult = processingMethod === 'docling' || processingMethod === 'transcription';
+  const isMarkdownResult = processingMethod === 'docling-parse' || processingMethod === 'transcription';
 
   // Compute formattedJson unconditionally (hooks can't be called conditionally)
   const formattedJson = useMemo(

@@ -1,4 +1,4 @@
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List
@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     # VLM Provider API Keys
     openrouter_api_key: str = ""
     gemini_api_key: str = ""
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
 
     # Database
     database_url: str = f"sqlite:///{DB_PATH}"
@@ -43,6 +45,24 @@ class Settings(BaseSettings):
     # Demo user daily limit: 5 requests per day (for is_limited users)
     # This is a separate cap that applies in addition to per-minute limits
     demo_daily_request_limit: int = 5
+
+    @model_validator(mode="before")
+    @classmethod
+    def ignore_encrypted_dotenv_values(cls, data):
+        """
+        Allow local `uv run ...` usage even when `.env` contains dotenvx-encrypted
+        placeholders by treating undecrypted values as missing and falling back to
+        defaults/environment overrides.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        sanitized = {}
+        for key, value in data.items():
+            if isinstance(value, str) and value.startswith("encrypted:"):
+                continue
+            sanitized[key] = value
+        return sanitized
 
     class Config:
         env_file = "../.env"

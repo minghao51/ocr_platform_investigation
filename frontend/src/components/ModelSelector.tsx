@@ -31,11 +31,13 @@ export default function ModelSelector({
 
       // Sort providers: Gemini first, then enabled providers, then disabled providers
       const sortedProviders = data.sort((a, b) => {
-        // Gemini first
-        if (a.name === 'gemini') return -1;
-        if (b.name === 'gemini') return 1;
+        const ORDER = ['gemini', 'openrouter', 'litellm'];
+        const ai = ORDER.indexOf(a.name);
+        const bi = ORDER.indexOf(b.name);
+        if (ai !== -1 && bi !== -1) return ai - bi;
+        if (ai !== -1) return -1;
+        if (bi !== -1) return -1;
 
-        // Enabled providers before disabled
         if (a.has_api_key && !b.has_api_key) return -1;
         if (!a.has_api_key && b.has_api_key) return 1;
 

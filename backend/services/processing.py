@@ -2,10 +2,10 @@ import time
 import json
 from typing import Dict, Any, Optional, Type
 from pathlib import Path
-from config import get_settings
 from services.vlm_provider import VLMProvider
 from services.openrouter import OpenRouterProvider
 from services.gemini import GeminiProvider
+from services.litellm_provider import LiteLLMProvider
 from services.image_service import ImageService
 from services.schema_service import SchemaService
 from services.quality_gate import QualityGate
@@ -14,13 +14,11 @@ from services.hybrid_processing import HybridProcessingService
 from services.docling_service import DoclingService
 from services.chunking_service import MarkdownSplitter
 from services.transcription_service import TranscriptionService
+from services.provider_utils import resolve_provider_api_key
 from database import crud
 
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15MB
 CHUNK_THRESHOLD_RATIO = 0.8
-
-settings = get_settings()
-
 
 def parse_and_validate_response(
     content: str,
@@ -101,6 +99,7 @@ class ProcessingService:
         self.providers = {
             "openrouter": OpenRouterProvider,
             "gemini": GeminiProvider,
+            "litellm": LiteLLMProvider,
         }
         self.image_service = ImageService()
         self.schema_service = SchemaService()
@@ -173,26 +172,34 @@ class ProcessingService:
             # Validate file size
             self._validate_file_size(file_path)
 
-            # Handle transcription for audio files
+            # Transcription mode returns markdown directly instead of JSON.
             if is_transcription:
-                transcription_result = await self.transcription_service.transcribe(
-                    file_path
-                )
-                if not transcription_result["success"]:
-                    return {
-                        "success": False,
-                        "error": f"Transcription failed: {transcription_result.get('error', 'Unknown error')}",
-                    }
-                markdown_content = transcription_result["text"]
-            else:
-                # Extract content using Docling
                 try:
                     markdown_content = self.docling_service.parse_document(file_path)
                 except Exception as e:
                     return {
                         "success": False,
                         "error": f"Docling extraction failed: {str(e)}",
+                        "metadata": {"extraction_method": "transcription"},
                     }
+
+                return {
+                    "success": True,
+                    "data": {"text": markdown_content},
+                    "metadata": {
+                        "extraction_method": "transcription",
+                        "chunked": False,
+                    },
+                }
+
+            # Extract content using Docling
+            try:
+                markdown_content = self.docling_service.parse_document(file_path)
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": f"Docling extraction failed: {str(e)}",
+                }
 
             # Check if chunking is needed
             if self._should_chunk(markdown_content, model):
@@ -235,7 +242,7 @@ class ProcessingService:
                     "data": validation_result["data"],
                     "raw_response": result,
                     "metadata": {
-                        "extraction_method": "docling",
+                        "extraction_method": "docling-parse",
                         "chunked": False,
                     },
                 }
@@ -371,7 +378,7 @@ class ProcessingService:
                 },
                 "errors": errors if errors else None,
                 "metadata": {
-                    "extraction_method": "docling",
+                    "extraction_method": "docling-parse",
                     "chunked": True,
                     "total_chunks": len(chunks),
                     "successful_chunks": len(results),
@@ -539,7 +546,7 @@ class ProcessingService:
         # Handle docling-parse (Docling + VLM)
         if extraction_method == "docling-parse":
             # Get API key for VLM step
-            api_key = getattr(settings, f"{provider_name}_api_key")
+            api_key = resolve_provider_api_key(provider_name)
             if not api_key:
                 raise ValueError(f"No API key configured for {provider_name}")
 
@@ -555,7 +562,7 @@ class ProcessingService:
                 )
 
         # Get API key for other methods
-        api_key = getattr(settings, f"{provider_name}_api_key")
+        api_key = resolve_provider_api_key(provider_name)
         if not api_key:
             raise ValueError(f"No API key configured for {provider_name}")
 
@@ -920,12 +927,9 @@ async def run_text_processing_job(
     Best for: Digital PDFs with extractable text (faster & more cost-effective).
     """
 
-    from config import get_settings
     from services.text_extraction import TextExtractionService
     from database import crud
     from services.schema_service import SchemaService
-
-    settings = get_settings()
 
     # Get job details
     job = await crud.get_job(job_id)
@@ -953,7 +957,7 @@ async def run_text_processing_job(
 
     # Get API key
     provider_name = job["provider"]
-    api_key = getattr(settings, f"{provider_name}_api_key")
+    api_key = resolve_provider_api_key(provider_name)
     if not api_key:
         await update_job_status_with_broadcast(
             job_id, "error", error_message=f"No API key configured for {provider_name}"
@@ -982,6 +986,7 @@ async def run_text_processing_job(
         providers: Dict[str, Type[VLMProvider]] = {
             "openrouter": OpenRouterProvider,
             "gemini": GeminiProvider,
+            "litellm": LiteLLMProvider,
         }
 
         provider_class = providers.get(provider_name)

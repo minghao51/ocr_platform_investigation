@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from PIL import Image
 import json
 from .vlm_provider import VLMProvider
@@ -160,32 +160,39 @@ class GeminiProvider(VLMProvider):
         self,
         text: str,
         prompt: str,
-        schema_definition: Dict[str, Any],
+        schema_definition: Optional[Dict[str, Any]],
         model: str,
         temperature: float = 0.1,
         max_tokens: int = 4096,
         **kwargs,
     ) -> Dict[str, Any]:
         """Process text with Gemini text-only model"""
+        prompt_text = f"{prompt}\n\nDocument text:\n{text}"
+        generation_config: Dict[str, Any] = {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        }
+
+        if schema_definition is None:
+            prompt_text = (
+                f"{prompt}\n\nDocument text:\n{text}\n\n"
+                "Return ONLY clean Markdown. Do not wrap the response in JSON."
+            )
+            generation_config["responseMimeType"] = "text/plain"
+        else:
+            prompt_text = (
+                f"{prompt}\n\nDocument text:\n{text}\n\n"
+                f"Respond ONLY with valid JSON matching this schema:\n{json.dumps(schema_definition, indent=2)}"
+            )
+            generation_config["responseMimeType"] = "application/json"
+            generation_config["responseSchema"] = self._convert_json_schema_to_gemini(
+                schema_definition
+            )
+
         # Prepare content (text-only, no image)
         content = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": f"{prompt}\n\nDocument text:\n{text}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema_definition, indent=2)}"
-                        }
-                    ]
-                }
-            ],
-            "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": max_tokens,
-                "responseMimeType": "application/json",
-                "responseSchema": self._convert_json_schema_to_gemini(
-                    schema_definition
-                ),
-            },
+            "contents": [{"parts": [{"text": prompt_text}]}],
+            "generationConfig": generation_config,
         }
 
         try:

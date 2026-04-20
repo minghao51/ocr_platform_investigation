@@ -64,6 +64,12 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'Hybrid Pipeline (Balanced)';
       case 'vision':
         return 'Vision Pipeline (Accurate)';
+      case 'docling-parse':
+        return 'Docling Parse';
+      case 'docling-extract':
+        return 'Docling Extract';
+      case 'transcription':
+        return 'Transcription';
       default:
         return 'Unknown Pipeline';
     }
@@ -77,6 +83,12 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         return 'bg-orange-100 text-orange-800';
       case 'vision':
         return 'bg-blue-100 text-blue-800';
+      case 'docling-parse':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'docling-extract':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'transcription':
+        return 'bg-teal-100 text-teal-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }

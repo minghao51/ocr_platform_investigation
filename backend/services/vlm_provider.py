@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import httpx
 import base64
 from io import BytesIO
@@ -26,7 +26,7 @@ class VLMProvider(ABC):
         self,
         text: str,
         prompt: str,
-        schema_definition: Dict[str, Any],
+        schema_definition: Optional[Dict[str, Any]],
         model: str,
         **kwargs,
     ) -> Dict[str, Any]:
@@ -36,7 +36,7 @@ class VLMProvider(ABC):
         Args:
             text: Extracted text content
             prompt: Extraction prompt
-            schema_definition: JSON schema for validation
+            schema_definition: JSON schema for validation, or None for plain-text output
             model: Model name
             **kwargs: Additional parameters (temperature, max_tokens, etc.)
 

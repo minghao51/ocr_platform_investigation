@@ -144,6 +144,7 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
                   <option value="">All</option>
                   <option value="openrouter">OpenRouter</option>
                   <option value="gemini">Gemini</option>
+                  <option value="litellm">LiteLLM (Unified)</option>
                 </select>
               </div>
             </div>

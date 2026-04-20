@@ -5,30 +5,24 @@ Tests the full benchmark execution flow with mocked VLM responses.
 
 import pytest
 import pytest_asyncio
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Add backend to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from benchmarks.runner import run_benchmark, _process_single_sample
+from database.pool import connect
+from database.migrations import run_migrations
 
 
 @pytest_asyncio.fixture
-async def clean_db():
-    """Provide a clean database for testing."""
-    from database.pool import connect
+async def clean_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "bench_runner.db"
+    monkeypatch.setattr("database.pool.get_db_path", lambda: db_path)
+    monkeypatch.setattr("database.migrations._get_db_path", lambda: db_path)
+    monkeypatch.setattr("dependencies._get_cached_db_path", lambda: db_path)
 
-    async with connect() as db:
-        await db.execute(
-            "DELETE FROM benchmark_results WHERE run_id IN (SELECT id FROM benchmark_runs WHERE dataset LIKE 'runner_test_%')"
-        )
-        await db.execute(
-            "DELETE FROM benchmark_runs WHERE dataset LIKE 'runner_test_%'"
-        )
-        await db.commit()
+    await run_migrations()
+
     yield
+
     async with connect() as db:
         await db.execute(
             "DELETE FROM benchmark_results WHERE run_id IN (SELECT id FROM benchmark_runs WHERE dataset LIKE 'runner_test_%')"

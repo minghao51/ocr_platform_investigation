@@ -92,7 +92,13 @@ async def process_document(
         raise HTTPException(status_code=404, detail="File has been deleted or moved")
 
     # Determine file type
-    file_type = "pdf" if file_record["file_extension"] == ".pdf" else "image"
+    file_extension = (file_record["file_extension"] or "").lower()
+    if file_extension in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
+        file_type = "image"
+    elif file_extension == ".pdf":
+        file_type = "pdf"
+    else:
+        file_type = "document"
 
     effective_extraction_method = extraction_method or payload.extraction_method
 
@@ -132,11 +138,17 @@ async def process_document(
                     f"Classification failed, falling back to vision: {str(e)}"
                 )
                 processing_method = "vision"
-        else:
+        elif file_type == "image":
             # Images always use vision processing
             processing_method = "vision"
             classification_info = {"reasoning": "Image file, using vision processing"}
             document_type = "image"
+        else:
+            processing_method = "docling-parse"
+            classification_info = {
+                "reasoning": "Document format detected, using docling-parse",
+            }
+            document_type = file_extension.lstrip(".") or "document"
 
     # Validate extraction method
     if processing_method not in [
@@ -156,6 +168,20 @@ async def process_document(
     if file_type == "image" and processing_method != "vision":
         logger.info("Overriding extraction_method to 'vision' for image file")
         processing_method = "vision"
+
+    if file_type == "document" and processing_method in {"text", "vision", "hybrid"}:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This document type supports 'docling-parse' or 'transcription'. "
+                "Use a PDF if you want text, vision, or hybrid processing."
+            ),
+        )
+    if file_type == "document" and processing_method == "docling-extract":
+        raise HTTPException(
+            status_code=400,
+            detail="docling-extract currently supports PDFs and images only.",
+        )
 
     # Create job
     user_id = current_user.get("user_id") if current_user else None

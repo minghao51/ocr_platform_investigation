@@ -3,6 +3,12 @@ from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BACKEND_DIR.parent
+
+# In Docker, backend code is copied to /app/ (no backend/ subdirectory),
+# so REPO_ROOT becomes "/" instead of "/app". Detect and correct.
+if not (REPO_ROOT / "data").exists() and (Path("/app/data")).exists():
+    REPO_ROOT = Path("/app")
+
 DATA_DIR = REPO_ROOT / "data"
 DB_PATH = DATA_DIR / "ocr_platform.db"
 UPLOAD_DIR = DATA_DIR / "uploads"

@@ -16,7 +16,7 @@ class TestFixturesExist:
     @pytest.fixture
     def fixtures_dir(self):
         """Get the fixtures directory path."""
-        return Path(__file__).parent / "fixtures"
+        return Path(__file__).parent.parent / "fixtures"
 
     def test_sample_docx_exists(self, fixtures_dir):
         """Test that sample.docx fixture exists."""
@@ -94,7 +94,7 @@ class TestDoclingServiceFunctionality:
     @pytest.fixture
     def fixtures_dir(self):
         """Get the fixtures directory path."""
-        return Path(__file__).parent / "fixtures"
+        return Path(__file__).parent.parent / "fixtures"
 
     @pytest.fixture
     def docling_service(self):

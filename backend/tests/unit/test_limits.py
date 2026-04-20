@@ -186,7 +186,7 @@ def test_rate_limit_uses_user_identity_and_exempts_admin():
     admin_token = create_access_token(user_id=99, username="master", is_admin=True)
     request = _build_request(admin_token, client_host="10.0.0.5")
 
-    assert get_rate_limit_key(request).startswith("admin:99:")
+    assert get_rate_limit_key(request) == "admin:99"
     assert should_exempt_rate_limit(request) is True
 
 

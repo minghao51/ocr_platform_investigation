@@ -1,15 +1,9 @@
 import asyncio
 
 from database import crud
-from database.migrations import run_migrations
 
 
-def _ensure_phase23_schema():
-    asyncio.run(run_migrations())
-
-
-def test_create_job_correction_and_fetch(client, auth_header):
-    _ensure_phase23_schema()
+def test_create_job_correction_and_fetch(client, auth_header, temp_db_env):
     job_id = asyncio.run(
         crud.create_job(
             file_name="test.pdf",
@@ -52,8 +46,7 @@ def test_create_job_correction_and_fetch(client, auth_header):
     assert len(history.json()) >= 1
 
 
-def test_usage_analytics_returns_overview(client, auth_header):
-    _ensure_phase23_schema()
+def test_usage_analytics_returns_overview(client, auth_header, temp_db_env):
     response = client.get("/api/analytics/usage", headers=auth_header)
 
     assert response.status_code == 200
@@ -64,9 +57,8 @@ def test_usage_analytics_returns_overview(client, auth_header):
 
 
 def test_schema_suggestion_route_returns_draft(
-    client, auth_header, monkeypatch, tmp_path
+    client, auth_header, monkeypatch, tmp_path, temp_db_env
 ):
-    _ensure_phase23_schema()
     uploaded_path = tmp_path / "sample.pdf"
     uploaded_path.write_bytes(b"%PDF-1.4 test")
     file_id = f"schema-suggest-{uploaded_path.stat().st_mtime_ns}"

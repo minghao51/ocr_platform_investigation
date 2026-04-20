@@ -2,30 +2,27 @@
 Integration tests for benchmark CRUD operations.
 """
 
+import asyncio
+
 import pytest
 import pytest_asyncio
-import sys
-from pathlib import Path
-
-# Add backend to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from database.pool import connect
 from database import crud
+from database.migrations import run_migrations
 
 
 @pytest_asyncio.fixture
-async def clean_db():
-    """Provide a clean database for testing."""
-    async with connect() as db:
-        # Clean up any existing test data
-        await db.execute(
-            "DELETE FROM benchmark_results WHERE run_id IN (SELECT id FROM benchmark_runs WHERE dataset LIKE 'test_%')"
-        )
-        await db.execute("DELETE FROM benchmark_runs WHERE dataset LIKE 'test_%'")
-        await db.commit()
+async def clean_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "bench_crud.db"
+    monkeypatch.setattr("database.pool.get_db_path", lambda: db_path)
+    monkeypatch.setattr("database.migrations._get_db_path", lambda: db_path)
+    monkeypatch.setattr("dependencies._get_cached_db_path", lambda: db_path)
+
+    await run_migrations()
+
     yield
-    # Cleanup after test
+
     async with connect() as db:
         await db.execute(
             "DELETE FROM benchmark_results WHERE run_id IN (SELECT id FROM benchmark_runs WHERE dataset LIKE 'test_%')"

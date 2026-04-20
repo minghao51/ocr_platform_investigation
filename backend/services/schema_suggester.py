@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from services.gemini import GeminiProvider
 from services.openrouter import OpenRouterProvider
+from services.litellm_provider import LiteLLMProvider
 from services.provider_utils import choose_default_provider_model
 from services.text_extraction import TextExtractionService
 
@@ -14,6 +15,7 @@ class SchemaSuggestionService:
         self.providers = {
             "gemini": GeminiProvider,
             "openrouter": OpenRouterProvider,
+            "litellm": LiteLLMProvider,
         }
 
     def _build_response_schema(self) -> Dict[str, Any]:

@@ -39,6 +39,7 @@ dependencies = [
     "easyocr>=1.7.2",
     "python-levenshtein>=0.27.3",
     "qwen-vl-utils>=0.0.14",
+    "litellm>=1.81.0",
 ]
 
 [project.optional-dependencies]
@@ -75,5 +76,13 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-p no:warnings"
+addopts = "--strict-markers -ra --durations=10 --import-mode=importlib"
 asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests requiring DB/services",
+    "e2e: marks end-to-end full pipeline tests",
+    "unit: marks fast isolated unit tests",
+    "network: marks tests requiring network access",
+    "db: marks tests requiring a real database",
+]

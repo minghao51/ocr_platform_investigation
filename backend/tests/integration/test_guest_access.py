@@ -31,6 +31,13 @@ def _create_test_image() -> io.BytesIO:
     return buffer
 
 
+def _create_test_docx() -> io.BytesIO:
+    buffer = io.BytesIO()
+    buffer.write(b"PK\x03\x04minimal-docx")
+    buffer.seek(0)
+    return buffer
+
+
 def test_guest_can_upload_process_and_read_own_job(
     client, temp_guest_env: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -82,3 +89,79 @@ def test_guest_can_upload_process_and_read_own_job(
 
     forbidden_response = client.get(f"/api/process/status/{process_data['job_id']}")
     assert forbidden_response.status_code == 403
+
+
+def test_guest_can_queue_transcription_for_docx(
+    client, temp_guest_env: Path, monkeypatch: pytest.MonkeyPatch
+):
+    async def _noop_processing(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr("routers.processing.run_processing_job", _noop_processing)
+
+    upload_response = client.post(
+        "/api/upload",
+        files={
+            "file": (
+                "guest-sample.docx",
+                _create_test_docx(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert upload_response.status_code == 200
+    upload_data = upload_response.json()
+
+    guest_headers = {"X-Guest-Token": upload_data["guest_token"]}
+    process_response = client.post(
+        "/api/process/",
+        json={
+            "file_id": upload_data["file_id"],
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "extraction_method": "transcription",
+        },
+        headers=guest_headers,
+    )
+
+    assert process_response.status_code == 200
+    process_data = process_response.json()
+    assert process_data["job_id"]
+    assert process_data["guest_token"] == upload_data["guest_token"]
+
+
+def test_document_rejects_vision_processing(
+    client, temp_guest_env: Path, monkeypatch: pytest.MonkeyPatch
+):
+    async def _noop_processing(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr("routers.processing.run_processing_job", _noop_processing)
+
+    upload_response = client.post(
+        "/api/upload",
+        files={
+            "file": (
+                "guest-sample.docx",
+                _create_test_docx(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    guest_headers = {"X-Guest-Token": upload_response.json()["guest_token"]}
+    process_response = client.post(
+        "/api/process/",
+        json={
+            "file_id": upload_response.json()["file_id"],
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "schema_definition": {"type": "object", "properties": {}},
+            "extraction_method": "vision",
+        },
+        headers=guest_headers,
+    )
+
+    assert process_response.status_code == 400
+    assert "docling-parse" in process_response.json()["detail"]

@@ -1,0 +1,214 @@
+# Docker Security Best Practices for OCR Platform
+
+Sources: OWASP Docker Security Cheat Sheet, CIS Docker Benchmark, Docker Official Docs
+
+## Principles
+
+1. **Minimal attack surface** — smallest image, fewest packages, no build tools in runtime
+2. **Least privilege** — non-root user, dropped capabilities, no-new-privileges
+3. **No secrets in image** — secrets injected at runtime via volumes/dotenvx/vault
+4. **Reproducible builds** — pinned versions, locked deps, deterministic layers
+5. **Defense in depth** — scanning + runtime restrictions + network isolation
+
+## Dockerfile Rules
+
+### Base Image
+
+```dockerfile
+# BAD: unpinned, full OS
+FROM python:3.11
+
+# GOOD: pinned digest, slim variant
+FROM python:3.11-slim@sha256:abc123... AS runtime
+```
+
+- Pin to SHA256 digest for reproducibility
+- Use `slim` or `distroless` — never full Debian/Ubuntu
+- Never use `latest` tag in production
+
+### Non-Root User
+
+```dockerfile
+RUN groupadd -g 1000 appgroup && \
+    useradd -u 1000 -g appgroup -m appuser && \
+    chown -R appuser:appgroup /app/data /app/frontend/dist
+
+USER appuser
+```
+
+- Container processes must never run as root
+- Fixed UID/GID for consistent volume permissions
+- `chown` only writable paths — `/app/data` (volume), `/app/frontend/dist` (static assets)
+
+### Multi-Stage Build
+
+```dockerfile
+# Build stage — has compilers, npm, uv, dev tools
+FROM python:3.11-slim AS backend
+RUN uv sync --frozen --no-dev --no-install-project
+
+FROM node:20-alpine AS frontend
+RUN npm ci && npm run build
+
+# Runtime stage — only runtime deps + built artifacts
+FROM python:3.11-slim AS runtime
+COPY --from=backend /app /app
+COPY --from=frontend /app/frontend/dist /app/frontend/dist
+```
+
+- Build tools (npm, gcc, uv) never reach runtime image
+- Final image contains only what's needed to run
+
+### Pinned Binary Installs (No Pipe-to-Shell)
+
+```dockerfile
+# BAD: unverified script execution
+RUN curl -SsfL https://dotenvx.sh | sh
+
+# GOOD: pin version, extract from release tarball
+ENV DOTENVX_VERSION=1.61.1
+RUN curl -SsfL https://github.com/dotenvx/dotenvx/releases/download/v${DOTENVX_VERSION}/dotenvx-${DOTENVX_VERSION}-linux-x86_64.tar.gz \
+    -o /tmp/dotenvx.tar.gz \
+    && tar xzf /tmp/dotenvx.tar.gz -C /usr/local/bin --strip-components=1 ./dotenvx \
+    && rm /tmp/dotenvx.tar.gz
+```
+
+### Dependency Management
+
+- `uv sync --frozen` — locked deps, no floating versions
+- `--no-install-recommends` — skip optional apt packages
+- `rm -rf /var/lib/apt/lists/*` — clean after apt install
+
+### HEALTHCHECK
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+```
+
+- In Dockerfile (portable) not just docker-compose
+- Orchestration uses healthcheck for restart decisions
+
+## docker-compose.yml Rules
+
+### Security Options
+
+```yaml
+services:
+  app:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+```
+
+- `no-new-privileges` — blocks setuid escalation
+- `cap_drop: ALL` — remove all Linux capabilities
+
+### Resource Limits
+
+```yaml
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+```
+
+- Prevent DoS via resource exhaustion
+- Set both limits and reservations
+
+### Secret Management
+
+```yaml
+    # Single-host: encrypted .env mounted read-only
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./.env.keys:/app/.env.keys:ro
+
+    # Production: use Docker secrets or HashiCorp Vault
+    secrets:
+      - env_file
+```
+
+- `.env` encrypted via dotenvx, mounted `:ro`
+- `.env.keys` never committed to git
+- For production: Docker secrets, Vault, or cloud secret managers
+
+### Volume Mounts
+
+```yaml
+    volumes:
+      - ./data:/app/data          # persistent data (DB, uploads)
+      - ./.env:/app/.env:ro       # secrets
+      - ./.env.keys:/app/.env.keys:ro
+```
+
+- Only mount what's needed
+- Secrets always `:ro`
+- Data dir for SQLite DB and uploaded files
+
+## Runtime Verification
+
+### Image Scanning
+
+```bash
+# Trivy (free, fast)
+trivy image ocr_platform_testdrive-app:latest
+
+# Docker Scout (built-in)
+docker scout cves ocr_platform_testdrive-app:latest
+```
+
+- Scan in CI before pushing to registry
+- Block on critical/high CVEs
+- Run weekly on deployed images
+
+### SBOM Generation
+
+```bash
+syft ocr_platform_testdrive-app:latest -o spdx-json > sbom.json
+```
+
+## .dockerignore
+
+Key exclusions for this project:
+- `.git`, `.env.keys` — no secrets or history in build context
+- `data/`, `*.db` — no runtime data in image
+- `tests/`, `docs/` — no dev artifacts in image
+- `node_modules/`, `.venv/` — no local deps (rebuilt in container)
+- `.claude/`, `.context7/`, `.planning/` — no tooling state
+
+## Docker Path Handling
+
+When `COPY backend/ .` copies to `/app/` (not `/app/backend/`), `paths.py` must detect Docker context:
+
+```python
+if not (REPO_ROOT / "data").exists() and (Path("/app/data")).exists():
+    REPO_ROOT = Path("/app")
+```
+
+This ensures `DATA_DIR`, `UPLOAD_DIR`, `BENCHMARKS_DIR` resolve to `/app/data/*` inside container.
+
+## Checklist
+
+| Item | Status |
+|------|--------|
+| Multi-stage build | Done |
+| `.dockerignore` | Done |
+| Locked deps (`uv sync --frozen`) | Done |
+| `--no-install-recommends` | Done |
+| `.env` mounted `:ro` | Done |
+| Non-root USER (`appuser`) | Done |
+| `no-new-privileges` | Done |
+| `cap_drop: ALL` | Done |
+| Resource limits (2 CPU / 2GB) | Done |
+| HEALTHCHECK in Dockerfile | Done |
+| Pinned dotenvx binary (v1.61.1) | Done |
+| Pin base image to digest | TODO |
+| Image scanning in CI | TODO |
+| SBOM generation | TODO |
+| `read_only` filesystem | Skipped (SQLite WAL + uploads need writes) |

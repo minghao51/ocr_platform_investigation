@@ -12,7 +12,9 @@ from paths import UPLOAD_DIR
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".pptx", ".txt", ".md", ".html"}
+ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS
 
 
 @router.post("/")
@@ -54,12 +56,24 @@ async def upload_file(
         f.write(content)
 
     # Determine file type and content type
-    file_type = "pdf" if file_ext == ".pdf" else "image"
+    if file_ext in IMAGE_EXTENSIONS:
+        file_type = "image"
+    elif file_ext == ".pdf":
+        file_type = "pdf"
+    else:
+        file_type = "document"
     content_type_map = {
         ".pdf": "application/pdf",
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
         ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".txt": "text/plain",
+        ".md": "text/markdown",
+        ".html": "text/html",
     }
     content_type = content_type_map.get(file_ext, "application/octet-stream")
 

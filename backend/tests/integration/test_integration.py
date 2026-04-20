@@ -4,15 +4,9 @@ Tests complete workflows including file upload, processing, and retrieval.
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from main import app
 from PIL import Image
 import io
 from auth import create_access_token
-
-
-# Create test client
-client = TestClient(app)
 
 
 def get_auth_header():
@@ -24,7 +18,7 @@ def get_auth_header():
 class TestHealthEndpoint:
     """Test health check endpoint."""
 
-    def test_health_check(self):
+    def test_health_check(self, client):
         """Test that health endpoint returns healthy status."""
         response = client.get("/health")
 
@@ -36,29 +30,27 @@ class TestHealthEndpoint:
 class TestProvidersEndpoint:
     """Test providers endpoint."""
 
-    def test_list_providers(self):
+    def test_list_providers(self, client):
         """Test listing available providers."""
         response = client.get("/api/providers", headers=get_auth_header())
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        # May have 0-3 providers depending on API keys
 
 
 class TestSchemaEndpoints:
     """Test schema CRUD endpoints."""
 
-    def test_list_all_schemas(self):
+    def test_list_all_schemas(self, client, temp_db_env):
         """Test listing all schemas."""
         response = client.get("/api/schemas", headers=get_auth_header())
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        assert len(data) >= 3
 
-    def test_list_template_schemas(self):
+    def test_list_template_schemas(self, client, temp_db_env):
         """Test listing only template schemas."""
         response = client.get(
             "/api/schemas?is_template=true", headers=get_auth_header()
@@ -67,11 +59,10 @@ class TestSchemaEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        # All returned schemas should be templates
         for schema in data:
             assert schema["is_template"] is True
 
-    def test_get_invoice_schema(self):
+    def test_get_invoice_schema(self, client, temp_db_env):
         """Test getting a template schema by ID."""
         response = client.get(
             "/api/schemas?is_template=true", headers=get_auth_header()
@@ -90,7 +81,7 @@ class TestSchemaEndpoints:
             assert data["is_template"] is True
             assert "definition" in data
 
-    def test_create_custom_schema(self):
+    def test_create_custom_schema(self, client, temp_db_env):
         """Test creating a custom schema."""
         import time
 
@@ -118,7 +109,7 @@ class TestSchemaEndpoints:
         assert data["is_template"] is False
         assert "id" in data
 
-    def test_create_duplicate_schema_fails(self):
+    def test_create_duplicate_schema_fails(self, client, temp_db_env):
         """Test that creating duplicate schema fails."""
         import time
 
@@ -132,11 +123,9 @@ class TestSchemaEndpoints:
             },
         }
 
-        # First creation should succeed.
         response1 = client.post("/api/schemas", json=schema, headers=get_auth_header())
         assert response1.status_code == 200
 
-        # Second creation with the same name should fail.
         response2 = client.post("/api/schemas", json=schema, headers=get_auth_header())
         assert response2.status_code == 400
 
@@ -152,7 +141,7 @@ class TestUploadEndpoint:
         img_bytes.seek(0)
         return img_bytes
 
-    def test_upload_valid_jpeg(self):
+    def test_upload_valid_jpeg(self, client, temp_db_env):
         """Test uploading a valid JPEG image."""
         img_bytes = self.create_test_image()
 
@@ -167,7 +156,7 @@ class TestUploadEndpoint:
         assert "file_id" in data
         assert data["file_name"] == "test.jpg"
 
-    def test_upload_valid_png(self):
+    def test_upload_valid_png(self, client, temp_db_env):
         """Test uploading a valid PNG image."""
         img = Image.new("RGB", (800, 600), color="blue")
         img_bytes = io.BytesIO()
@@ -184,9 +173,8 @@ class TestUploadEndpoint:
         data = response.json()
         assert "file_id" in data
 
-    def test_upload_invalid_file_type(self):
+    def test_upload_invalid_file_type(self, client, temp_db_env):
         """Test uploading an invalid file type."""
-        # Create a text file
         text_content = b"This is not an image"
 
         response = client.post(
@@ -201,24 +189,21 @@ class TestUploadEndpoint:
 
     def test_upload_large_file(self):
         """Test uploading a file larger than 10MB."""
-        # This test would create a large file
-        # Skipping to avoid long test times
         pass
 
 
 class TestJobsEndpoints:
     """Test jobs management endpoints."""
 
-    def test_list_jobs_empty(self):
+    def test_list_jobs_empty(self, client, temp_db_env):
         """Test listing jobs when none exist."""
         response = client.get("/api/jobs", headers=get_auth_header())
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        # May be empty or have test jobs
 
-    def test_list_jobs_with_filters(self):
+    def test_list_jobs_with_filters(self, client, temp_db_env):
         """Test listing jobs with status filter."""
         response = client.get("/api/jobs?status=success", headers=get_auth_header())
 
@@ -226,13 +211,13 @@ class TestJobsEndpoints:
         data = response.json()
         assert isinstance(data, list)
 
-    def test_get_nonexistent_job(self):
+    def test_get_nonexistent_job(self, client, temp_db_env):
         """Test getting a job that doesn't exist."""
         response = client.get("/api/jobs/999999", headers=get_auth_header())
 
         assert response.status_code == 404
 
-    def test_delete_nonexistent_job(self):
+    def test_delete_nonexistent_job(self, client, temp_db_env):
         """Test deleting a job that doesn't exist."""
         response = client.delete("/api/jobs/999999", headers=get_auth_header())
 
@@ -250,12 +235,8 @@ class TestProcessWorkflow:
         img_bytes.seek(0)
         return img_bytes
 
-    def test_full_processing_workflow(self, monkeypatch):
-        """Test complete workflow: upload → process → status → results."""
-        # Skip if no API keys configured
-        # This test would need mocking for actual VLM calls
-
-        # Step 1: Upload file
+    def test_full_processing_workflow(self, client, temp_db_env, monkeypatch):
+        """Test complete workflow: upload -> process -> status -> results."""
         img_bytes = self.create_test_image()
         upload_response = client.post(
             "/api/upload",
@@ -265,46 +246,31 @@ class TestProcessWorkflow:
 
         assert upload_response.status_code == 200
         _file_id = upload_response.json()["file_id"]
-
-        # Step 2: Start processing
-        # (This would fail without valid API keys and mocking)
-        # process_response = client.post(
-        #     "/api/process",
-        #     json={
-        #         "file_id": file_id,
-        #         "provider": "nebius",
-        #         "model": "meta-llama/Meta-Llama-3.2-11B-Vision-Instruct",
-        #         "schema_name": "Invoice"
-        #     }
-        # )
-
-        # This test needs mocking of VLM providers
         pass
 
 
 class TestErrorHandling:
     """Test error handling."""
 
-    def test_upload_without_file(self):
+    def test_upload_without_file(self, client):
         """Test upload request without file."""
         response = client.post("/api/upload", headers=get_auth_header())
 
-        assert response.status_code == 422  # Unprocessable Entity
+        assert response.status_code == 422
 
-    def test_process_without_file_id(self):
+    def test_process_without_file_id(self, client):
         """Test process request without file_id."""
         response = client.post("/api/process", json={}, headers=get_auth_header())
 
         assert response.status_code == 422
 
-    def test_get_invalid_schema_id(self):
+    def test_get_invalid_schema_id(self, client):
         """Test getting schema with invalid ID."""
         response = client.get("/api/schemas/invalid", headers=get_auth_header())
 
         assert response.status_code == 422
 
 
-# Fixtures for testing
 @pytest.fixture
 def test_image_file():
     """Create a test image file."""

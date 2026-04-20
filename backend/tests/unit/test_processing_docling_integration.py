@@ -1,5 +1,5 @@
 """
-Integration tests for ProcessingService with Docling, Chunking, and Transcription services.
+Unit tests for ProcessingService with Docling, Chunking, and Transcription services.
 
 Note: These tests are designed to verify the integration without requiring
 full configuration setup. They test the core logic of the new methods.
@@ -11,7 +11,6 @@ from services.docling_service import DoclingService
 
 import pytest
 
-# Constants from processing.py
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15MB
 CHUNK_THRESHOLD_RATIO = 0.8
 
@@ -37,8 +36,6 @@ class TestDoclingIntegration:
     @pytest.fixture
     def sample_pdf_path(self, tmp_path):
         """Create a sample PDF file for testing"""
-        # This would ideally use a real test PDF
-        # For now, we'll create a mock file path
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("Mock PDF content")
         return str(pdf_path)
@@ -79,7 +76,6 @@ class TestDoclingIntegration:
         """Test file size validation logic"""
         import os
 
-        # Test with small file (within limit)
         small_file = "/tmp/test_small.txt"
         with open(small_file, "w") as f:
             f.write("x" * 1000)
@@ -87,7 +83,6 @@ class TestDoclingIntegration:
         size = os.path.getsize(small_file)
         assert size < MAX_FILE_SIZE  # Should be valid
 
-        # Test with large file (exceeds limit)
         large_file = "/tmp/test_large.txt"
         with open(large_file, "wb") as f:
             f.write(b"x" * (MAX_FILE_SIZE + 1))
@@ -95,7 +90,6 @@ class TestDoclingIntegration:
         size = os.path.getsize(large_file)
         assert size > MAX_FILE_SIZE  # Should be invalid
 
-        # Cleanup
         os.remove(small_file)
         os.remove(large_file)
 
@@ -111,17 +105,14 @@ class TestChunkingLogic:
     def test_should_chunk_logic_short_text(self, chunking_service):
         """Test chunking detection with short text"""
         short_text = "This is a short document."
-        # Get token count for short text
         token_count = chunking_service.count_tokens(short_text)
 
-        # Context windows for different models
         context_windows = {
             "gpt-4o": 128000,
             "gpt-4o-mini": 128000,
             "gemini-2.0-flash": 1000000,
         }
 
-        # Test with gpt-4o
         max_tokens = context_windows.get("gpt-4o", 128000)
         threshold = int(max_tokens * CHUNK_THRESHOLD_RATIO)
 
@@ -129,18 +120,15 @@ class TestChunkingLogic:
 
     def test_should_chunk_logic_long_text(self, chunking_service):
         """Test chunking detection with long text"""
-        # Create text that might exceed threshold
         long_text = "word " * 200000  # Very long text
         token_count = chunking_service.count_tokens(long_text)
 
-        # Context windows for different models
         context_windows = {
             "gpt-4o": 128000,
             "gpt-4o-mini": 128000,
             "gemini-2.0-flash": 1000000,
         }
 
-        # Test with gpt-4o
         max_tokens = context_windows.get("gpt-4o", 128000)
         threshold = int(max_tokens * CHUNK_THRESHOLD_RATIO)
 
@@ -148,15 +136,12 @@ class TestChunkingLogic:
 
     def test_chunking_service_splits_large_text(self, chunking_service):
         """Test that chunking service properly splits large text"""
-        # Create very large text that exceeds the default max_tokens (2000)
         large_text = "word " * 100000  # Much larger text
 
-        # Use preserve_structure=False for simple text splitting
         chunks = chunking_service.split(
             large_text, max_tokens=2000, preserve_structure=False
         )
 
-        # Verify chunks were created
         assert len(chunks) > 1
         assert all(isinstance(chunk, str) for chunk in chunks)
         assert all(len(chunk) > 0 for chunk in chunks)
@@ -167,6 +152,5 @@ class TestChunkingLogic:
 
         chunks = chunking_service.split(small_text)
 
-        # Should return single chunk or small number of chunks
         assert len(chunks) >= 1
         assert all(isinstance(chunk, str) for chunk in chunks)

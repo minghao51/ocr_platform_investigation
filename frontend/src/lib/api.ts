@@ -193,7 +193,7 @@ export interface Job {
   created_at?: string;
   updated_at?: string;
   processing_time?: number;
-  processing_method?: 'vision' | 'text' | 'hybrid' | 'docling-parse' | 'docling-extract' | 'docling' | 'transcription';
+  processing_method?: 'vision' | 'text' | 'hybrid' | 'docling-parse' | 'docling-extract' | 'transcription';
   document_type?: string;
   correction_status?: 'uncorrected' | 'corrected';
   correction_summary?: {
@@ -255,7 +255,7 @@ export interface ProcessRequest {
   prompt?: string;
   temperature?: number;
   max_tokens?: number;
-  extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid' | 'docling-parse' | 'docling-extract' | 'docling' | 'transcription';
+  extraction_method?: 'auto' | 'text' | 'vision' | 'hybrid' | 'docling-parse' | 'docling-extract' | 'transcription';
   quality_threshold?: number;
   auto_preprocess?: boolean;
   skip_quality?: boolean;
@@ -462,7 +462,16 @@ export async function getTemplates(): Promise<Schema[]> {
   const response = await fetch(`${API_BASE}/schemas/templates`, {
     headers: getAuthHeaders()
   });
-  return response.json();
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || `Failed to fetch templates: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (!Array.isArray(data)) {
+    throw new Error(`Invalid response format: expected array, got ${typeof data}`);
+  }
+  // Templates don't have IDs - add synthetic ID for compatibility
+  return data.map((t, i) => ({ ...t, id: `template-${i}` }));
 }
 
 export async function getSchema(schemaId: number): Promise<Schema> {
@@ -599,7 +608,18 @@ export async function listProviders(): Promise<Provider[]> {
   const response = await fetch(`${API_BASE}/providers/`, {
     headers: getAuthHeaders()
   });
-  return response.json();
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || `Failed to fetch providers: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (!Array.isArray(data)) {
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    throw new Error(`Invalid response format: expected array, got ${typeof data}`);
+  }
+  return data;
 }
 
 // ============================================================================

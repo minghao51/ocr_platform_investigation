@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from PIL import Image
 import json
 from .vlm_provider import VLMProvider
@@ -127,16 +127,20 @@ class OpenRouterProvider(VLMProvider):
         self,
         text: str,
         prompt: str,
-        schema_definition: Dict[str, Any],
+        schema_definition: Optional[Dict[str, Any]],
         model: str,
         temperature: float = 0.1,
         max_tokens: int = 4096,
         **kwargs,
     ) -> Dict[str, Any]:
         """Process text with OpenRouter text-only model"""
-        import json
-
-        system_prompt = f"""You are a document data extraction assistant. Extract information from the following text according to this JSON schema:
+        if schema_definition is None:
+            system_prompt = (
+                "You are a document transcription assistant. "
+                "Return only clean Markdown with no JSON wrapper."
+            )
+        else:
+            system_prompt = f"""You are a document data extraction assistant. Extract information from the following text according to this JSON schema:
 
 {json.dumps(schema_definition, indent=2)}
 
