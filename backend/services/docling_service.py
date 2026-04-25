@@ -213,4 +213,4 @@ class DoclingService:
                 logger.error(f"Error parsing document {file_path}: {e}")
                 results.append(None)
 
-        return results  # type: ignore[return-value]
+        return results  # type: ignore

@@ -41,62 +41,86 @@ export default function MethodologyPage() {
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feature</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feature</th>
                                 <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-purple-600 uppercase tracking-wider">Auto</th>
                                 <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-emerald-600 uppercase tracking-wider">Docling Ext</th>
                                 <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-indigo-600 uppercase tracking-wider">Docling Parse</th>
                                 <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Vision</th>
                                 <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-green-600 uppercase tracking-wider">Text</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">Hybrid</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-teal-600 uppercase tracking-wider">Transcription</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             <tr>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Technology</td>
+                                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Technology</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Intelligent routing</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Local VLM (NuExtract)</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">OCR + Cloud VLM</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Cloud VLM</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Parser + LLM</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Text + Vision</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Docling + LLM</td>
                             </tr>
                             <tr>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Accuracy (CORD)</td>
+                                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Accuracy (CORD)</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Adaptive</td>
                                 <td className="px-3 py-3 text-xs text-gray-500 font-semibold">86%</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">70-75%</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">64-69%</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">N/A</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">90%+</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">N/A (text)</td>
                             </tr>
                             <tr>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Speed</td>
+                                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Speed</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Adaptive</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">~26s</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">5-10s</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">2-4s</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">&lt;0.5s</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">1-3s</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">5-10s</td>
                             </tr>
                             <tr>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Cost/1K docs</td>
+                                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Cost/1K docs</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Variable</td>
                                 <td className="px-3 py-3 text-xs text-gray-500 font-semibold text-green-600">$0</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">$10-50</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">$13-121</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">$5-20</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">$15-60</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">$5-20</td>
                             </tr>
                             <tr>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Privacy</td>
+                                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Privacy</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Depends</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">✅ Local</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">❌ Cloud</td>
                             </tr>
                             <tr>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Best for</td>
+                                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Best for</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Mixed workloads</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Accuracy, privacy</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Cost optimization</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Speed, complex</td>
                                 <td className="px-3 py-3 text-xs text-gray-500">Digital PDFs</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Balanced quality</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Full text output</td>
+                            </tr>
+                            <tr>
+                                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Output</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">JSON</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">JSON</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">JSON / MD</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">JSON</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">JSON</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">JSON</td>
+                                <td className="px-3 py-3 text-xs text-gray-500">Markdown</td>
                             </tr>
                         </tbody>
                     </table>
@@ -408,7 +432,7 @@ export default function MethodologyPage() {
                                 </div>
                                 <div className="bg-orange-50 p-3 rounded border border-orange-200">
                                     <h4 className="font-semibold text-orange-800 text-sm mb-1">Hybrid Pipeline</h4>
-                                    <p className="text-xs text-orange-700">Mixed content (coming soon)</p>
+                                    <p className="text-xs text-orange-700">Mixed content (tables + images + text)</p>
                                 </div>
                             </div>
                         </div>
@@ -454,7 +478,7 @@ export default function MethodologyPage() {
                                 <ul className="text-gray-600 space-y-1 ml-4">
                                     <li>• <strong>Digital + High Text Density</strong> → Text Pipeline</li>
                                     <li>• <strong>Scanned/No Text Layer</strong> → Vision Pipeline</li>
-                                    <li>• <strong>Mixed Content</strong> → Hybrid Pipeline (coming soon)</li>
+                                    <li>• <strong>Mixed Content</strong> → Hybrid Pipeline</li>
                                 </ul>
                             </div>
                         </div>
@@ -524,7 +548,7 @@ export default function MethodologyPage() {
                                     <li>• <strong>Speed:</strong> 1-3s</li>
                                     <li>• <strong>Accuracy:</strong> 96-98%</li>
                                     <li>• <strong>Best:</strong> Mixed content</li>
-                                    <li className="text-xs italic text-blue-600">*Coming soon</li>
+                                    <li className="text-xs italic text-blue-600">Balanced speed and accuracy</li>
                                 </ul>
                             </div>
                         </div>
@@ -546,7 +570,9 @@ export default function MethodologyPage() {
                             • <strong>Docling Extract</strong> — Highest accuracy (86%), privacy-critical, cost-sensitive (free)<br />
                             • <strong>Docling Parse</strong> — Multi-format support (PDF, DOCX, PPTX), cost optimization<br />
                             • <strong>Vision Extraction</strong> — Scanned documents, handwritten forms, image-only PDFs<br />
-                            • <strong>Text Extraction</strong> — Known digital PDFs (e.g., invoices exported from accounting software)
+                            • <strong>Text Extraction</strong> — Known digital PDFs (e.g., invoices exported from accounting software)<br />
+                            • <strong>Hybrid Extraction</strong> — Mixed-content PDFs needing both text and visual analysis<br />
+                            • <strong>Transcription</strong> — Full document-to-Markdown conversion when structured JSON is not needed
                         </span>
                     </p>
                 </div>

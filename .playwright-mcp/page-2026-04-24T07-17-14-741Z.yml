@@ -1,0 +1,89 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "OCR Platform" [level=1] [ref=e9]
+        - generic [ref=e10]:
+          - link "Home" [ref=e11] [cursor=pointer]:
+            - /url: /
+          - link "Extract" [ref=e12] [cursor=pointer]:
+            - /url: /extract
+            - img [ref=e13]
+            - text: Extract
+          - link "History" [ref=e15] [cursor=pointer]:
+            - /url: /history
+          - link "Methodology" [ref=e16] [cursor=pointer]:
+            - /url: /methodology
+          - link "Analytics" [ref=e17] [cursor=pointer]:
+            - /url: /analytics
+      - button "Guest mode" [ref=e19] [cursor=pointer]
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e24]:
+        - generic [ref=e25]: OCR Platform
+        - heading "Extract structured data from documents with a simple, guided workflow" [level=1] [ref=e26]
+        - paragraph [ref=e27]: Upload files, choose a model, define your schema, and process with smart routing that adapts to digital and scanned documents.
+        - generic [ref=e28]:
+          - link "Start Extraction" [ref=e29] [cursor=pointer]:
+            - /url: /extract
+          - link "Learn Methodology" [ref=e30] [cursor=pointer]:
+            - /url: /methodology
+          - link "View History" [ref=e31] [cursor=pointer]:
+            - /url: /history
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - generic [ref=e34]: Smart Extraction
+          - paragraph [ref=e35]: Auto-route documents to the best extraction pipeline for speed, accuracy, and cost efficiency.
+        - generic [ref=e36]:
+          - generic [ref=e37]: Structured Output
+          - paragraph [ref=e38]: Define custom schemas and extract consistent JSON-ready data from invoices, forms, and reports.
+        - generic [ref=e39]:
+          - generic [ref=e40]: Processing History
+          - paragraph [ref=e41]: Review previous jobs, inspect outputs, and manage OCR results from one place.
+      - generic [ref=e42]:
+        - heading "Extraction Methods" [level=2] [ref=e43]
+        - paragraph [ref=e44]: The platform auto-selects the best method based on your file. Here's what's available.
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - heading "Auto" [level=3] [ref=e47]
+            - paragraph [ref=e48]: Automatically selects the best extraction method based on document type.
+          - generic [ref=e49]:
+            - heading "Text" [level=3] [ref=e50]
+            - paragraph [ref=e51]: Fast text extraction from digital PDFs with selectable text.
+          - generic [ref=e52]:
+            - heading "Vision" [level=3] [ref=e53]
+            - paragraph [ref=e54]: AI vision models for scanned PDFs, images, and complex layouts.
+          - generic [ref=e55]:
+            - heading "Hybrid" [level=3] [ref=e56]
+            - paragraph [ref=e57]: Combines text extraction and vision processing for best results.
+          - generic [ref=e58]:
+            - heading "Docling Parse" [level=3] [ref=e59]
+            - paragraph [ref=e60]: Multi-format support. Free extraction + cheap structuring.
+          - generic [ref=e61]:
+            - heading "Docling Extract" [level=3] [ref=e62]
+            - paragraph [ref=e63]: Best accuracy (86%). Local VLM, completely free, 100% private.
+          - generic [ref=e64]:
+            - heading "Transcription" [level=3] [ref=e65]
+            - paragraph [ref=e66]: Full document/audio transcription to Markdown.
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - heading "How it works" [level=2] [ref=e69]
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - generic [ref=e72]: "1"
+              - heading "Upload" [level=3] [ref=e73]
+              - paragraph [ref=e74]: PDFs, images, DOCX, PPTX, audio, and more are supported.
+            - generic [ref=e75]:
+              - generic [ref=e76]: "2"
+              - heading "Configure" [level=3] [ref=e77]
+              - paragraph [ref=e78]: Method is auto-detected. Select model + schema.
+            - generic [ref=e79]:
+              - generic [ref=e80]: "3"
+              - heading "Process" [level=3] [ref=e81]
+              - paragraph [ref=e82]: Track status and inspect structured results.
+        - complementary [ref=e83]:
+          - heading "Workspace status" [level=2] [ref=e84]
+          - paragraph [ref=e85]: Guest mode is active. You can explore the app now, then sign in from the top-right menu when you want to upload documents or open history.
+          - generic [ref=e86]:
+            - paragraph [ref=e87]: Recommended next step
+            - paragraph [ref=e88]: Open Extract to run a document through the smart extraction pipeline.

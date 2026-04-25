@@ -1,0 +1,57 @@
+default_provider: "docling"
+
+schema_suggestion:
+  provider: "openrouter"
+  model: "google/gemma-4-31b-it"
+
+providers:
+  - name: "docling"
+    display_name: "Docling (Local)"
+    models:
+      - id: "docling-parse"
+        name: "PyMuPDF Parse"
+        tier: "free"
+        description: "PyMuPDF PDF parsing + provider-backed LLM structuring"
+      - id: "docling-extract"
+        name: "Docling Extract"
+        tier: "free"
+        description: "Best accuracy (86%), local VLM, free, private"
+
+  - name: "openrouter"
+    display_name: "OpenRouter"
+    models:
+      - id: "qwen/qwen3.5-flash-02-23"
+        name: "Qwen3.5 Flash"
+        tier: "lite"
+      - id: "x-ai/grok-4.1-fast"
+        name: "Grok 4.1 Fast"
+        tier: "balanced"
+      - id: "openai/gpt-4.1-mini"
+        name: "GPT-4.1 Mini"
+        tier: "balanced"
+
+  - name: "gemini"
+    display_name: "Google Gemini"
+    models:
+      - id: "gemini-3-pro-preview"
+        name: "Gemini 3 Pro Preview"
+        tier: "premium"
+      - id: "gemini-3-flash-preview"
+        name: "Gemini 3 Flash Preview"
+        tier: "balanced"
+      - id: "gemini-2.5-pro"
+        name: "Gemini 2.5 Pro"
+        tier: "premium"
+      - id: "gemini-2.5-flash"
+        name: "Gemini 2.5 Flash"
+        tier: "balanced"
+      - id: "gemini-2.5-flash-lite"
+        name: "Gemini 2.5 Flash Lite"
+        tier: "lite"
+
+  - name: "litellm"
+    display_name: "LiteLLM (Unified)"
+    models:
+      - id: "google/gemma-4-31b-it"
+        name: "Gemma 4 31B IT"
+        tier: "lite"

@@ -94,15 +94,17 @@ async def list_jobs(
     status: Optional[str] = None,
     provider: str = None,
     limit: int = 50,
+    offset: int = 0,
     current_user: dict = Depends(get_current_user),
 ):
     """List all processing jobs with optional filters"""
     limit = max(1, min(limit, 100))
+    offset = max(0, offset)
     user_id = (
         None if current_user.get("is_admin", False) else current_user.get("user_id")
     )
     jobs = await crud.list_jobs(
-        status=status, provider=provider, user_id=user_id, limit=limit
+        status=status, provider=provider, user_id=user_id, limit=limit, offset=offset
     )
     return [serialize_job(j) for j in jobs]
 

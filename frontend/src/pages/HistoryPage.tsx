@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listJobs, getJob, deleteJob, Job } from '../lib/api';
+import { listJobs, getJob, deleteJob, listProviders, Job, Provider } from '../lib/api';
 import ResultsDisplay from '../components/ResultsDisplay';
 import { SkeletonList } from '@/components/LoadingSpinner';
 
@@ -13,39 +13,84 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState({ status: '', provider: '' });
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 50;
+
+  useEffect(() => {
+    loadProviders();
+  }, []);
+
+  const loadProviders = async () => {
+    try {
+      const data = await listProviders();
+      setProviders(data.filter(p => p.has_api_key));
+    } catch {
+      setProviders([]);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
       setJobs([]);
       setSelectedJob(null);
       setError(null);
+      setOffset(0);
+      setHasMore(false);
       setLoading(false);
       return;
     }
-    loadJobs();
+    loadJobs(0, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, isAuthenticated]);
 
-  const loadJobs = async () => {
+  const loadJobs = async (nextOffset = 0, append = false) => {
     if (!isAuthenticated) {
       return;
     }
     try {
-      setLoading(true);
-      setError(null);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setError(null);
+      }
       const data = await listJobs(
         filter.status || undefined,
         filter.provider || undefined,
-        50
+        PAGE_SIZE + 1,
+        nextOffset
       );
-      setJobs(data);
+      const pageItems = data.slice(0, PAGE_SIZE);
+      setHasMore(data.length > PAGE_SIZE);
+      setOffset(nextOffset + pageItems.length);
+      if (append) {
+        setJobs((prev) => {
+          const existing = new Set(prev.map((job) => job.job_id));
+          const deduped = pageItems.filter((job) => !existing.has(job.job_id));
+          return [...prev, ...deduped];
+        });
+      } else {
+        setJobs(pageItems);
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs';
       console.error('Failed to load jobs:', err);
       setError(errorMessage);
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  const loadMoreJobs = async () => {
+    if (loadingMore || !hasMore) return;
+    await loadJobs(offset, true);
   };
 
   const handleJobClick = async (jobId: number) => {
@@ -67,7 +112,7 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
       if (selectedJob?.job_id === jobId) {
         setSelectedJob(null);
       }
-      loadJobs();
+      loadJobs(0, false);
     } catch (err) {
       console.error('Failed to delete job:', err);
     }
@@ -142,9 +187,9 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 >
                   <option value="">All</option>
-                  <option value="openrouter">OpenRouter</option>
-                  <option value="gemini">Gemini</option>
-                  <option value="litellm">LiteLLM (Unified)</option>
+                  {providers.map((p) => (
+                    <option key={p.name} value={p.name}>{p.display_name}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -156,7 +201,7 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
                 <p className="text-sm text-red-800 mb-3">{error}</p>
                 <button
-                  onClick={loadJobs}
+                  onClick={() => loadJobs(0, false)}
                   className="w-full px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
                 >
                   Retry
@@ -202,6 +247,15 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
                   </div>
                 ))}
               </div>
+            )}
+            {hasMore && (
+              <button
+                onClick={loadMoreJobs}
+                disabled={loadingMore}
+                className="w-full mt-3 px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loadingMore ? 'Loading…' : 'Load more'}
+              </button>
             )}
           </div>
         </div>

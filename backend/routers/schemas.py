@@ -1,17 +1,60 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+from pathlib import Path
+import yaml
 from database import crud
 from services.schema_service import SchemaService
 from services.schema_suggester import SchemaSuggestionService
-from services.provider_utils import choose_default_provider_model
-from dependencies import get_optional_user
+from services.provider_utils import (
+    choose_default_provider_model,
+    has_provider_api_key,
+)
+from dependencies import get_optional_user, get_current_user
 from routers.shared import ensure_file_access
 from models.schemas import SchemaSuggestRequest
 from config import get_settings
 import json
 
 router = APIRouter(prefix="/api/schemas", tags=["schemas"])
+
+PROVIDERS_YAML = Path(__file__).parent.parent / "config" / "providers.yaml"
+
+
+def _load_providers_config():
+    try:
+        with open(PROVIDERS_YAML) as f:
+            return yaml.safe_load(f)
+    except Exception:
+        return {}
+
+
+def _get_schema_suggestion_config():
+    config = _load_providers_config()
+    suggestion_cfg = config.get("schema_suggestion", {})
+    return suggestion_cfg.get("provider"), suggestion_cfg.get("model")
+
+
+def _resolve_schema_suggestion_target(
+    payload: SchemaSuggestRequest,
+) -> tuple[str, str]:
+    config_provider, config_model = _get_schema_suggestion_config()
+    candidates = [
+        (config_provider, config_model),
+        (payload.provider, payload.model),
+    ]
+
+    for provider_name, model in candidates:
+        if provider_name and model and has_provider_api_key(provider_name):
+            return provider_name, model
+
+    try:
+        return choose_default_provider_model()
+    except ValueError:
+        for provider_name, model in candidates:
+            if provider_name and model:
+                return provider_name, model
+        raise
 
 
 class SchemaCreate(BaseModel):
@@ -96,16 +139,8 @@ async def suggest_schema(
     current_user: dict | None = Depends(get_optional_user),
 ):
     settings = get_settings()
-    provider_name = payload.provider
-    model = payload.model
-    if not provider_name or not model:
-        provider_name, model = choose_default_provider_model()
-
-    api_key = getattr(settings, f"{provider_name}_api_key")
-    if not api_key:
-        raise HTTPException(
-            status_code=400, detail=f"No API key configured for {provider_name}"
-        )
+    provider_name, model = _resolve_schema_suggestion_target(payload)
+    api_key = getattr(settings, f"{provider_name}_api_key", "")
 
     file_records = []
     guest_token = request.headers.get("X-Guest-Token")
@@ -148,9 +183,9 @@ async def suggest_schema(
 
 @router.get("/suggestions/list")
 async def list_schema_suggestion_history(
-    current_user: dict | None = Depends(get_optional_user),
+    current_user: dict = Depends(get_current_user),
 ):
-    user_id = current_user.get("user_id") if current_user else None
+    user_id = None if current_user.get("is_admin", False) else current_user.get("user_id")
     return await crud.list_schema_suggestions(created_by_user_id=user_id)
 
 

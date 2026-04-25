@@ -1,7 +1,10 @@
+import logging
 from typing import Dict, Any, List, Optional
 from PIL import Image
 import json
 from .vlm_provider import VLMProvider
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiProvider(VLMProvider):
@@ -215,6 +218,84 @@ class GeminiProvider(VLMProvider):
                 }
 
             candidate = result["candidates"][0]
+            finish_reason = candidate.get("finishReason", "")
+
+            if finish_reason == "SAFETY":
+                safety_ratings = candidate.get("safetyRatings", [])
+                blocked_categories = [
+                    r.get("category", "unknown")
+                    for r in safety_ratings
+                    if r.get("probability", "") in ("HIGH", "NEGLIGIBLE")
+                    and r.get("blocked", False)
+                ]
+                return {
+                    "error": f"Response blocked by safety filters. Categories: {blocked_categories or 'unknown'}",
+                    "content": None,
+                    "model": model,
+                }
+
+            if finish_reason == "RECITATION":
+                return {
+                    "error": "Response blocked due to recitation policy",
+                    "content": None,
+                    "model": model,
+                }
+
+            if finish_reason == "MAX_TOKENS":
+                if "content" in candidate and "parts" in candidate["content"]:
+                    content_text = candidate["content"]["parts"][0].get("text", "")
+                    retry_max = min(max_tokens * 2, 65536)
+                    if retry_max > max_tokens:
+                        logger.warning(
+                            f"Gemini response hit MAX_TOKENS (limit={max_tokens}), retrying with {retry_max} tokens"
+                        )
+                        generation_config["maxOutputTokens"] = retry_max
+                        retry_response = await self.client.post(
+                            f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
+                            headers={"Content-Type": "application/json"},
+                            json={
+                                "contents": [{"parts": [{"text": prompt_text}]}],
+                                "generationConfig": generation_config,
+                            },
+                        )
+                        retry_response.raise_for_status()
+                        retry_result = retry_response.json()
+                        if (
+                            "candidates" in retry_result
+                            and len(retry_result["candidates"]) > 0
+                        ):
+                            retry_candidate = retry_result["candidates"][0]
+                            retry_finish = retry_candidate.get("finishReason", "")
+                            if (
+                                "content" in retry_candidate
+                                and "parts" in retry_candidate["content"]
+                                and len(retry_candidate["content"]["parts"]) > 0
+                                and "text" in retry_candidate["content"]["parts"][0]
+                            ):
+                                retry_text = retry_candidate["content"]["parts"][0][
+                                    "text"
+                                ]
+                                if retry_finish != "MAX_TOKENS" and retry_text.strip():
+                                    return {
+                                        "content": retry_text,
+                                        "model": model,
+                                        "usage": {
+                                            "prompt_tokens": retry_result.get(
+                                                "usageMetadata", {}
+                                            ).get("promptTokenCount", 0),
+                                            "completion_tokens": retry_result.get(
+                                                "usageMetadata", {}
+                                            ).get("candidatesTokenCount", 0),
+                                            "total_tokens": retry_result.get(
+                                                "usageMetadata", {}
+                                            ).get("totalTokenCount", 0),
+                                        },
+                                    }
+                return {
+                    "error": f"Response truncated (hit max_tokens={max_tokens}). Try reducing schema complexity or increasing max_tokens.",
+                    "content": content_text if content_text else None,
+                    "model": model,
+                }
 
             if "content" not in candidate:
                 return {
@@ -268,22 +349,13 @@ class GeminiProvider(VLMProvider):
     def get_models(self) -> List[Dict[str, Any]]:
         """Get available Gemini models with metadata"""
         return [
-            # Gemini 3 Series (Latest - Nov/Dec 2025)
             {
                 "id": "gemini-3-pro-preview",
                 "name": "Gemini 3 Pro Preview",
                 "tier": "premium",
                 "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Most intelligent multimodal model with advanced reasoning",
-            },
-            {
-                "id": "gemini-3-pro-image-preview",
-                "name": "Gemini 3 Pro Image Preview",
-                "tier": "premium",
-                "capabilities": ["vision", "image_generation"],
-                "context_window": 65536,
-                "description": "Image generation with advanced vision understanding",
+                "description": "Highest quality Gemini preview model",
             },
             {
                 "id": "gemini-3-flash-preview",
@@ -293,22 +365,21 @@ class GeminiProvider(VLMProvider):
                 "context_window": 1048576,
                 "description": "Balanced speed and intelligence for scale",
             },
-            # Gemini 2.5 Series (Stable - Jun/Jul 2025)
             {
                 "id": "gemini-2.5-pro",
                 "name": "Gemini 2.5 Pro",
                 "tier": "premium",
                 "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Advanced thinking model for complex reasoning",
+                "description": "Higher reasoning quality Gemini 2.5 tier",
             },
             {
                 "id": "gemini-2.5-flash",
                 "name": "Gemini 2.5 Flash",
                 "tier": "balanced",
-                "capabilities": ["vision", "thinking", "pdf", "video"],
+                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Best price-performance for large-scale processing",
+                "description": "Balanced speed and quality",
             },
             {
                 "id": "gemini-2.5-flash-lite",
@@ -318,14 +389,13 @@ class GeminiProvider(VLMProvider):
                 "context_window": 1048576,
                 "description": "Fastest, most cost-efficient model",
             },
-            # Gemini 2.0 Series (Previous Gen - Feb 2025)
             {
                 "id": "gemini-2.0-flash",
                 "name": "Gemini 2.0 Flash",
                 "tier": "balanced",
-                "capabilities": ["vision", "pdf", "video", "audio"],
+                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
                 "context_window": 1048576,
-                "description": "Second generation workhorse, 1M context",
+                "description": "Stable balanced Gemini model",
             },
         ]
 

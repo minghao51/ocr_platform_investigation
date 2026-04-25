@@ -16,6 +16,7 @@ from routers import (
     benchmarks,
     quality,
     analytics,
+    extract_settings,
 )
 from config import get_settings
 from limiter import limiter
@@ -79,6 +80,7 @@ app.include_router(text_processing.router)
 app.include_router(benchmarks.router)
 app.include_router(quality.router)
 app.include_router(analytics.router)
+app.include_router(extract_settings.router)
 
 # Mount static files for frontend assets
 static_dir = REPO_ROOT / "frontend" / "dist"

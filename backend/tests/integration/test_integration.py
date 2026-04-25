@@ -175,11 +175,11 @@ class TestUploadEndpoint:
 
     def test_upload_invalid_file_type(self, client, temp_db_env):
         """Test uploading an invalid file type."""
-        text_content = b"This is not an image"
+        binary_content = b"This is not an allowed file extension"
 
         response = client.post(
             "/api/upload",
-            files={"file": ("test.txt", text_content, "text/plain")},
+            files={"file": ("test.exe", binary_content, "application/octet-stream")},
             headers=get_auth_header(),
         )
 

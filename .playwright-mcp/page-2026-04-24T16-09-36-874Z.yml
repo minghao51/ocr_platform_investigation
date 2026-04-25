@@ -1,0 +1,100 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "OCR Platform" [level=1] [ref=e9]
+        - generic [ref=e10]:
+          - link "Home" [ref=e11] [cursor=pointer]:
+            - /url: /
+          - link "Extract" [ref=e12] [cursor=pointer]:
+            - /url: /extract
+            - img [ref=e13]
+            - text: Extract
+          - link "History" [ref=e15] [cursor=pointer]:
+            - /url: /history
+          - link "Methodology" [ref=e16] [cursor=pointer]:
+            - /url: /methodology
+          - link "Analytics" [ref=e17] [cursor=pointer]:
+            - /url: /analytics
+      - button "Guest mode" [ref=e19] [cursor=pointer]
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - heading "Smart Extraction" [level=1] [ref=e23]
+        - paragraph [ref=e24]: Upload your document. The extraction method is auto-detected based on file type, but you can override it.
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - 'heading "Step 1: Upload Document" [level=2] [ref=e27]'
+          - generic [ref=e76]:
+            - generic [ref=e77]:
+              - paragraph [ref=e78]: ocr_timeout_probe.pdf
+              - paragraph [ref=e79]: File uploaded successfully
+            - button "Change File" [ref=e80] [cursor=pointer]
+        - generic [ref=e40]:
+          - 'heading "Step 2: Select Method & Model" [level=2] [ref=e41]'
+          - generic [ref=e42]:
+            - generic [ref=e43]:
+              - generic [ref=e81]: Extraction Method
+              - generic [ref=e82]:
+                - button "Docling Local Extract" [ref=e83] [cursor=pointer]
+                - button "Docling + LLM" [ref=e84] [cursor=pointer]
+                - button "Auto" [disabled] [ref=e85]
+                - button "Text" [disabled] [ref=e86]
+                - button "Vision" [ref=e87] [cursor=pointer]
+                - button "Hybrid" [ref=e88] [cursor=pointer]
+                - button "Transcription" [ref=e89] [cursor=pointer]
+              - paragraph [ref=e90]: PDF appears to be image-based. Text extraction methods are available but may not work well.
+            - generic [ref=e91]:
+              - generic [ref=e92]: Provider
+              - combobox [ref=e93]:
+                - option "OpenRouter" [selected]
+                - option "Google Gemini"
+                - option "LiteLLM (Unified)"
+            - generic [ref=e94]:
+              - generic [ref=e95]: Model
+              - combobox [ref=e96]:
+                - option "Qwen3.6 Plus (Free) — 29.1% acc" [selected]
+                - option "Qwen3.5 Flash — 63.8% acc"
+                - option "Gemini 2.5 Flash Lite"
+                - option "Gemini 2.5 Flash"
+                - option "Gemini 3 Flash Preview — 68.6% acc"
+                - option "Grok 4.1 Fast"
+                - option "GPT-4.1 Mini"
+                - option "Gemma 4 31B IT"
+        - generic [ref=e49]:
+          - 'heading "Step 3: Schema Configuration" [level=2] [ref=e50]'
+          - generic [ref=e52]:
+            - button "Raw" [ref=e53] [cursor=pointer]
+            - button "Auto-detect" [ref=e54] [cursor=pointer]
+            - button "Manual" [ref=e55] [cursor=pointer]
+          - paragraph [ref=e98]:
+            - strong [ref=e99]: "Raw output:"
+            - text: Output will be raw text/markdown without structure. No schema is required.
+        - button "Advanced Options (click to expand)" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - text: Advanced Options
+          - generic [ref=e72]: (click to expand)
+        - generic [ref=e73]:
+          - button "Processing..." [disabled] [ref=e100]
+          - paragraph [ref=e75]: Guest processing is rate-limited and temporary. Sign in from the top-right menu if you want persistent account history.
+        - generic [ref=e101]:
+          - heading "Results" [level=2] [ref=e102]
+          - generic [ref=e103]:
+            - generic [ref=e104]:
+              - generic [ref=e105]: "Requested:"
+              - generic [ref=e106]: Docling + LLM
+            - generic [ref=e107]:
+              - generic [ref=e108]:
+                - heading "Processing Status" [level=3] [ref=e109]
+                - generic [ref=e110]: PROCESSING
+              - generic [ref=e111]:
+                - generic [ref=e112]: File:ocr_timeout_probe.pdf
+                - generic [ref=e113]: Type:pdf
+                - generic [ref=e114]: Provider:openrouter
+                - generic [ref=e115]: Model:qwen/qwen3.6-plus:free
+                - generic [ref=e116]: Schema:Raw
+                - generic [ref=e117]: Elapsed Time:52s
+                - generic [ref=e118]: Created:24/04/2026, 16:08:43
+              - generic [ref=e119]:
+                - img [ref=e120]
+                - paragraph [ref=e123]: Processing document...

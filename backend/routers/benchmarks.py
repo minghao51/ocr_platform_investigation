@@ -65,6 +65,7 @@ async def compare_models(
                 "run_id": run["id"],
                 "provider": run["provider"],
                 "model": run["model"],
+                "processing_method": run.get("processing_method", "vision"),
                 "sample_count": run["sample_count"],
                 "overall_accuracy": run["overall_accuracy"],
                 "avg_latency": run["avg_latency"],
@@ -78,3 +79,26 @@ async def compare_models(
 
     comparison.sort(key=lambda x: x["overall_accuracy"], reverse=True)
     return {"runs": comparison[:limit]}
+
+
+@router.get("/models")
+async def get_benchmarked_models():
+    """Return all provider/model combos that have benchmark data."""
+    runs = await crud.list_benchmark_runs(limit=500)
+
+    models = {}
+    for run in runs:
+        key = (run["provider"], run["model"])
+        if key not in models or (run.get("overall_accuracy") is not None and run.get("id", 0) > models[key].get("run_id", 0)):
+            models[key] = {
+                "provider": run["provider"],
+                "model": run["model"],
+                "run_id": run["id"],
+                "accuracy": run.get("overall_accuracy"),
+                "avg_latency": run.get("avg_latency"),
+                "total_cost": run.get("total_cost"),
+                "sample_count": run.get("sample_count"),
+                "success_rate": run.get("success_rate"),
+            }
+
+    return list(models.values())

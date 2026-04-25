@@ -46,9 +46,9 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
       case 'hybrid':
         return 'Hybrid Extraction';
       case 'docling-parse':
-        return 'Docling Parse';
+        return 'PyMuPDF + LLM';
       case 'docling-extract':
-        return 'Docling Extract';
+        return 'Docling Local Extract';
       case 'transcription':
         return 'Transcription';
       default:
@@ -65,9 +65,9 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
       case 'vision':
         return 'Vision Pipeline (Accurate)';
       case 'docling-parse':
-        return 'Docling Parse';
+        return 'PyMuPDF + LLM';
       case 'docling-extract':
-        return 'Docling Extract';
+        return 'Docling Local Extract';
       case 'transcription':
         return 'Transcription';
       default:
@@ -107,7 +107,7 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
       case 'docling-parse':
         return 'Multi-format support with cost-optimized extraction';
       case 'docling-extract':
-        return 'Best accuracy with local VLM (86% on CORD)';
+        return 'Local structured extraction with Docling';
       case 'transcription':
         return 'Full document transcription to Markdown';
       default:

@@ -38,8 +38,8 @@ const navItems: Array<{
     label: 'Methodology',
   },
   {
-    to: '/analytics',
-    label: 'Analytics',
+    to: '/benchmarks',
+    label: 'Benchmarks',
   },
 ];
 
@@ -224,7 +224,6 @@ function App() {
               }
             />
             <Route path="/methodology" element={<MethodologyPage />} />
-            <Route path="/analytics" element={<BenchmarksPage />} />
             <Route path="/benchmarks" element={<BenchmarksPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

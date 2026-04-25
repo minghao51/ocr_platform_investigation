@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface AdvancedOptionsProps {
   prompt: string;
@@ -7,7 +7,6 @@ interface AdvancedOptionsProps {
   onPromptChange: (prompt: string) => void;
   onTemperatureChange: (temperature: number) => void;
   onMaxTokensChange: (maxTokens: number) => void;
-  // Quality gate options
   qualityThreshold: number;
   autoPreprocess: boolean;
   skipQuality: boolean;
@@ -18,6 +17,12 @@ interface AdvancedOptionsProps {
     prompt?: string;
     temperature?: string;
     maxTokens?: string;
+  };
+  settings?: {
+    temperature?: { min?: number; max?: number; step?: number };
+    max_tokens?: { min?: number; max?: number; step?: number };
+    quality_threshold?: { min?: number; max?: number; step?: number };
+    prompt_max_length?: number;
   };
 }
 
@@ -35,10 +40,23 @@ export default function AdvancedOptions({
   onAutoPreprocessChange,
   onSkipQualityChange,
   errors,
+  settings,
 }: AdvancedOptionsProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  const tempMin = settings?.temperature?.min ?? 0;
+  const tempMax = settings?.temperature?.max ?? 1;
+  const tempStep = settings?.temperature?.step ?? 0.1;
+  const tokensMin = settings?.max_tokens?.min ?? 256;
+  const tokensMax = settings?.max_tokens?.max ?? 32768;
+  const qualityMin = settings?.quality_threshold?.min ?? 0;
+  const qualityMax = settings?.quality_threshold?.max ?? 80;
+  const qualityStep = settings?.quality_threshold?.step ?? 5;
+  const promptMaxLen = settings?.prompt_max_length ?? 2000;
+
   const handleTemperatureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
-    if (!isNaN(value) && value >= 0 && value <= 2) {
+    if (!isNaN(value) && value >= tempMin && value <= tempMax) {
       onTemperatureChange(value);
     }
   };
@@ -57,29 +75,47 @@ export default function AdvancedOptions({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-0">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+      >
+        <svg
+          className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        Advanced Options
+        <span className="text-xs text-gray-400 font-normal">(click to expand)</span>
+      </button>
+      {expanded && (
+    <div className="space-y-6 mt-4">
       {/* Custom Prompt */}
       <div>
         <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-2">
-          Custom Prompt <span className="text-gray-400 font-normal">(Optional)</span>
+          Custom Prompt <span className="text-gray-400 font-normal">(Overrides Default)</span>
         </label>
         <textarea
           id="prompt"
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          maxLength={2000}
+          maxLength={promptMaxLen}
           rows={4}
           className={`
             w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500
             ${errors?.prompt ? 'border-red-300' : 'border-gray-300'}
           `}
-          placeholder="Enter custom instructions for the AI model to guide extraction behavior..."
+          placeholder="Your instructions replace the default extraction prompt..."
         />
         <div className="mt-1 flex justify-between items-center">
           <p className="text-xs text-gray-500">
-            Provide specific instructions to improve extraction quality
+            Replaces the default extraction prompt with your custom instructions
           </p>
-          <span className="text-xs text-gray-400">{prompt.length}/2000</span>
+          <span className="text-xs text-gray-400">{prompt.length}/{promptMaxLen}</span>
         </div>
         {errors?.prompt && (
           <p className="mt-1 text-sm text-red-600">{errors.prompt}</p>
@@ -110,16 +146,16 @@ export default function AdvancedOptions({
         </div>
         <input
           type="range"
-          min="0"
-          max="1"
-          step="0.1"
+          min={tempMin}
+          max={tempMax}
+          step={tempStep}
           value={temperature}
           onChange={handleTemperatureChange}
           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
         />
         <div className="mt-1 flex justify-between text-xs text-gray-500">
-          <span>More focused (0.0)</span>
-          <span>More creative (1.0)</span>
+          <span>More focused ({tempMin})</span>
+          <span>More creative ({tempMax})</span>
         </div>
         {errors?.temperature && (
           <p className="mt-1 text-sm text-red-600">{errors.temperature}</p>
@@ -129,21 +165,21 @@ export default function AdvancedOptions({
       {/* Max Tokens */}
       <div>
         <label htmlFor="maxTokens" className="block text-sm font-medium text-gray-700 mb-2">
-          Max Tokens <span className="text-gray-400 font-normal">(256 - 32768)</span>
+          Max Tokens <span className="text-gray-400 font-normal">({tokensMin} - {tokensMax})</span>
         </label>
         <input
           type="number"
           id="maxTokens"
           value={maxTokens}
           onChange={handleMaxTokensChange}
-          min="256"
-          max="32768"
+          min={tokensMin}
+          max={tokensMax}
           step="1"
           className={`
             w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500
             ${errors?.maxTokens ? 'border-red-300' : 'border-gray-300'}
           `}
-          placeholder="4096"
+          placeholder="8192"
         />
         <p className="mt-1 text-xs text-gray-500">
           Maximum number of tokens the model can generate. Higher values allow longer responses but may be slower.
@@ -223,16 +259,16 @@ export default function AdvancedOptions({
                 <input
                   type="range"
                   id="qualityThreshold"
-                  min="0"
-                  max="80"
-                  step="5"
+                  min={qualityMin}
+                  max={qualityMax}
+                  step={qualityStep}
                   value={qualityThreshold}
                   onChange={(e) => onQualityThresholdChange(parseFloat(e.target.value))}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
                 <div className="mt-1 flex justify-between text-xs text-gray-500">
-                  <span>Lenient (0)</span>
-                  <span>Strict (80)</span>
+                  <span>Lenient ({qualityMin})</span>
+                  <span>Strict ({qualityMax})</span>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
                   Images scoring below this threshold will be rejected (after auto-preprocessing if enabled)
@@ -242,6 +278,8 @@ export default function AdvancedOptions({
           )}
         </div>
       </div>
+    </div>
+      )}
     </div>
   );
 }

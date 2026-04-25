@@ -4,10 +4,13 @@ from typing import Optional, Dict, Any, Literal, List
 
 class ProcessRequest(BaseModel):
     file_id: str
-    provider: str  # 'openrouter', 'gemini'
-    model: str
+    provider: Optional[str] = None
+    model: Optional[str] = None
     schema_id: Optional[int] = None
     schema_definition: Optional[Dict[str, Any]] = None
+    schema_mode: Optional[
+        Literal["raw", "auto-detect", "manual"]
+    ] = "auto-detect"
     extraction_method: Optional[
         Literal[
             "auto",
@@ -21,7 +24,7 @@ class ProcessRequest(BaseModel):
     ] = "auto"
     prompt: Optional[str] = "Extract all information from this document"
     temperature: Optional[float] = 0.1
-    max_tokens: Optional[int] = 4096
+    max_tokens: Optional[int] = 8192
     # Quality gate options
     quality_threshold: Optional[float] = (
         40.0  # Minimum quality score to proceed (0-100)

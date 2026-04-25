@@ -29,6 +29,44 @@ const accentClasses: Record<string, string> = {
   slate: 'border-gray-200 bg-gray-50 text-gray-700',
 };
 
+const extractionMethods = [
+  {
+    name: 'Auto',
+    description: 'Automatically selects the best extraction method based on document type.',
+    color: 'border-purple-300 bg-purple-50 text-purple-800',
+  },
+  {
+    name: 'Text',
+    description: 'Fast text extraction from digital PDFs with selectable text.',
+    color: 'border-green-300 bg-green-50 text-green-800',
+  },
+  {
+    name: 'Vision',
+    description: 'AI vision models for scanned PDFs, images, and complex layouts.',
+    color: 'border-blue-300 bg-blue-50 text-blue-800',
+  },
+  {
+    name: 'Hybrid',
+    description: 'Combines text extraction and vision processing for best results.',
+    color: 'border-orange-300 bg-orange-50 text-orange-800',
+  },
+  {
+    name: 'Docling Parse',
+    description: 'Multi-format support. Free extraction + cheap structuring.',
+    color: 'border-indigo-300 bg-indigo-50 text-indigo-800',
+  },
+  {
+    name: 'Docling Extract',
+    description: 'Best accuracy (86%). Local VLM, completely free, 100% private.',
+    color: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+  },
+  {
+    name: 'Transcription',
+    description: 'Full document/audio transcription to Markdown.',
+    color: 'border-teal-300 bg-teal-50 text-teal-800',
+  },
+];
+
 export default function LandingPage({ isAuthenticated, username }: LandingPageProps) {
   return (
     <div className="max-w-6xl mx-auto px-6 py-10 space-y-8">
@@ -80,13 +118,31 @@ export default function LandingPage({ isAuthenticated, username }: LandingPagePr
         ))}
       </section>
 
+      <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-900 mb-1">Extraction Methods</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          The platform auto-selects the best method based on your file. Here's what's available.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {extractionMethods.map((method) => (
+            <div
+              key={method.name}
+              className={`rounded-lg border p-3 ${method.color}`}
+            >
+              <h3 className="text-sm font-semibold">{method.name}</h3>
+              <p className="mt-1 text-xs opacity-80">{method.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">How it works</h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
             {[
-              ['1', 'Upload', 'PDFs and images are supported.'],
-              ['2', 'Configure', 'Select model + schema for your extraction target.'],
+              ['1', 'Upload', 'PDFs, images, DOCX, PPTX, audio, and more are supported.'],
+              ['2', 'Configure', 'Method is auto-detected. Select model + schema.'],
               ['3', 'Process', 'Track status and inspect structured results.'],
             ].map(([step, title, desc]) => (
               <div key={step} className="rounded-lg border border-gray-200 bg-gray-50 p-4">

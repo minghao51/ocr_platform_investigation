@@ -9,8 +9,8 @@ interface ProcessingPageProps {
 export default function ProcessingPage({ isAuthenticated }: ProcessingPageProps) {
   const processWrapper = async (
     fileId: string,
-    provider: string,
-    model: string,
+    provider: string | undefined,
+    model: string | undefined,
     extractionMethod: ExtractionMethod,
     schemaId?: number,
     schemaDefinition?: Record<string, unknown>,
@@ -20,14 +20,14 @@ export default function ProcessingPage({ isAuthenticated }: ProcessingPageProps)
     qualityThreshold?: number,
     autoPreprocess?: boolean,
     skipQuality?: boolean,
+    schemaMode?: 'raw' | 'auto-detect' | 'manual',
   ) => {
     const request: ProcessRequest = {
       file_id: fileId,
-      provider,
-      model,
       extraction_method: extractionMethod,
       schema_id: schemaId,
       schema_definition: schemaDefinition,
+      schema_mode: schemaMode,
       prompt,
       temperature,
       max_tokens: maxTokens,
@@ -35,6 +35,12 @@ export default function ProcessingPage({ isAuthenticated }: ProcessingPageProps)
       auto_preprocess: autoPreprocess,
       skip_quality: skipQuality,
     };
+    if (provider) {
+      request.provider = provider;
+    }
+    if (model) {
+      request.model = model;
+    }
 
     return processDocument(request);
   };
@@ -42,10 +48,9 @@ export default function ProcessingPage({ isAuthenticated }: ProcessingPageProps)
   return (
     <BaseExtractionPage
       title="Smart Extraction"
-      description="Upload your document and choose the extraction method that best fits your needs. Auto mode automatically selects the optimal method based on document type."
+      description="Upload your document. The extraction method is auto-detected based on file type, but you can override it."
       processFunction={processWrapper}
       processingMethod="auto"
-      showModeSelector={true}
       isAuthenticated={isAuthenticated}
     />
   );

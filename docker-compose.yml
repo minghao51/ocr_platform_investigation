@@ -8,10 +8,12 @@ services:
       - "8001:8000"
     volumes:
       - ./data:/app/data
+      - ./data/model-cache:/app/model-cache
       - ./.env:/app/.env:ro
       - ./.env.keys:/app/.env.keys:ro
     environment:
       - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/model-cache/huggingface
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

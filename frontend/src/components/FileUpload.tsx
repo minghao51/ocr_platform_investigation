@@ -20,17 +20,18 @@ export default function FileUpload({
   const acceptedTypes = [
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
     'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain',
     'text/markdown',
     'text/html',
+    'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/ogg', 'audio/flac',
   ];
   const maxSize = 10 * 1024 * 1024; // 10MB
 
   const validateFile = (file: File): string | null => {
     if (!acceptedTypes.includes(file.type)) {
-      return 'Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP), PDF, DOCX, PPTX, TXT, MD, or HTML file.';
+      return 'Invalid file type. Please upload an image, PDF, DOCX, PPTX, TXT, MD, HTML, or audio file (MP3, WAV, M4A, OGG, FLAC).';
     }
     if (file.size > maxSize) {
       return 'File size exceeds 10MB limit.';
@@ -125,7 +126,7 @@ export default function FileUpload({
             {disabled ? disabledMessage : 'Drag and drop, or click to browse'}
           </p>
           <p className="text-xs text-gray-400 mt-2">
-            Supports: JPEG, PNG, GIF, WebP, PDF, DOCX, PPTX, TXT, MD, HTML (max 10MB)
+            Supports: JPEG, PNG, GIF, WebP, PDF, DOCX, PPTX, TXT, MD, HTML, MP3, WAV, M4A, OGG, FLAC (max 10MB)
           </p>
         </div>
 

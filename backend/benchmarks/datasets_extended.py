@@ -8,11 +8,25 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# Import base classes from datasets.py
+import importlib
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent))
-from datasets import BenchmarkSample, BENCHMARKS_DIR, load_cord_samples
+# Import HuggingFace datasets FIRST, before local path manipulation
+try:
+    _hf_datasets = importlib.import_module("datasets")
+    hf_load_dataset_fn = _hf_datasets.load_dataset
+except (ImportError, AttributeError):
+    hf_load_dataset_fn = None
+
+# Now add local benchmarks dir to import local datasets.py
+_local_benchmarks_dir = str(Path(__file__).parent)
+if _local_benchmarks_dir not in sys.path:
+    sys.path.insert(0, _local_benchmarks_dir)
+
+_local_datasets = importlib.import_module("benchmarks.datasets")
+BenchmarkSample = _local_datasets.BenchmarkSample
+BENCHMARKS_DIR = _local_datasets.BENCHMARKS_DIR
+load_cord_samples = _local_datasets.load_cord_samples
 
 
 # ============================================================================
@@ -137,6 +151,141 @@ def load_funds_samples(
             )
         except Exception as e:
             print(f"Warning: Failed to load FUNSD sample {json_file}: {e}")
+            continue
+
+    return samples
+
+
+# ============================================================================
+# HuggingFace Invoice Dataset (mychen76/invoices-and-receipts_ocr_v1)
+# ============================================================================
+
+HF_INVOICE_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "invoice_no": {"type": "string", "description": "Invoice number"},
+        "invoice_date": {"type": "string", "description": "Date of issue"},
+        "seller": {"type": "string", "description": "Seller name"},
+        "client": {"type": "string", "description": "Client name"},
+        "seller_tax_id": {"type": "string", "description": "Seller tax ID"},
+        "client_tax_id": {"type": "string", "description": "Client tax ID"},
+        "iban": {"type": "string", "description": "IBAN"},
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "item_desc": {"type": "string", "description": "Item description"},
+                    "item_qty": {"type": "number", "description": "Quantity"},
+                    "item_net_price": {"type": "number", "description": "Unit price"},
+                    "item_net_worth": {"type": "number", "description": "Net worth"},
+                    "item_vat": {"type": "number", "description": "VAT amount"},
+                    "item_gross_worth": {"type": "number", "description": "Gross worth"},
+                },
+                "required": ["item_desc", "item_gross_worth"],
+            },
+        },
+        "total_net_worth": {"type": "number", "description": "Total net"},
+        "total_vat": {"type": "number", "description": "Total VAT"},
+        "total_gross_worth": {"type": "number", "description": "Total gross"},
+    },
+    "required": ["invoice_no", "total_gross_worth"],
+}
+
+
+def _flatten_invoice_ground_truth(gt_parse: Dict[str, Any]) -> Dict[str, Any]:
+    header = gt_parse.get("header", {})
+    result: Dict[str, Any] = {}
+
+    for key in ("invoice_no", "invoice_date", "seller", "client", "seller_tax_id", "client_tax_id", "iban"):
+        val = header.get(key)
+        if val is not None:
+            result[key] = val
+
+    items = gt_parse.get("items")
+    if items is not None:
+        result["items"] = items
+
+    total = gt_parse.get("total", gt_parse.get("summary", {}))
+    for key in ("total_net_worth", "total_vat", "total_gross_worth"):
+        val = total.get(key)
+        if val is not None:
+            result[key] = val
+
+    return result
+
+
+def _parse_python_dict_literal(s: str) -> Dict[str, Any]:
+    """Parse a Python dict literal string (single quotes) into a dict."""
+    import ast
+    try:
+        return ast.literal_eval(s)
+    except (ValueError, SyntaxError):
+        return json.loads(s.replace("'", '"'))
+
+
+def load_invoice_samples(
+    limit: Optional[int] = None,
+    split: str = "test",
+) -> List[BenchmarkSample]:
+    if hf_load_dataset_fn is None:
+        raise ImportError(
+            "The 'datasets' library is required to load the invoice dataset. "
+            "Install it with: uv add datasets"
+        )
+
+    cache_dir = BENCHMARKS_DIR / "invoices" / "images"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    dataset = hf_load_dataset_fn("mychen76/invoices-and-receipts_ocr_v1", split=split)
+
+    samples: List[BenchmarkSample] = []
+    max_count = limit if limit else len(dataset)
+
+    for idx, row in enumerate(dataset):
+        if len(samples) >= max_count:
+            break
+
+        try:
+            parsed_data = row.get("parsed_data")
+            if not parsed_data:
+                continue
+
+            if isinstance(parsed_data, str):
+                parsed = _parse_python_dict_literal(parsed_data)
+            else:
+                parsed = parsed_data
+
+            json_str = parsed.get("json", "")
+            if not json_str:
+                continue
+
+            if isinstance(json_str, str):
+                gt_parse = _parse_python_dict_literal(json_str)
+            else:
+                gt_parse = json_str
+
+            expected = _flatten_invoice_ground_truth(gt_parse)
+
+            image = row.get("image")
+            if image is None:
+                continue
+
+            img_path = str(cache_dir / f"invoice_{split}_{idx:05d}.png")
+            if not Path(img_path).exists():
+                image.save(img_path)
+
+            samples.append(
+                BenchmarkSample(
+                    image_path=img_path,
+                    expected=expected,
+                    schema=HF_INVOICE_SCHEMA,
+                    source="invoice",
+                    sample_index=idx,
+                )
+            )
+        except Exception as e:
+            print(f"Warning: Failed to load invoice sample {idx}: {e}")
             continue
 
     return samples
@@ -292,6 +441,7 @@ def load_synthetic_invoice_samples(
 DATASET_LOADERS: Dict[str, callable] = {
     "cord": load_cord_samples,
     "funds": load_funds_samples,
+    "invoice": load_invoice_samples,
     "synthetic_invoice": load_synthetic_invoice_samples,
 }
 
@@ -330,6 +480,8 @@ def load_dataset(
     if data_dir and dataset_name in ["cord", "funds"]:
         kwargs["data_dir"] = data_dir
     if dataset_name in ["cord", "funds"]:
+        kwargs["split"] = split
+    if dataset_name == "invoice":
         kwargs["split"] = split
 
     return loader(**kwargs)

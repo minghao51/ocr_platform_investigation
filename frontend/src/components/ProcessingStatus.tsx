@@ -54,6 +54,7 @@ export default function ProcessingStatus({ job }: ProcessingStatusProps) {
   };
 
   const isCompleted = job.status === 'success' || job.status === 'error';
+  const isLocalDoclingJob = job.provider === 'docling-local';
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -75,11 +76,11 @@ export default function ProcessingStatus({ job }: ProcessingStatusProps) {
         </div>
         <div>
           <span className="text-gray-500">Provider:</span>
-          <span className="ml-2 font-medium">{job.provider}</span>
+          <span className="ml-2 font-medium">{isLocalDoclingJob ? 'Local (Docling)' : job.provider}</span>
         </div>
         <div>
           <span className="text-gray-500">Model:</span>
-          <span className="ml-2 font-medium">{job.model}</span>
+          <span className="ml-2 font-medium">{isLocalDoclingJob ? 'Built-in local extractor' : job.model}</span>
         </div>
         <div>
           <span className="text-gray-500">Schema:</span>

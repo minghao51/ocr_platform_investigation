@@ -7,7 +7,7 @@ import pytest
 import pytest_asyncio
 from unittest.mock import MagicMock, patch
 
-from benchmarks.runner import run_benchmark, _process_single_sample
+from benchmarks.runner import run_benchmark, _process_vision_sample as _process_single_sample
 from database.pool import connect
 from database.migrations import run_migrations
 
@@ -256,10 +256,21 @@ class TestRunBenchmark:
                 "usage": {"prompt_tokens": 500, "completion_tokens": 200},
             }
 
+        class _MockProvider:
+            def get_default_image_size(self):
+                return (1024, 1024)
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def process_image(self, *args, **kwargs):
+                return await mock_process(*args, **kwargs)
+
         with patch("benchmarks.datasets_extended.load_dataset", return_value=samples):
-            mock_provider = MagicMock()
-            mock_provider.get_default_image_size = MagicMock(return_value=(1024, 1024))
-            mock_provider.process_image = mock_process
+            mock_provider = _MockProvider()
 
             processing_service = MagicMock()
             processing_service.get_provider = MagicMock(return_value=mock_provider)

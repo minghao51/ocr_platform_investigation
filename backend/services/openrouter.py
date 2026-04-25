@@ -192,8 +192,8 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "name": "Qwen3.6 Plus (Free)",
                 "tier": "free",
                 "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 1000000,
-                "description": "Free, strong reasoning, 1M context",
+                "context_window": 262144,
+                "description": "Free tier model for low-cost extraction",
             },
             {
                 "id": "qwen/qwen3.5-flash-02-23",
@@ -217,7 +217,7 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "tier": "balanced",
                 "capabilities": ["vision", "reasoning", "structured_output"],
                 "context_window": 1048576,
-                "description": "Best price-performance for scale",
+                "description": "Balanced Gemini model via OpenRouter",
             },
             {
                 "id": "google/gemini-3-flash-preview",
@@ -240,8 +240,16 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                 "name": "GPT-4.1 Mini",
                 "tier": "balanced",
                 "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 1000000,
-                "description": "Solid mid-tier, 1M context",
+                "context_window": 1048576,
+                "description": "General-purpose compact multimodal model",
+            },
+            {
+                "id": "google/gemma-4-31b-it",
+                "name": "Gemma 4 31B IT",
+                "tier": "lite",
+                "capabilities": ["vision", "reasoning", "structured_output"],
+                "context_window": 262144,
+                "description": "Google open VLM, strong OCR and table extraction",
             },
         ]
 

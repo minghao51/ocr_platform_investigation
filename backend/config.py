@@ -9,14 +9,13 @@ class Settings(BaseSettings):
     # VLM Provider API Keys
     openrouter_api_key: str = ""
     gemini_api_key: str = ""
-    openai_api_key: str = ""
-    anthropic_api_key: str = ""
 
     # Database
     database_url: str = f"sqlite:///{DB_PATH}"
 
     # File Upload
     max_file_size: int = 10 * 1024 * 1024  # 10MB
+    docling_parse_timeout_seconds: int = 60
 
     # CORS Origins (comma-separated list, will be parsed into list)
     cors_origins_str: str = Field(

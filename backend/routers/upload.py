@@ -5,6 +5,7 @@ from config import get_settings
 from database import crud
 from dependencies import get_optional_user
 from limiter import limiter, get_rate_limit_value
+from routers.shared import ensure_file_access
 import uuid
 import secrets
 from paths import UPLOAD_DIR
@@ -14,7 +15,8 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".pptx", ".txt", ".md", ".html"}
-ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
+ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS | AUDIO_EXTENSIONS
 
 
 @router.post("/")
@@ -60,6 +62,8 @@ async def upload_file(
         file_type = "image"
     elif file_ext == ".pdf":
         file_type = "pdf"
+    elif file_ext in AUDIO_EXTENSIONS:
+        file_type = "audio"
     else:
         file_type = "document"
     content_type_map = {
@@ -74,6 +78,11 @@ async def upload_file(
         ".txt": "text/plain",
         ".md": "text/markdown",
         ".html": "text/html",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".m4a": "audio/mp4",
+        ".ogg": "audio/ogg",
+        ".flac": "audio/flac",
     }
     content_type = content_type_map.get(file_ext, "application/octet-stream")
 
@@ -99,3 +108,49 @@ async def upload_file(
         payload["guest_token"] = guest_token
 
     return JSONResponse(payload)
+
+
+@router.post("/analyze-pdf/{file_id}")
+async def analyze_pdf(
+    file_id: str,
+    request: Request,
+    current_user: dict | None = Depends(get_optional_user),
+):
+    """Quick PDF text-layer detection for frontend method auto-selection."""
+    file_record = await crud.get_uploaded_file(file_id)
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    ensure_file_access(file_record, current_user, request.headers.get("X-Guest-Token"))
+
+    file_path = Path(file_record["file_path"])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File has been deleted or moved")
+
+    file_ext = (file_record["file_extension"] or "").lower()
+    if file_ext != ".pdf":
+        raise HTTPException(status_code=400, detail="File is not a PDF")
+
+    try:
+        import fitz
+
+        doc = fitz.open(str(file_path))
+        total_chars = 0
+        for page in doc:
+            total_chars += len(page.get_text("text").strip())
+        doc.close()
+
+        has_text = total_chars > 50
+        return {
+            "file_id": file_id,
+            "has_text_layer": has_text,
+            "text_chars": total_chars,
+            "suggested_methods": (
+                ["text", "vision", "hybrid", "docling-parse", "docling-extract", "transcription"]
+                if has_text
+                else ["vision", "hybrid", "docling-parse", "docling-extract", "transcription"]
+            ),
+        }
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF analysis not available")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF analysis failed: {str(e)}")

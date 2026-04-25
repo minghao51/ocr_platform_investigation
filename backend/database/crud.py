@@ -274,6 +274,7 @@ async def list_jobs(
     provider: Optional[str] = None,
     user_id: Optional[int] = None,
     limit: int = 100,
+    offset: int = 0,
 ) -> List[Dict[str, Any]]:
     """List jobs with optional filters"""
     async with connect() as db:
@@ -294,8 +295,9 @@ async def list_jobs(
             query += " AND user_id = ?"
             params.append(user_id)
 
-        query += " ORDER BY created_at DESC LIMIT ?"
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
         params.append(limit)
+        params.append(offset)
 
         cursor = await db.execute(query, params)
         rows = await cursor.fetchall()
@@ -429,14 +431,15 @@ async def create_benchmark_run(
     provider: str,
     model: str,
     sample_count: int,
+    processing_method: str = "vision",
 ) -> int:
     """Create a new benchmark run record"""
     async with connect() as db:
         cursor = await db.execute(
             """INSERT INTO benchmark_runs
-               (dataset, provider, model, sample_count)
-               VALUES (?, ?, ?, ?)""",
-            (dataset, provider, model, sample_count),
+               (dataset, provider, model, sample_count, processing_method)
+               VALUES (?, ?, ?, ?, ?)""",
+            (dataset, provider, model, sample_count, processing_method),
         )
         await db.commit()
         return cursor.lastrowid
@@ -483,6 +486,7 @@ async def add_benchmark_result(
     actual_json: Optional[str] = None,
     field_scores: Optional[str] = None,
     error_message: Optional[str] = None,
+    peak_memory_mb: Optional[float] = None,
 ) -> int:
     """Add a single benchmark result"""
     async with connect() as db:
@@ -490,8 +494,8 @@ async def add_benchmark_result(
             """INSERT INTO benchmark_results
                (run_id, sample_index, file_path, accuracy_score, latency, cost,
                 prompt_tokens, completion_tokens, expected_json, actual_json,
-                field_scores, error_message)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                field_scores, error_message, peak_memory_mb)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id,
                 sample_index,
@@ -505,6 +509,7 @@ async def add_benchmark_result(
                 actual_json,
                 field_scores,
                 error_message,
+                peak_memory_mb,
             ),
         )
         await db.commit()
@@ -591,7 +596,10 @@ async def get_benchmark_results(run_id: int) -> List[Dict[str, Any]]:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM benchmark_results WHERE run_id = ? ORDER BY sample_index",
+            """SELECT id, run_id, sample_index, file_path, accuracy_score, latency, cost,
+                      prompt_tokens, completion_tokens, expected_json, actual_json,
+                      field_scores, error_message, peak_memory_mb
+               FROM benchmark_results WHERE run_id = ? ORDER BY sample_index""",
             (run_id,),
         )
         rows = await cursor.fetchall()

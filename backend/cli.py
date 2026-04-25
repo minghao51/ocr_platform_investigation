@@ -456,7 +456,7 @@ def print_help():
     print("  uv run python -m backend.cli list-users")
     print("  uv run python -m backend.cli change-password admin1 newpass456")
     print(
-        "  uv run python -m backend.cli run-benchmark --provider nebius --model Qwen/Qwen2.5-VL-72B-Instruct"
+        "  uv run python -m backend.cli run-benchmark --provider openrouter --model google/gemini-3-flash-preview"
     )
     print("  uv run python -m backend.cli list-benchmarks")
     print("  uv run python -m backend.cli show-benchmark 1")

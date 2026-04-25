@@ -1,5 +1,7 @@
 import time
 import json
+import asyncio
+import logging
 from typing import Dict, Any, Optional, Type
 from pathlib import Path
 from services.vlm_provider import VLMProvider
@@ -15,10 +17,12 @@ from services.docling_service import DoclingService
 from services.chunking_service import MarkdownSplitter
 from services.transcription_service import TranscriptionService
 from services.provider_utils import resolve_provider_api_key
+from config import get_settings
 from database import crud
 
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15MB
 CHUNK_THRESHOLD_RATIO = 0.8
+logger = logging.getLogger(__name__)
 
 def parse_and_validate_response(
     content: str,
@@ -95,7 +99,7 @@ async def update_job_status_with_broadcast(
 class ProcessingService:
     """Main processing pipeline with quality gate"""
 
-    def __init__(self, quality_threshold: float = 40.0, auto_preprocess: bool = True):
+    def __init__(self, quality_threshold: float = 40.0, auto_preprocess: bool = True, skip_quality: bool = False):
         self.providers = {
             "openrouter": OpenRouterProvider,
             "gemini": GeminiProvider,
@@ -109,8 +113,55 @@ class ProcessingService:
         self.docling_service = DoclingService()
         self.chunking_service = MarkdownSplitter()
         self.transcription_service = TranscriptionService()
+        self.docling_parse_timeout_seconds = max(
+            1, int(get_settings().docling_parse_timeout_seconds)
+        )
         self.quality_threshold = quality_threshold
         self.auto_preprocess = auto_preprocess
+        self.skip_quality = skip_quality
+
+    def _extract_markdown_with_pymupdf(self, file_path: str) -> str:
+        import fitz  # PyMuPDF
+
+        doc = fitz.open(file_path)
+        try:
+            parts = []
+            for i, page in enumerate(doc, start=1):
+                try:
+                    page_markdown = page.get_text("markdown").strip()
+                except Exception:
+                    page_markdown = ""
+                if not page_markdown:
+                    page_markdown = page.get_text("text").strip()
+                if page_markdown:
+                    parts.append(f"\n\n--- PAGE {i} ---\n\n{page_markdown}")
+            if not parts:
+                raise ValueError("No text extracted from PDF via PyMuPDF")
+            return "".join(parts)
+        finally:
+            doc.close()
+
+    async def _parse_with_timeout(self, file_path: str) -> str:
+        suffix = Path(file_path).suffix.lower()
+        parser = (
+            self._extract_markdown_with_pymupdf
+            if suffix == ".pdf"
+            else self.docling_service.parse_document
+        )
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(parser, file_path),
+                timeout=self.docling_parse_timeout_seconds,
+            )
+        except asyncio.TimeoutError as exc:
+            logger.error(
+                "Parse timed out after %ss for %s",
+                self.docling_parse_timeout_seconds,
+                file_path,
+            )
+            raise TimeoutError(
+                f"Parsing timed out after {self.docling_parse_timeout_seconds}s"
+            ) from exc
 
     def get_provider(self, provider_name: str, api_key: str):
         """Get provider instance"""
@@ -146,14 +197,14 @@ class ProcessingService:
         file_path: str,
         provider,
         model: str,
-        schema_definition: Dict[str, Any],
+        schema_definition: Optional[Dict[str, Any]],
         prompt: str,
         is_transcription: bool = False,
         job_id: Optional[int] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        Process document using Docling DocumentConverter (docling-parse).
+        Process document using PyMuPDF parsing for PDFs and provider-backed LLM structuring.
 
         This method extracts unstructured markdown/text from documents,
         then uses VLM/LLM to structure it according to the schema.
@@ -165,8 +216,8 @@ class ProcessingService:
         - Large documents (auto-chunking support)
 
         Pipeline:
-        1. Docling DocumentConverter → Markdown
-        2. VLM/LLM → Structured JSON
+        1. PDF parsing (PyMuPDF for PDFs, Docling for non-PDF docs) → Markdown/text
+        2. LLM → Structured JSON
         """
         try:
             # Validate file size
@@ -175,7 +226,7 @@ class ProcessingService:
             # Transcription mode returns markdown directly instead of JSON.
             if is_transcription:
                 try:
-                    markdown_content = self.docling_service.parse_document(file_path)
+                    markdown_content = await self._parse_with_timeout(file_path)
                 except Exception as e:
                     return {
                         "success": False,
@@ -192,9 +243,29 @@ class ProcessingService:
                     },
                 }
 
+            if schema_definition is None:
+                try:
+                    markdown_content = await self._parse_with_timeout(file_path)
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"Docling extraction failed: {str(e)}",
+                        "metadata": {"extraction_method": "docling-parse"},
+                    }
+
+                return {
+                    "success": True,
+                    "data": {"text": markdown_content},
+                    "metadata": {
+                        "extraction_method": "docling-parse",
+                        "chunked": False,
+                        "raw_output": True,
+                    },
+                }
+
             # Extract content using Docling
             try:
-                markdown_content = self.docling_service.parse_document(file_path)
+                markdown_content = await self._parse_with_timeout(file_path)
             except Exception as e:
                 return {
                     "success": False,
@@ -231,7 +302,7 @@ class ProcessingService:
                 }
 
             # Validate result
-            content = result.get("content", "{}")
+            content = result.get("content") or "{}"
             validation_result = parse_and_validate_response(
                 content, schema_definition, self.schema_service
             )
@@ -253,28 +324,21 @@ class ProcessingService:
                     "raw_response": result,
                 }
 
-        except Exception as e:
-            # Check if it's a docling-related error
-            error_type = type(e).__name__
-            if "docling" in str(e).lower() or "Docling" in error_type:
-                return {
-                    "success": False,
-                    "error": f"Docling error: {str(e)}",
-                }
-            else:
-                raise
         except ValueError as e:
             return {
                 "success": False,
                 "error": str(e),
             }
         except Exception as e:
-            import traceback
-
+            error_type = type(e).__name__
+            if "docling" in str(e).lower() or "Docling" in error_type:
+                return {
+                    "success": False,
+                    "error": f"Docling error: {str(e)}",
+                }
             return {
                 "success": False,
                 "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
-                "traceback": traceback.format_exc(),
             }
 
     async def _process_chunked_document(
@@ -282,7 +346,7 @@ class ProcessingService:
         markdown_content: str,
         provider,
         model: str,
-        schema_definition: Dict[str, Any],
+        schema_definition: Optional[Dict[str, Any]],
         prompt: str,
         job_id: Optional[int] = None,
         **kwargs,
@@ -294,6 +358,12 @@ class ProcessingService:
         and merges the results intelligently.
         """
         try:
+            if schema_definition is None:
+                return {
+                    "success": False,
+                    "error": "Raw output is not supported for chunked document processing.",
+                }
+
             # Split document into chunks
             chunks = self.chunking_service.split(markdown_content)
 
@@ -325,7 +395,7 @@ class ProcessingService:
                         continue
 
                     # Validate result
-                    content = result.get("content", "{}")
+                    content = result.get("content") or "{}"
                     validation_result = parse_and_validate_response(
                         content, schema_definition, self.schema_service
                     )
@@ -527,7 +597,7 @@ class ProcessingService:
         file_type: str,
         provider_name: str,
         model: str,
-        schema_definition: Dict[str, Any],
+        schema_definition: Optional[Dict[str, Any]],
         prompt: str,
         **kwargs,
     ) -> Dict[str, Any]:
@@ -539,8 +609,13 @@ class ProcessingService:
 
         # Handle docling-extract (local VLM, no API key needed)
         if extraction_method == "docling-extract":
+            if schema_definition is None:
+                return {
+                    "success": False,
+                    "error": "Raw output is not supported for docling-extract.",
+                }
             return await self._process_via_docling_extract(
-                file_path, schema_definition, job_id=kwargs.get("job_id"), **kwargs
+                file_path, schema_definition, **kwargs
             )
 
         # Handle docling-parse (Docling + VLM)
@@ -562,6 +637,12 @@ class ProcessingService:
                 )
 
         # Get API key for other methods
+        if schema_definition is None:
+            return {
+                "success": False,
+                "error": "Raw output is only supported for docling-parse.",
+            }
+
         api_key = resolve_provider_api_key(provider_name)
         if not api_key:
             raise ValueError(f"No API key configured for {provider_name}")
@@ -595,42 +676,57 @@ class ProcessingService:
         # Load image
         image = self.image_service.load_image(image_path)
 
-        # Quality gate check
-        quality_report = self.quality_gate.assess(image)
+        quality_report = None
 
-        # Save quality info to job if job_id provided
-        if job_id is not None:
-            await crud.update_quality_info(
-                job_id=job_id,
-                quality_score=quality_report.overall_score,
-                quality_checks=self.quality_gate.to_dict(quality_report),
-            )
+        if not self.skip_quality:
+            # Quality gate check
+            quality_report = self.quality_gate.assess(image)
 
-        # Check if quality is too low
-        if not quality_report.passed:
-            if self.auto_preprocess and quality_report.auto_fixable_issues:
-                # Try to auto-fix
-                preprocess_result = self.preprocessor.fix(
-                    image, quality_report=quality_report
+            # Save quality info to job if job_id provided
+            if job_id is not None:
+                await crud.update_quality_info(
+                    job_id=job_id,
+                    quality_score=quality_report.overall_score,
+                    quality_checks=self.quality_gate.to_dict(quality_report),
                 )
-                image = preprocess_result.processed
 
-                # Re-assess after preprocessing
-                post_quality = self.quality_gate.assess(image)
-
-                # Update job with preprocessing info
-                if job_id is not None:
-                    await crud.update_quality_info(
-                        job_id=job_id,
-                        quality_score=post_quality.overall_score,
-                        quality_checks=self.quality_gate.to_dict(post_quality),
-                        preprocessing_applied=preprocess_result.applied,
+            # Check if quality is too low
+            if not quality_report.passed:
+                if self.auto_preprocess and quality_report.auto_fixable_issues:
+                    # Try to auto-fix
+                    preprocess_result = self.preprocessor.fix(
+                        image, quality_report=quality_report
                     )
+                    image = preprocess_result.processed
 
-                quality_report = post_quality
+                    # Re-assess after preprocessing
+                    post_quality = self.quality_gate.assess(image)
 
-                # If still below threshold after preprocessing, reject
-                if quality_report.overall_score < self.quality_threshold:
+                    # Update job with preprocessing info
+                    if job_id is not None:
+                        await crud.update_quality_info(
+                            job_id=job_id,
+                            quality_score=post_quality.overall_score,
+                            quality_checks=self.quality_gate.to_dict(post_quality),
+                            preprocessing_applied=preprocess_result.applied,
+                        )
+
+                    quality_report = post_quality
+
+                    # If still below threshold after preprocessing, reject
+                    if quality_report.overall_score < self.quality_threshold:
+                        return {
+                            "success": False,
+                            "error": (
+                                f"Image quality is too poor for reliable extraction "
+                                f"(score: {quality_report.overall_score}/100, "
+                                f"threshold: {self.quality_threshold}). "
+                                f"Issues: {'; '.join(quality_report.recommendations)}"
+                            ),
+                            "quality_report": self.quality_gate.to_dict(quality_report),
+                        }
+                else:
+                    # No auto-preprocess or no fixable issues — reject
                     return {
                         "success": False,
                         "error": (
@@ -641,18 +737,6 @@ class ProcessingService:
                         ),
                         "quality_report": self.quality_gate.to_dict(quality_report),
                     }
-            else:
-                # No auto-preprocess or no fixable issues — reject
-                return {
-                    "success": False,
-                    "error": (
-                        f"Image quality is too poor for reliable extraction "
-                        f"(score: {quality_report.overall_score}/100, "
-                        f"threshold: {self.quality_threshold}). "
-                        f"Issues: {'; '.join(quality_report.recommendations)}"
-                    ),
-                    "quality_report": self.quality_gate.to_dict(quality_report),
-                }
 
         # Resize for provider
         target_size = provider.get_default_image_size()
@@ -669,11 +753,11 @@ class ProcessingService:
                 "success": False,
                 "error": f"Provider error: {result['error']}",
                 "raw_response": result,
-                "quality_report": self.quality_gate.to_dict(quality_report),
+                "quality_report": self.quality_gate.to_dict(quality_report) if quality_report else None,
             }
 
         # Validate result
-        content = result.get("content", "{}")
+        content = result.get("content") or "{}"
 
         validation_result = parse_and_validate_response(
             content, schema_definition, self.schema_service
@@ -684,14 +768,14 @@ class ProcessingService:
                 "success": True,
                 "data": validation_result["data"],
                 "raw_response": result,
-                "quality_report": self.quality_gate.to_dict(quality_report),
+                "quality_report": self.quality_gate.to_dict(quality_report) if quality_report else None,
             }
         else:
             return {
                 "success": False,
                 "error": validation_result["error"],
                 "raw_response": result,
-                "quality_report": self.quality_gate.to_dict(quality_report),
+                "quality_report": self.quality_gate.to_dict(quality_report) if quality_report else None,
             }
 
     async def _process_pdf(
@@ -714,37 +798,37 @@ class ProcessingService:
         page_quality_reports = []
 
         for i, image in enumerate(images):
-            # Quality gate check per page
-            quality_report = self.quality_gate.assess(image)
-            page_quality_reports.append(quality_report)
-
-            # Auto-preprocess if needed
-            if (
-                not quality_report.passed
-                and self.auto_preprocess
-                and quality_report.auto_fixable_issues
-            ):
-                preprocess_result = self.preprocessor.fix(
-                    image, quality_report=quality_report
-                )
-                image = preprocess_result.processed
+            if not self.skip_quality:
+                # Quality gate check per page
                 quality_report = self.quality_gate.assess(image)
+                page_quality_reports.append(quality_report)
 
-                if job_id is not None:
-                    # Track preprocessing operations per page
-                    prev = await crud.get_job(job_id)
-                    existing_preproc = []
-                    if prev and prev.get("preprocessing_applied"):
-                        try:
-                            existing_preproc = json.loads(prev["preprocessing_applied"])
-                        except Exception:
-                            pass
-                    merged = list(set(existing_preproc + preprocess_result.applied))
-                    await crud.update_quality_info(
-                        job_id=job_id,
-                        quality_checks=self.quality_gate.to_dict(quality_report),
-                        preprocessing_applied=merged,
+                # Auto-preprocess if needed
+                if (
+                    not quality_report.passed
+                    and self.auto_preprocess
+                    and quality_report.auto_fixable_issues
+                ):
+                    preprocess_result = self.preprocessor.fix(
+                        image, quality_report=quality_report
                     )
+                    image = preprocess_result.processed
+                    quality_report = self.quality_gate.assess(image)
+
+                    if job_id is not None:
+                        prev = await crud.get_job(job_id)
+                        existing_preproc = []
+                        if prev and prev.get("preprocessing_applied"):
+                            try:
+                                existing_preproc = json.loads(prev["preprocessing_applied"])
+                            except Exception:
+                                pass
+                        merged = list(set(existing_preproc + preprocess_result.applied))
+                        await crud.update_quality_info(
+                            job_id=job_id,
+                            quality_checks=self.quality_gate.to_dict(quality_report),
+                            preprocessing_applied=merged,
+                        )
 
             # Resize
             target_size = provider.get_default_image_size()
@@ -761,7 +845,7 @@ class ProcessingService:
                 continue
 
             # Validate
-            content = result.get("content", "{}")
+            content = result.get("content") or "{}"
             validation_result = parse_and_validate_response(
                 content, schema_definition, self.schema_service
             )
@@ -804,7 +888,10 @@ async def run_processing_job(
     max_tokens_override: Optional[int] = None,
     quality_threshold: Optional[float] = None,
     auto_preprocess: Optional[bool] = None,
+    skip_quality: Optional[bool] = None,
+    raw_output: bool = False,
     extraction_method_override: Optional[str] = None,
+    is_transcription: bool = False,
 ) -> None:
     """
     Run vision extraction job (processes images/PDFs as images using VLMs).
@@ -812,20 +899,37 @@ async def run_processing_job(
 
     Optional overrides preserve request-time settings when the job is queued in-memory.
     """
+    start_time = time.time()
 
-    # Get job details
-    job = await crud.get_job(job_id)
-    if not job:
-        return
-
-    # Update status to processing
-    await update_job_status_with_broadcast(job_id, "processing")
+    try:
+        # Get job details
+        job = await crud.get_job(job_id)
+        if not job:
+            return
+        
+        # Update status to processing
+        await update_job_status_with_broadcast(job_id, "processing")
+        
+    except Exception as e:
+        processing_time = time.time() - start_time
+        import traceback
+        error_details = f"{type(e).__name__}: {str(e)}"
+        print(f"ERROR processing job {job_id}: {error_details}")
+        print(f"Traceback: {traceback.format_exc()}")
+        await update_job_status_with_broadcast(
+            job_id,
+            "error",
+            error_message=error_details,
+            processing_time=processing_time,
+        )
 
     # Determine file type from job record
     file_type = job["file_type"]
 
     # Get schema
-    if schema_definition_override is not None:
+    if raw_output:
+        schema_definition = None
+    elif schema_definition_override is not None:
         schema_definition = schema_definition_override
     elif job["schema_id"]:
         schema_record = await crud.get_schema(job["schema_id"])
@@ -840,12 +944,13 @@ async def run_processing_job(
 
     prompt = prompt_override or "Extract all information from this document"
     temperature = 0.1 if temperature_override is None else temperature_override
-    max_tokens = 4096 if max_tokens_override is None else max_tokens_override
+    max_tokens = 8192 if max_tokens_override is None else max_tokens_override
 
     # Process
     service = ProcessingService(
         quality_threshold=quality_threshold if quality_threshold is not None else 40.0,
         auto_preprocess=auto_preprocess if auto_preprocess is not None else True,
+        skip_quality=skip_quality if skip_quality is not None else False,
     )
     start_time = time.time()
 
@@ -864,6 +969,7 @@ async def run_processing_job(
             extraction_method=extraction_method_override
             or job.get("processing_method")
             or "vision",
+            is_transcription=is_transcription,
         )
 
         print(f"Processing completed for job {job_id} Result: {result.get('success')}")
@@ -921,6 +1027,7 @@ async def run_text_processing_job(
     prompt_override: Optional[str] = None,
     temperature_override: Optional[float] = None,
     max_tokens_override: Optional[int] = None,
+    raw_output: bool = False,
 ) -> None:
     """
     Run text extraction job (extracts text from PDFs using pdfplumber, then processes with LLM).
@@ -940,7 +1047,9 @@ async def run_text_processing_job(
     await update_job_status_with_broadcast(job_id, "processing")
 
     # Get schema
-    if schema_definition_override is not None:
+    if raw_output:
+        schema_definition = None
+    elif schema_definition_override is not None:
         schema_definition = schema_definition_override
     elif job["schema_id"]:
         schema_record = await crud.get_schema(job["schema_id"])
@@ -953,7 +1062,7 @@ async def run_text_processing_job(
 
     prompt = prompt_override or "Extract all information from this document"
     temperature = 0.1 if temperature_override is None else temperature_override
-    max_tokens = 4096 if max_tokens_override is None else max_tokens_override
+    max_tokens = 8192 if max_tokens_override is None else max_tokens_override
 
     # Get API key
     provider_name = job["provider"]
@@ -1014,7 +1123,18 @@ async def run_text_processing_job(
             return
 
         # Validate result
-        content = result.get("content", "{}")
+        content = result.get("content") or "{}"
+        if schema_definition is None:
+            await update_job_status_with_broadcast(
+                job_id,
+                "success",
+                result={"text": content},
+                processing_time=time.time() - start_time,
+                usage=result.get("usage"),
+            )
+            print(f"Processing completed for job {job_id}")
+            return
+
         schema_service = SchemaService()
         validation_result = parse_and_validate_response(
             content, schema_definition, schema_service

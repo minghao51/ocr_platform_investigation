@@ -164,6 +164,7 @@ export interface Provider {
   display_name: string;
   models: Model[];
   has_api_key: boolean;
+  is_default?: boolean;
 }
 
 export interface Model {
@@ -218,7 +219,10 @@ export interface Job {
   };
   result?: unknown;
   error?: string;
-  // Quality gate fields
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  estimated_cost?: number;
+  metadata?: Record<string, unknown>;
   quality_score?: number;
   quality_checks?: QualityReport;
   preprocessing_applied?: string[];
@@ -248,10 +252,11 @@ export interface QualityReport {
 
 export interface ProcessRequest {
   file_id: string;
-  provider: string;
-  model: string;
+  provider?: string;
+  model?: string;
   schema_id?: number;
   schema_definition?: Record<string, unknown>;
+  schema_mode?: 'raw' | 'auto-detect' | 'manual';
   prompt?: string;
   temperature?: number;
   max_tokens?: number;
@@ -407,35 +412,6 @@ export async function processDocument(request: ProcessRequest): Promise<ProcessR
   return data;
 }
 
-// Text Extraction
-export async function processTextDocument(
-  fileId: string,
-  provider: string,
-  model: string,
-  schemaId?: number
-): Promise<{ job_id: number }> {
-  const response = await fetch(`${API_BASE}/text/process`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
-    },
-    body: JSON.stringify({
-      file_id: fileId,
-      provider,
-      model,
-      schema_id: schemaId
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to process text document');
-  }
-
-  return response.json();
-}
-
 // Unified job status endpoint (replaces getJobStatus and pollJobStatus)
 export async function getJobStatus(jobId: number): Promise<Job> {
   const response = await fetch(`${API_BASE}/process/status/${jobId}`, {
@@ -452,7 +428,7 @@ export async function getJobStatus(jobId: number): Promise<Job> {
 // Schemas (read-only - may not require auth)
 export async function listSchemas(isTemplate?: boolean): Promise<Schema[]> {
   const params = isTemplate !== undefined ? `?is_template=${isTemplate}` : '';
-  const response = await fetch(`${API_BASE}/schemas${params}`, {
+  const response = await fetch(`${API_BASE}/schemas/${params}`, {
     headers: getAuthHeaders()
   });
   return response.json();
@@ -471,7 +447,7 @@ export async function getTemplates(): Promise<Schema[]> {
     throw new Error(`Invalid response format: expected array, got ${typeof data}`);
   }
   // Templates don't have IDs - add synthetic ID for compatibility
-  return data.map((t, i) => ({ ...t, id: `template-${i}` }));
+  return data;
 }
 
 export async function getSchema(schemaId: number): Promise<Schema> {
@@ -487,7 +463,7 @@ export async function getSchema(schemaId: number): Promise<Schema> {
 }
 
 export async function createSchema(schema: Omit<Schema, 'id' | 'created_at' | 'updated_at'>): Promise<Schema> {
-  const response = await fetch(`${API_BASE}/schemas`, {
+  const response = await fetch(`${API_BASE}/schemas/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -517,8 +493,8 @@ export async function suggestSchema(
     },
     body: JSON.stringify({
       file_ids: fileIds,
-      provider,
-      model,
+      ...(provider ? { provider } : {}),
+      ...(model ? { model } : {}),
     }),
   });
 
@@ -529,14 +505,27 @@ export async function suggestSchema(
   return response.json();
 }
 
+export async function listSchemaSuggestions(): Promise<SchemaSuggestion[]> {
+  const response = await fetch(`${API_BASE}/schemas/suggestions/list`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load schema suggestions');
+  }
+
+  return response.json();
+}
+
 // Jobs
-export async function listJobs(status?: string, provider?: string, limit = 50): Promise<Job[]> {
+export async function listJobs(status?: string, provider?: string, limit = 50, offset?: number): Promise<Job[]> {
   const params = new URLSearchParams();
   if (status) params.append('status', status);
   if (provider) params.append('provider', provider);
   params.append('limit', limit.toString());
+  if (offset !== undefined) params.append('offset', offset.toString());
 
-  const response = await fetch(`${API_BASE}/jobs?${params}`, {
+  const response = await fetch(`${API_BASE}/jobs/?${params}`, {
     headers: getAuthHeaders()
   });
   return response.json();
@@ -623,6 +612,62 @@ export async function listProviders(): Promise<Provider[]> {
 }
 
 // ============================================================================
+// Extract Settings
+// ============================================================================
+
+export interface ExtractSettings {
+  providers: Provider[];
+  extraction_methods: {
+    id: string;
+    name: string;
+    description: string;
+  }[];
+  schema_modes: {
+    id: string;
+    label: string;
+    available_for: string[] | null;
+  }[];
+  schema_templates: Record<string, Record<string, unknown>>;
+  defaults: {
+    temperature: { default: number; min: number; max: number; step: number };
+    max_tokens: { default: number; min: number; max: number; step: number };
+    quality_threshold: { default: number; min: number; max: number; step: number };
+    auto_preprocess: { default: boolean };
+    skip_quality: { default: boolean };
+    prompt_max_length: number;
+  };
+  file_type_methods: Record<string, string>;
+}
+
+let _settingsCache: ExtractSettings | null = null;
+let _settingsPromise: Promise<ExtractSettings> | null = null;
+
+export async function getExtractSettings(): Promise<ExtractSettings> {
+  if (_settingsCache) return _settingsCache;
+  if (_settingsPromise) return _settingsPromise;
+
+  _settingsPromise = (async () => {
+    const response = await fetch(`${API_BASE}/extract/settings`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch extract settings: ${response.statusText}`);
+    }
+    const data = await response.json();
+    _settingsCache = data as ExtractSettings;
+    _settingsPromise = null;
+    return _settingsCache!;
+  })();
+
+  return _settingsPromise;
+}
+
+export function clearExtractSettingsCache(): void {
+  _settingsCache = null;
+  _settingsPromise = null;
+}
+
+// ============================================================================
 // Benchmarks
 // ============================================================================
 
@@ -631,6 +676,7 @@ export interface BenchmarkRun {
   dataset: string;
   provider: string;
   model: string;
+  processing_method?: string;
   sample_count: number;
   overall_accuracy: number | null;
   avg_latency: number | null;
@@ -652,6 +698,7 @@ export interface BenchmarkResult {
   cost: number;
   prompt_tokens: number;
   completion_tokens: number;
+  peak_memory_mb?: number;
   expected_json: string | null;
   actual_json: string | null;
   field_scores: string | null;
@@ -662,6 +709,7 @@ export interface ModelComparison {
   run_id: number;
   provider: string;
   model: string;
+  processing_method?: string;
   sample_count: number;
   overall_accuracy: number;
   avg_latency: number;
@@ -784,6 +832,54 @@ export async function checkFileQuality(fileId: string, estimatedDpi = 200): Prom
     throw new Error(error.detail || 'Quality check failed');
   }
 
+  return response.json();
+}
+
+// ============================================================================
+// PDF Analysis
+// ============================================================================
+
+export interface PdfAnalysis {
+  file_id: string;
+  has_text_layer: boolean;
+  text_chars: number;
+  suggested_methods: string[];
+}
+
+export async function analyzePdf(fileId: string): Promise<PdfAnalysis> {
+  const response = await fetch(`${API_BASE}/upload/analyze-pdf/${fileId}`, {
+    method: 'POST',
+    headers: getAccessHeaders(),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || 'PDF analysis failed');
+  }
+  return response.json();
+}
+
+// ============================================================================
+// Benchmarked Models
+// ============================================================================
+
+export interface BenchmarkedModel {
+  provider: string;
+  model: string;
+  run_id: number;
+  accuracy: number | null;
+  avg_latency: number | null;
+  total_cost: number | null;
+  sample_count: number | null;
+  success_rate: number | null;
+}
+
+export async function getBenchmarkedModels(): Promise<BenchmarkedModel[]> {
+  const response = await fetch(`${API_BASE}/benchmarks/models`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    return [];
+  }
   return response.json();
 }
 

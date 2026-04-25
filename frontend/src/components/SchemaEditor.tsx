@@ -14,7 +14,7 @@ import {
 interface SchemaEditorProps {
   schemaId: number | null;
   schemaDefinition: Record<string, unknown> | null;
-  onSchemaSelect: (schemaId: number) => void;
+  onSchemaSelect: (schemaId: number | null) => void;
   onDefinitionChange: (definition: Record<string, unknown>) => void;
   onValidityChange?: (isValid: boolean) => void;
   restrictedMode?: boolean;
@@ -30,6 +30,7 @@ export default function SchemaEditor({
 }: SchemaEditorProps) {
   const [templates, setTemplates] = useState<Schema[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTemplateName, setSelectedTemplateName] = useState<string | null>(null);
 
   const [mode, setMode] = useState<'visual' | 'json'>('visual');
   const [fields, setFields] = useState<SchemaField[]>([]);
@@ -82,7 +83,8 @@ export default function SchemaEditor({
       if (!schemaId && !schemaDefinition) {
         const genericTemplate = data.find(t => t.name === 'Generic');
         if (genericTemplate) {
-          onSchemaSelect(genericTemplate.id!);
+          setSelectedTemplateName(genericTemplate.name);
+          onSchemaSelect(null);
           onDefinitionChange(genericTemplate.definition);
         }
       }
@@ -231,7 +233,8 @@ export default function SchemaEditor({
 
   const handleTemplateSelect = (template: Schema) => {
     setMode('visual');
-    onSchemaSelect(template.id!);
+    setSelectedTemplateName(template.name);
+    onSchemaSelect(null);
     onDefinitionChange(template.definition);
   };
 
@@ -256,7 +259,7 @@ export default function SchemaEditor({
               key={template.name}
               type="button"
               onClick={() => handleTemplateSelect(template)}
-              className={`px-3 py-2 text-left rounded-md border transition-colors ${schemaId === template.id
+              className={`px-3 py-2 text-left rounded-md border transition-colors ${selectedTemplateName === template.name
                 ? 'border-blue-500 bg-blue-50 text-blue-700'
                 : 'border-gray-300 hover:border-gray-400'
                 }`}

@@ -7,6 +7,11 @@ from main import app
 from database.migrations import run_migrations
 
 
+@pytest.fixture(autouse=True)
+def _disable_rate_limiting(monkeypatch):
+    monkeypatch.setattr("limiter.limiter.enabled", False)
+
+
 @pytest.fixture
 def temp_db_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     db_path = tmp_path / "test.db"

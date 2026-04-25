@@ -20,6 +20,7 @@ export default function BenchmarksPage() {
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [runsError, setRunsError] = useState<string | null>(null);
   const [datasetFilter, setDatasetFilter] = useState('cord');
+  const [methodFilter, setMethodFilter] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<UsageAnalytics | null>(null);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
@@ -77,6 +78,14 @@ export default function BenchmarksPage() {
       setSelectedResults(results);
     } catch (err) {
       console.error('Failed to load run details:', err);
+    }
+  };
+
+  const getMethodBadgeClasses = (method: string) => {
+    switch (method) {
+      case 'docling-extract': return 'bg-green-100 text-green-800';
+      case 'docling-parse': return 'bg-purple-100 text-purple-800';
+      default: return 'bg-blue-100 text-blue-800';
     }
   };
 
@@ -203,6 +212,74 @@ export default function BenchmarksPage() {
                     </div>
                   </div>
                 </div>
+
+                {analytics.daily_trend.length > 0 && (
+                  <div className="rounded-lg border border-gray-200">
+                    <div className="border-b border-gray-200 px-4 py-3">
+                      <h3 className="font-semibold text-gray-900">Daily Trend</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left">Date</th>
+                            <th className="px-4 py-2 text-right">Jobs</th>
+                            <th className="px-4 py-2 text-right">Cost</th>
+                            <th className="px-4 py-2 text-right">Corrections</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {analytics.daily_trend.map((row) => (
+                            <tr key={row.day}>
+                              <td className="px-4 py-2 text-gray-900">{row.day}</td>
+                              <td className="px-4 py-2 text-right">{row.total_jobs}</td>
+                              <td className="px-4 py-2 text-right">${row.total_cost.toFixed(4)}</td>
+                              <td className="px-4 py-2 text-right">{row.corrected_jobs}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {analytics.benchmark_accuracy.length > 0 && (
+                  <div className="rounded-lg border border-gray-200">
+                    <div className="border-b border-gray-200 px-4 py-3">
+                      <h3 className="font-semibold text-gray-900">Benchmark Accuracy by Model</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left">Provider</th>
+                            <th className="px-4 py-2 text-left">Model</th>
+                            <th className="px-4 py-2 text-right">Accuracy</th>
+                            <th className="px-4 py-2 text-right">Cost/Doc</th>
+                            <th className="px-4 py-2 text-right">Latency</th>
+                            <th className="px-4 py-2 text-right">Runs</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {analytics.benchmark_accuracy.map((row) => (
+                            <tr key={`${row.provider}-${row.model}`}>
+                              <td className="px-4 py-2 text-gray-600">{row.provider}</td>
+                              <td className="px-4 py-2 font-medium text-gray-900">{row.model}</td>
+                              <td className="px-4 py-2 text-right">
+                                <span className={getAccuracyColor(row.benchmark_accuracy)}>
+                                  {(row.benchmark_accuracy * 100).toFixed(1)}%
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-right text-gray-600">${row.cost_per_document.toFixed(4)}</td>
+                              <td className="px-4 py-2 text-right text-gray-600">{row.benchmark_latency.toFixed(1)}s</td>
+                              <td className="px-4 py-2 text-right text-gray-600">{row.run_count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -217,6 +294,7 @@ export default function BenchmarksPage() {
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm"
               >
                 <option value="cord">CORD Receipts</option>
+                <option value="invoice">Invoices</option>
               </select>
               <button
                 onClick={loadComparison}
@@ -236,10 +314,41 @@ export default function BenchmarksPage() {
           {/* Model Comparison Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">Model Comparison</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Sorted by overall accuracy (highest first)
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold">Model Comparison</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Sorted by overall accuracy (highest first)
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Method:</span>
+                  <button
+                    onClick={() => setMethodFilter(null)}
+                    className={`px-3 py-1 text-xs rounded-full border ${methodFilter === null ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setMethodFilter('vision')}
+                    className={`px-3 py-1 text-xs rounded-full border ${methodFilter === 'vision' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    Vision
+                  </button>
+                  <button
+                    onClick={() => setMethodFilter('docling-extract')}
+                    className={`px-3 py-1 text-xs rounded-full border ${methodFilter === 'docling-extract' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    Docling Extract
+                  </button>
+                  <button
+                    onClick={() => setMethodFilter('docling-parse')}
+                    className={`px-3 py-1 text-xs rounded-full border ${methodFilter === 'docling-parse' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    Docling Parse
+                  </button>
+                </div>
+              </div>
             </div>
 
             {loading ? (
@@ -265,6 +374,7 @@ export default function BenchmarksPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provider</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Accuracy</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Latency</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
@@ -274,7 +384,9 @@ export default function BenchmarksPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {comparison.map((model, index) => (
+                    {comparison
+                      .filter((model) => !methodFilter || (model.processing_method || 'vision') === methodFilter)
+                      .map((model, index) => (
                       <tr
                         key={model.run_id}
                         className="hover:bg-gray-50 cursor-pointer"
@@ -296,6 +408,11 @@ export default function BenchmarksPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             {model.provider}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getMethodBadgeClasses(model.processing_method || 'vision')}`}>
+                            {model.processing_method || 'vision'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -406,7 +523,7 @@ export default function BenchmarksPage() {
                 </div>
                 <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
                   {/* Summary Stats */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                     <div className="bg-gray-50 rounded-lg p-4 text-center">
                       <div className="text-2xl font-bold text-gray-900">
                         {selectedRun.overall_accuracy !== null ? `${(selectedRun.overall_accuracy * 100).toFixed(1)}%` : 'N/A'}
@@ -431,6 +548,14 @@ export default function BenchmarksPage() {
                       </div>
                       <div className="text-sm text-gray-500">Total Tokens</div>
                     </div>
+                    <div className="bg-gray-50 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-gray-900">
+                        {selectedResults.some(r => r.peak_memory_mb != null)
+                          ? `${Math.max(...selectedResults.filter(r => r.peak_memory_mb != null).map(r => r.peak_memory_mb!)).toFixed(0)} MB`
+                          : 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-500">Peak Memory</div>
+                    </div>
                   </div>
 
                   {/* Sample Results */}
@@ -443,6 +568,7 @@ export default function BenchmarksPage() {
                           <th className="px-4 py-2 text-right">Accuracy</th>
                           <th className="px-4 py-2 text-right">Latency</th>
                           <th className="px-4 py-2 text-right">Cost</th>
+                          <th className="px-4 py-2 text-right">Memory</th>
                           <th className="px-4 py-2 text-left">Status</th>
                         </tr>
                       </thead>
@@ -460,6 +586,9 @@ export default function BenchmarksPage() {
                             </td>
                             <td className="px-4 py-2 text-right text-gray-600">
                               ${result.cost.toFixed(4)}
+                            </td>
+                            <td className="px-4 py-2 text-right text-gray-600">
+                              {result.peak_memory_mb != null ? `${result.peak_memory_mb.toFixed(0)} MB` : '-'}
                             </td>
                             <td className="px-4 py-2">
                               {result.error_message ? (

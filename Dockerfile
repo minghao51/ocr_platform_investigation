@@ -76,6 +76,7 @@ RUN curl -SsfL https://github.com/dotenvx/dotenvx/releases/download/v${DOTENVX_V
 # Copy backend code and virtual environment from stage 1
 COPY --from=backend /app /app
 ENV PATH="/app/.venv/bin:$PATH"
+ENV HF_HOME="/app/model-cache/huggingface"
 
 # Copy frontend build from stage 2
 COPY --from=frontend /app/frontend/dist /app/frontend/dist
@@ -83,8 +84,8 @@ COPY --from=frontend /app/frontend/dist /app/frontend/dist
 # Create non-root user and data directory
 RUN groupadd -g 1000 appgroup && \
     useradd -u 1000 -g appgroup -m appuser && \
-    mkdir -p /app/data && \
-    chown -R appuser:appgroup /app/data /app/frontend/dist
+    mkdir -p /app/data /app/model-cache && \
+    chown -R appuser:appgroup /app/data /app/model-cache /app/frontend/dist
 
 # Copy dotenvx validation script
 COPY backend/scripts/validate_dotenvx.sh /app/backend/scripts/validate_dotenvx.sh
@@ -94,7 +95,7 @@ RUN chmod +x /app/backend/scripts/validate_dotenvx.sh
 EXPOSE 8000
 
 # Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
 # Run as non-root user
@@ -102,4 +103,4 @@ USER appuser
 
 # Initialize database and start application
 WORKDIR /app
-CMD ["dotenvx", "run", "--", "sh", "-c", "backend/scripts/validate_dotenvx.sh && python -m database.migrations && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["dotenvx", "run", "--", "sh", "-c", "backend/scripts/validate_dotenvx.sh && python -m database.migrations && (python scripts/prewarm_docling_extract.py || true) && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

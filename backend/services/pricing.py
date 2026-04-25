@@ -8,32 +8,7 @@ from typing import Dict
 # Pricing per 1M tokens (input, output) in USD
 # Sources: provider pricing pages as of April 2026
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
-    # Nebius
-    "Qwen/Qwen2.5-VL-72B-Instruct": {
-        "input_per_1m": 0.60,
-        "output_per_1m": 2.40,
-    },
-    # OpenRouter
-    "anthropic/claude-3.5-sonnet": {
-        "input_per_1m": 3.00,
-        "output_per_1m": 15.00,
-    },
-    "google/gemini-pro-1.5": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 5.00,
-    },
-    "openai/gpt-4o": {
-        "input_per_1m": 2.50,
-        "output_per_1m": 10.00,
-    },
-    "meta-llama/llama-3.2-90b-vision-preview": {
-        "input_per_1m": 0.90,
-        "output_per_1m": 0.90,
-    },
-    "qwen/qwen3.6-plus:free": {
-        "input_per_1m": 0.0,
-        "output_per_1m": 0.0,
-    },
+    # OpenRouter models
     "qwen/qwen3.5-flash-02-23": {
         "input_per_1m": 0.065,
         "output_per_1m": 0.26,
@@ -41,10 +16,6 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
     "google/gemini-2.5-flash-lite": {
         "input_per_1m": 0.10,
         "output_per_1m": 0.40,
-    },
-    "google/gemini-2.5-flash": {
-        "input_per_1m": 0.30,
-        "output_per_1m": 2.50,
     },
     "google/gemini-3-flash-preview": {
         "input_per_1m": 0.50,
@@ -54,43 +25,22 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
         "input_per_1m": 0.20,
         "output_per_1m": 0.50,
     },
-    "openai/gpt-4.1-mini": {
-        "input_per_1m": 0.40,
-        "output_per_1m": 1.60,
+    "google/gemma-4-31b-it": {
+        "input_per_1m": 0.13,
+        "output_per_1m": 0.38,
     },
     # Gemini (direct API)
-    "gemini-3-pro-preview": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10.00,
+    "gemini-3.1-pro-preview": {
+        "input_per_1m": 2.00,
+        "output_per_1m": 12.00,
     },
     "gemini-3-flash-preview": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 1.50,
-    },
-    "gemini-2.5-pro": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10.00,
-    },
-    "gemini-2.5-flash": {
         "input_per_1m": 0.15,
         "output_per_1m": 1.50,
     },
     "gemini-2.5-flash-lite": {
         "input_per_1m": 0.10,
         "output_per_1m": 0.40,
-    },
-    "gemini-2.0-flash": {
-        "input_per_1m": 0.10,
-        "output_per_1m": 0.40,
-    },
-    "gemini-3-pro-image-preview": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10.00,
-    },
-    # LiteLLM / OpenRouter models
-    "google/gemma-4-31b-it": {
-        "input_per_1m": 0.13,
-        "output_per_1m": 0.38,
     },
 }
 

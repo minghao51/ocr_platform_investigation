@@ -302,6 +302,32 @@ async def migrate_benchmark_tables():
         else:
             print("✓ benchmark_results table already exists")
 
+        cursor = await db.execute("PRAGMA table_info(benchmark_runs)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        if "processing_method" not in column_names:
+            print("Adding processing_method column to benchmark_runs table...")
+            await db.execute(
+                "ALTER TABLE benchmark_runs ADD COLUMN processing_method TEXT"
+            )
+            await db.commit()
+            print("✓ Added benchmark_runs.processing_method")
+        else:
+            print("✓ benchmark_runs.processing_method already exists")
+
+        cursor = await db.execute("PRAGMA table_info(benchmark_results)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        if "peak_memory_mb" not in column_names:
+            print("Adding peak_memory_mb column to benchmark_results table...")
+            await db.execute(
+                "ALTER TABLE benchmark_results ADD COLUMN peak_memory_mb REAL"
+            )
+            await db.commit()
+            print("✓ Added benchmark_results.peak_memory_mb")
+        else:
+            print("✓ benchmark_results.peak_memory_mb already exists")
+
 
 async def migrate_legacy_benchmark_data():
     """Import legacy benchmark data from backend/data if canonical DB has none."""

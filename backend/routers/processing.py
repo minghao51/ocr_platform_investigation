@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/process", tags=["processing"])
 
+LOCAL_PROVIDER = "docling-local"
+
+
+def _requires_provider_model(processing_method: str) -> bool:
+    return processing_method != "docling-extract"
+
+
+def _supports_raw_output(processing_method: str) -> bool:
+    return processing_method == "docling-parse"
+
 
 @router.post("/", response_model=ProcessResponse)
 @limiter.limit(get_rate_limit_value)
@@ -38,10 +48,9 @@ async def process_document(
     - "text": Force text extraction (pdfplumber + LLM) - fast & cheap
     - "vision": Force vision extraction (VLM) - accurate & expensive
     - "hybrid": Combined text + vision approach
-    - "docling-parse": Docling DocumentConverter → Markdown → VLM structures it
-      * Multi-format support (PDF, DOCX, PPTX, images)
-      * Free extraction, cheap structuring
-      * Use for: Multi-format, cost-sensitive, unstructured output
+    - "docling-parse": PyMuPDF text parsing (PDF) / Docling parsing (DOCX/PPTX) → LLM structures it
+      * Fast local parsing + provider-backed structuring
+      * Use for: Cost-sensitive structured extraction with provider/model control
     - "docling-extract": Docling DocumentExtractor (local VLM) → Structured JSON
       * Direct schema extraction, no cloud API needed
       * Best accuracy (86%), free, private
@@ -50,32 +59,6 @@ async def process_document(
     """
     if current_user is not None:
         current_user = await check_and_increment_daily_limit(current_user)
-
-    # Get schema definition (optional for transcription mode)
-    is_transcription = (
-        extraction_method == "transcription"
-        or payload.extraction_method == "transcription"
-    )
-
-    if payload.schema_id:
-        schema_record = await crud.get_schema(payload.schema_id)
-        if not schema_record:
-            raise HTTPException(status_code=404, detail="Schema not found")
-
-        _schema_definition = json.loads(schema_record["definition"])
-        schema_name = schema_record["name"]
-    elif payload.schema_definition:
-        _schema_definition = payload.schema_definition
-        schema_name = "Custom"
-    elif is_transcription:
-        # Schema is optional for transcription mode
-        _schema_definition = None
-        schema_name = "Transcription"
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Either schema_id or schema_definition must be provided",
-        )
 
     # Get file metadata from database
     file_record = await crud.get_uploaded_file(payload.file_id)
@@ -97,6 +80,8 @@ async def process_document(
         file_type = "image"
     elif file_extension == ".pdf":
         file_type = "pdf"
+    elif file_extension in {".mp3", ".wav", ".m4a", ".ogg", ".flac"}:
+        file_type = "audio"
     else:
         file_type = "document"
 
@@ -139,10 +124,13 @@ async def process_document(
                 )
                 processing_method = "vision"
         elif file_type == "image":
-            # Images always use vision processing
             processing_method = "vision"
             classification_info = {"reasoning": "Image file, using vision processing"}
             document_type = "image"
+        elif file_type == "audio":
+            processing_method = "transcription"
+            classification_info = {"reasoning": "Audio file, using transcription"}
+            document_type = "audio"
         else:
             processing_method = "docling-parse"
             classification_info = {
@@ -165,9 +153,14 @@ async def process_document(
         )
 
     # For images, force vision processing
-    if file_type == "image" and processing_method != "vision":
-        logger.info("Overriding extraction_method to 'vision' for image file")
-        processing_method = "vision"
+    if file_type == "image" and processing_method not in {"vision", "docling-extract"}:
+        logger.info("Overriding extraction_method to 'docling-extract' for image file")
+        processing_method = "docling-extract"
+
+    # For audio, force transcription
+    if file_type == "audio" and processing_method != "transcription":
+        logger.info("Overriding extraction_method to 'transcription' for audio file")
+        processing_method = "transcription"
 
     if file_type == "document" and processing_method in {"text", "vision", "hybrid"}:
         raise HTTPException(
@@ -183,14 +176,60 @@ async def process_document(
             detail="docling-extract currently supports PDFs and images only.",
         )
 
+    schema_mode = payload.schema_mode or "auto-detect"
+    if schema_mode == "raw" and not _supports_raw_output(processing_method):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Raw output is currently supported with the 'docling-parse' "
+                "method. Choose 'PyMuPDF + LLM' to get raw Markdown output."
+            ),
+        )
+
+    requires_provider_model = _requires_provider_model(processing_method)
+    if requires_provider_model and (not payload.provider or not payload.model):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This extraction method requires a provider and model. "
+                "Choose a provider-backed method configuration before processing."
+            ),
+        )
+
+    is_transcription = processing_method == "transcription"
+
+    if payload.schema_id:
+        schema_record = await crud.get_schema(payload.schema_id)
+        if not schema_record:
+            raise HTTPException(status_code=404, detail="Schema not found")
+
+        _schema_definition = json.loads(schema_record["definition"])
+        schema_name = schema_record["name"]
+    elif payload.schema_definition:
+        _schema_definition = payload.schema_definition
+        schema_name = "Custom"
+    elif is_transcription:
+        _schema_definition = None
+        schema_name = "Transcription"
+    elif schema_mode == "raw":
+        _schema_definition = None
+        schema_name = "Raw"
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Either schema_id or schema_definition must be provided, or use schema_mode='raw' for raw output",
+        )
+
     # Create job
     user_id = current_user.get("user_id") if current_user else None
     job_guest_token = guest_token if user_id is None else None
+    job_provider = payload.provider if requires_provider_model else LOCAL_PROVIDER
+    job_model = payload.model if requires_provider_model else processing_method
     job_id = await crud.create_job(
         file_name=file_record["original_filename"],
         file_type=file_type,
-        provider=payload.provider,
-        model=payload.model,
+        provider=job_provider,
+        model=job_model,
         schema_id=payload.schema_id,
         schema_name=schema_name,
         processing_method=processing_method,
@@ -207,21 +246,30 @@ async def process_document(
             pass  # Metadata update is optional
 
     # Queue background processing with appropriate method
-    worker_kwargs = {
-        "schema_definition_override": _schema_definition,
-        "prompt_override": payload.prompt,
-        "temperature_override": payload.temperature,
-        "max_tokens_override": payload.max_tokens,
-        "quality_threshold": payload.quality_threshold,
-        "auto_preprocess": payload.auto_preprocess,
-        "extraction_method_override": processing_method,
-        "is_transcription": is_transcription,
-    }
     if processing_method == "text":
+        worker_kwargs = {
+            "schema_definition_override": _schema_definition,
+            "prompt_override": payload.prompt,
+            "temperature_override": payload.temperature,
+            "max_tokens_override": payload.max_tokens,
+            "raw_output": schema_mode == "raw",
+        }
         background_tasks.add_task(
             run_text_processing_job, job_id, str(file_path), **worker_kwargs
         )
     else:  # "vision", "hybrid", "docling", or "transcription"
+        worker_kwargs = {
+            "schema_definition_override": _schema_definition,
+            "prompt_override": payload.prompt,
+            "temperature_override": payload.temperature,
+            "max_tokens_override": payload.max_tokens,
+            "quality_threshold": payload.quality_threshold,
+            "auto_preprocess": payload.auto_preprocess,
+            "skip_quality": payload.skip_quality,
+            "raw_output": schema_mode == "raw",
+            "extraction_method_override": processing_method,
+            "is_transcription": is_transcription,
+        }
         background_tasks.add_task(
             run_processing_job, job_id, str(file_path), **worker_kwargs
         )

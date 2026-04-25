@@ -23,7 +23,7 @@ async def test_get_job_status_parses_result():
         "processing_time_seconds": 1.2,
         "file_name": "test.jpg",
         "file_type": "jpg",
-        "provider": "nebius",
+        "provider": "openrouter",
         "model": "llama",
         "schema_name": "Invoice",
         "created_at": "2026-01-01 00:00:00",
