@@ -577,9 +577,9 @@ export default function BenchmarksPage() {
                           <tr key={result.id}>
                             <td className="px-4 py-2">{result.sample_index + 1}</td>
                             <td className="px-4 py-2 text-right">
-                              <span className={`font-medium ${getAccuracyColor(result.accuracy_score)}`}>
-                                {(result.accuracy_score * 100).toFixed(0)}%
-                              </span>
+                                <span className={`font-medium ${getAccuracyColor(result.accuracy_score)}`}>
+                                  {result.accuracy_score != null ? `${(result.accuracy_score * 100).toFixed(0)}%` : '—'}
+                                </span>
                             </td>
                             <td className="px-4 py-2 text-right text-gray-600">
                               {result.latency.toFixed(1)}s

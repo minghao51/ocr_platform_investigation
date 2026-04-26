@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { listJobs, getJob, deleteJob, listProviders, Job, Provider } from '../lib/api';
 import ResultsDisplay from '../components/ResultsDisplay';
 import { SkeletonList } from '@/components/LoadingSpinner';
+import type { ExtractionMethod } from '@/components/ExtractionModeSelector';
 
 interface HistoryPageProps {
   isAuthenticated: boolean;
@@ -273,7 +274,7 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
                   Delete Job
                 </button>
               </div>
-              <ResultsDisplay job={selectedJob} />
+              <ResultsDisplay job={selectedJob} processingMethod={selectedJob.processing_method as ExtractionMethod | undefined} />
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow p-8 text-center">
