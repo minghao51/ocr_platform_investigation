@@ -14,7 +14,7 @@ class OpenRouterProvider(VLMProvider):
         image: Image.Image,
         prompt: str,
         schema: Dict[str, Any],
-        model: str = "anthropic/claude-3.5-sonnet",
+        model: str = "qwen/qwen3.5-flash-02-23",
         **kwargs,
     ) -> Dict[str, Any]:
         """Process image with OpenRouter"""
@@ -183,75 +183,6 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
 
         except Exception as e:
             return {"error": str(e), "content": None, "model": model}
-
-    def get_models(self) -> List[Dict[str, Any]]:
-        """Get available OpenRouter models with metadata"""
-        return [
-            {
-                "id": "qwen/qwen3.6-plus:free",
-                "name": "Qwen3.6 Plus (Free)",
-                "tier": "free",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 262144,
-                "description": "Free tier model for low-cost extraction",
-            },
-            {
-                "id": "qwen/qwen3.5-flash-02-23",
-                "name": "Qwen3.5 Flash",
-                "tier": "lite",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 1000000,
-                "description": "Cheapest paid vision model, native VL",
-            },
-            {
-                "id": "google/gemini-2.5-flash-lite",
-                "name": "Gemini 2.5 Flash Lite",
-                "tier": "lite",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 1048576,
-                "description": "Ultra-cheap, fast, 1M context",
-            },
-            {
-                "id": "google/gemini-2.5-flash",
-                "name": "Gemini 2.5 Flash",
-                "tier": "balanced",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 1048576,
-                "description": "Balanced Gemini model via OpenRouter",
-            },
-            {
-                "id": "google/gemini-3-flash-preview",
-                "name": "Gemini 3 Flash Preview",
-                "tier": "balanced",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 1048576,
-                "description": "Near-Pro reasoning, #1 Finance ranking",
-            },
-            {
-                "id": "x-ai/grok-4.1-fast",
-                "name": "Grok 4.1 Fast",
-                "tier": "balanced",
-                "capabilities": ["vision", "reasoning"],
-                "context_window": 2000000,
-                "description": "Cheapest paid vision, 2M context",
-            },
-            {
-                "id": "openai/gpt-4.1-mini",
-                "name": "GPT-4.1 Mini",
-                "tier": "balanced",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 1048576,
-                "description": "General-purpose compact multimodal model",
-            },
-            {
-                "id": "google/gemma-4-31b-it",
-                "name": "Gemma 4 31B IT",
-                "tier": "lite",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 262144,
-                "description": "Google open VLM, strong OCR and table extraction",
-            },
-        ]
 
     def get_default_image_size(self) -> tuple[int, int]:
         return (1024, 1024)

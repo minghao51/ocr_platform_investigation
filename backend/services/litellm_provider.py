@@ -1,4 +1,3 @@
-import os
 from typing import Dict, Any, List, Optional
 from PIL import Image
 import json
@@ -17,27 +16,12 @@ class LiteLLMProvider(VLMProvider):
         - Any litellm-compatible model string
     """
 
-    def __init__(self, api_key: str = ""):
-        super().__init__(api_key=api_key or "litellm-no-key")
-        self._configure_env_keys(api_key)
-
-    @staticmethod
-    def _configure_env_keys(api_key: str) -> None:
-        if not api_key:
-            return
-        existing = os.environ.get("OPENROUTER_API_KEY", "")
-        if not existing or existing.startswith("encrypted:"):
-            os.environ["OPENROUTER_API_KEY"] = api_key
-        existing = os.environ.get("GEMINI_API_KEY", "")
-        if not existing or existing.startswith("encrypted:"):
-            os.environ["GEMINI_API_KEY"] = api_key
-
     async def process_image(
         self,
         image: Image.Image,
         prompt: str,
         schema: Dict[str, Any],
-        model: str = "openrouter/google/gemini-2.5-flash",
+        model: str = "openrouter/google/gemma-4-31b-it",
         **kwargs,
     ) -> Dict[str, Any]:
         litellm_model = self._resolve_model(model)
@@ -60,24 +44,27 @@ class LiteLLMProvider(VLMProvider):
             }
         ]
 
-        response = await self._call_litellm(
-            litellm_model,
-            messages,
-            schema,
-            kwargs,
-        )
+        try:
+            response = await self._call_litellm(
+                litellm_model,
+                messages,
+                schema,
+                kwargs,
+            )
 
-        content = response.choices[0].message.content
+            content = response.choices[0].message.content
 
-        return {
-            "raw_response": response.model_dump(),
-            "content": content,
-            "usage": {
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens,
-            },
-        }
+            return {
+                "raw_response": response.model_dump(),
+                "content": content,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                },
+            }
+        except Exception as e:
+            return {"error": str(e), "content": None, "model": model}
 
     async def process_text(
         self,
@@ -118,6 +105,7 @@ class LiteLLMProvider(VLMProvider):
                 "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "api_key": self.api_key if self.api_key != "litellm-no-key" else None,
             }
             if schema_definition is not None:
                 request_kwargs["response_format"] = {"type": "json_object"}
@@ -157,6 +145,8 @@ class LiteLLMProvider(VLMProvider):
             },
         }
 
+        api_key = self.api_key if self.api_key != "litellm-no-key" else None
+
         try:
             return await litellm.acompletion(
                 model=model,
@@ -167,6 +157,7 @@ class LiteLLMProvider(VLMProvider):
                 },
                 temperature=kwargs.get("temperature", 0.1),
                 max_tokens=kwargs.get("max_tokens", 4096),
+                api_key=api_key,
             )
         except Exception:
             return await litellm.acompletion(
@@ -175,6 +166,7 @@ class LiteLLMProvider(VLMProvider):
                 response_format={"type": "json_object"},
                 temperature=kwargs.get("temperature", 0.1),
                 max_tokens=kwargs.get("max_tokens", 4096),
+                api_key=api_key,
             )
 
     @staticmethod
@@ -182,18 +174,6 @@ class LiteLLMProvider(VLMProvider):
         if "/" in model and not model.startswith(("openrouter/", "gemini/", "openai/", "anthropic/")):
             return f"openrouter/{model}"
         return model
-
-    def get_models(self) -> List[Dict[str, Any]]:
-        return [
-            {
-                "id": "google/gemma-4-31b-it",
-                "name": "Gemma 4 31B IT",
-                "tier": "lite",
-                "capabilities": ["vision", "reasoning", "structured_output"],
-                "context_window": 262144,
-                "description": "Google's latest open VLM, excellent OCR/table extraction",
-            },
-        ]
 
     def get_default_image_size(self) -> tuple[int, int]:
         return (1024, 1024)

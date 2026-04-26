@@ -17,7 +17,7 @@ class GeminiProvider(VLMProvider):
         image: Image.Image,
         prompt: str,
         schema: Dict[str, Any],
-        model: str = "gemini-1.5-pro",
+        model: str = "gemini-3-flash-preview",
         **kwargs,
     ) -> Dict[str, Any]:
         """Process image with Gemini"""
@@ -345,59 +345,6 @@ class GeminiProvider(VLMProvider):
 
         except Exception as e:
             return {"error": str(e), "content": None, "model": model}
-
-    def get_models(self) -> List[Dict[str, Any]]:
-        """Get available Gemini models with metadata"""
-        return [
-            {
-                "id": "gemini-3-pro-preview",
-                "name": "Gemini 3 Pro Preview",
-                "tier": "premium",
-                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
-                "context_window": 1048576,
-                "description": "Highest quality Gemini preview model",
-            },
-            {
-                "id": "gemini-3-flash-preview",
-                "name": "Gemini 3 Flash Preview",
-                "tier": "balanced",
-                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
-                "context_window": 1048576,
-                "description": "Balanced speed and intelligence for scale",
-            },
-            {
-                "id": "gemini-2.5-pro",
-                "name": "Gemini 2.5 Pro",
-                "tier": "premium",
-                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
-                "context_window": 1048576,
-                "description": "Higher reasoning quality Gemini 2.5 tier",
-            },
-            {
-                "id": "gemini-2.5-flash",
-                "name": "Gemini 2.5 Flash",
-                "tier": "balanced",
-                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
-                "context_window": 1048576,
-                "description": "Balanced speed and quality",
-            },
-            {
-                "id": "gemini-2.5-flash-lite",
-                "name": "Gemini 2.5 Flash Lite",
-                "tier": "lite",
-                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
-                "context_window": 1048576,
-                "description": "Fastest, most cost-efficient model",
-            },
-            {
-                "id": "gemini-2.0-flash",
-                "name": "Gemini 2.0 Flash",
-                "tier": "balanced",
-                "capabilities": ["vision", "thinking", "pdf", "video", "audio"],
-                "context_window": 1048576,
-                "description": "Stable balanced Gemini model",
-            },
-        ]
 
     def get_default_image_size(self) -> tuple[int, int]:
         return (1024, 1024)
