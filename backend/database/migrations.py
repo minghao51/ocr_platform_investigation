@@ -590,10 +590,60 @@ async def migrate_phase23_tables():
             print("✓ prompt_learning_entries table already exists")
 
 
+async def migrate_job_queue_table():
+    """Create durable job queue table used by the in-process worker."""
+    db_path = _get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='job_queue'"
+        )
+        if await cursor.fetchone() is None:
+            print("Creating job_queue table...")
+            await db.execute(
+                """
+                CREATE TABLE job_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER NOT NULL UNIQUE,
+                    task_type TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    payload TEXT,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    worker_id TEXT,
+                    locked_at TIMESTAMP,
+                    last_error TEXT,
+                    run_after TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES processing_jobs(id) ON DELETE CASCADE
+                )
+                """
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status)"
+            )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_job_queue_run_after ON job_queue(run_after)"
+            )
+            await db.commit()
+            print("✓ Created job_queue table")
+        else:
+            print("✓ job_queue table already exists")
+
+
 async def run_migrations():
     """Run all database migrations"""
     db_path = _get_db_path()
-    if not db_path.exists():
+    should_init = not db_path.exists()
+    if not should_init:
+        async with aiosqlite.connect(db_path) as db:
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='processing_jobs'"
+            )
+            should_init = await cursor.fetchone() is None
+    if should_init:
         await init_database()
     await migrate_processing_method()
     await migrate_users_table()
@@ -607,6 +657,7 @@ async def run_migrations():
     await migrate_legacy_benchmark_data()
     await migrate_quality_gate()
     await migrate_phase23_tables()
+    await migrate_job_queue_table()
     print("All migrations completed successfully")
 
 

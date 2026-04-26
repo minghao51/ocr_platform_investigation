@@ -151,6 +151,24 @@ CREATE TABLE IF NOT EXISTS prompt_learning_entries (
     FOREIGN KEY (last_correction_id) REFERENCES job_corrections(id) ON DELETE SET NULL
 );
 
+-- Durable queue for background OCR processing jobs
+CREATE TABLE IF NOT EXISTS job_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL UNIQUE,
+    task_type TEXT NOT NULL,          -- 'processing' | 'text'
+    file_path TEXT NOT NULL,
+    payload TEXT,                     -- JSON-encoded kwargs for worker
+    status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'processing' | 'completed' | 'failed'
+    attempts INTEGER NOT NULL DEFAULT 0,
+    worker_id TEXT,
+    locked_at TIMESTAMP,
+    last_error TEXT,
+    run_after TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (job_id) REFERENCES processing_jobs(id) ON DELETE CASCADE
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON processing_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_provider ON processing_jobs(provider);
@@ -169,3 +187,5 @@ CREATE INDEX IF NOT EXISTS idx_benchmark_results_run_id ON benchmark_results(run
 CREATE INDEX IF NOT EXISTS idx_schema_suggestions_created_by ON schema_suggestions(created_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_job_corrections_job_id ON job_corrections(job_id);
 CREATE INDEX IF NOT EXISTS idx_prompt_learning_schema_name ON prompt_learning_entries(schema_name);
+CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status);
+CREATE INDEX IF NOT EXISTS idx_job_queue_run_after ON job_queue(run_after);

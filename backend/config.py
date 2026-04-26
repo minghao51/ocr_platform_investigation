@@ -37,13 +37,23 @@ class Settings(BaseSettings):
     jwt_secret_key: str = _DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
+    environment: str = Field(
+        default="development",
+        validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT", "ENV"),
+    )
 
     rate_limit_per_minute: int = 10
     demo_daily_request_limit: int = 5
+    enable_job_worker: bool = True
 
     @property
     def is_using_default_jwt_secret(self) -> bool:
         return self.jwt_secret_key == _DEFAULT_JWT_SECRET
+
+    @property
+    def is_local_environment(self) -> bool:
+        env = self.environment.strip().lower()
+        return env in {"dev", "development", "local", "test"}
 
     @model_validator(mode="before")
     @classmethod
@@ -62,8 +72,14 @@ class Settings(BaseSettings):
 def get_settings():
     settings = Settings()
     if settings.is_using_default_jwt_secret:
-        logger.warning(
-            "JWT secret key is set to the default value. "
-            "Set JWT_SECRET_KEY env var for production deployments."
-        )
+        if settings.is_local_environment:
+            logger.warning(
+                "JWT secret key is set to the default value. "
+                "Set JWT_SECRET_KEY env var for production deployments."
+            )
+        else:
+            raise RuntimeError(
+                "JWT secret key is set to the default value in a non-local environment. "
+                "Set JWT_SECRET_KEY before starting the application."
+            )
     return settings

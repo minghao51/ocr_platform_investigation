@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 from database import crud
@@ -6,6 +6,7 @@ from dependencies import check_and_increment_daily_limit, get_current_user
 from limiter import limiter, get_rate_limit_value
 from routers.job_serialization import serialize_job
 from routers.shared import ensure_file_access, ensure_job_access
+from services.job_queue import enqueue_processing_task
 
 router = APIRouter(prefix="/api/text", tags=["text-processing"])
 
@@ -22,7 +23,6 @@ class TextProcessRequest(BaseModel):
 async def process_text_document(
     http_request: Request,
     request: TextProcessRequest,
-    background_tasks: BackgroundTasks,
     current_user: dict = Depends(check_and_increment_daily_limit),
 ):
     """
@@ -32,9 +32,6 @@ async def process_text_document(
     Note: Only supports PDF files. For images and scanned documents, use Vision Extraction.
     """
     _ = http_request
-
-    # Import here to avoid circular dependency
-    from services.processing import run_text_processing_job
 
     # Get file info
     file_info = await crud.get_uploaded_file(request.file_id)
@@ -80,8 +77,13 @@ async def process_text_document(
     # Get file path
     file_path = file_info["file_path"]
 
-    # Queue background processing
-    background_tasks.add_task(run_text_processing_job, job_id, file_path)
+    # Queue durable background processing
+    await enqueue_processing_task(
+        job_id,
+        file_path,
+        payload={},
+        task_type="text",
+    )
 
     return {"job_id": job_id}
 

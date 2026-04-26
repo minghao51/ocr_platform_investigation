@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Optional
 from models.schemas import ProcessRequest, ProcessResponse
 from database import crud
-from services.processing import run_processing_job, run_text_processing_job
 from services.document_classifier import DocumentClassifier
+from services.job_queue import enqueue_processing_task
 from dependencies import (
     check_and_increment_daily_limit,
     get_optional_user,
@@ -34,7 +34,6 @@ def _supports_raw_output(processing_method: str) -> bool:
 async def process_document(
     request: Request,
     payload: ProcessRequest,
-    background_tasks: BackgroundTasks,
     extraction_method: Optional[
         str
     ] = None,  # NEW: "auto", "text", "vision", or None (auto)
@@ -254,8 +253,11 @@ async def process_document(
             "max_tokens_override": payload.max_tokens,
             "raw_output": schema_mode == "raw",
         }
-        background_tasks.add_task(
-            run_text_processing_job, job_id, str(file_path), **worker_kwargs
+        await enqueue_processing_task(
+            job_id,
+            str(file_path),
+            worker_kwargs,
+            task_type="text",
         )
     else:  # "vision", "hybrid", "docling", or "transcription"
         worker_kwargs = {
@@ -270,8 +272,11 @@ async def process_document(
             "extraction_method_override": processing_method,
             "is_transcription": is_transcription,
         }
-        background_tasks.add_task(
-            run_processing_job, job_id, str(file_path), **worker_kwargs
+        await enqueue_processing_task(
+            job_id,
+            str(file_path),
+            worker_kwargs,
+            task_type="processing",
         )
 
     response_payload = {"job_id": job_id, "status": "pending"}

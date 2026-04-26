@@ -34,8 +34,13 @@ settings = get_settings()
 async def lifespan(_app: FastAPI):
     """Ensure startup migrations run and shutdown cleanup executes."""
     from database.migrations import run_migrations
+    from services.job_queue import recover_queue_state, start_job_worker
 
     await run_migrations()
+    recovered_jobs = await recover_queue_state()
+    if recovered_jobs:
+        logger.info("Recovered %s in-flight queued jobs", recovered_jobs)
+    await start_job_worker()
     try:
         yield
     finally:
@@ -53,6 +58,14 @@ async def lifespan(_app: FastAPI):
             logger.info("WebSocket connections will close")
         except Exception as e:
             logger.warning(f"Note: {e}")
+
+        try:
+            from services.job_queue import stop_job_worker
+
+            await stop_job_worker()
+            logger.info("Job queue worker stopped")
+        except Exception as e:
+            logger.warning(f"Failed to stop job queue worker: {e}")
 
         logger.info("Shutdown complete")
 
