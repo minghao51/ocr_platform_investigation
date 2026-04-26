@@ -74,6 +74,7 @@ htmlcov/
 
 # Playwright CLI - test artifacts
 .playwright-cli/
+.playwright-mcp/
 
 # Secrets - do not commit
 DEMO_ACCOUNTS.md
@@ -84,6 +85,7 @@ credentials.json
 
 # Local development artifacts
 .context/
+.context7/
 backend/scripts/
 backend/tests/conftest.py.bak
 frontend/test-results/
