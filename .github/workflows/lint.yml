@@ -31,6 +31,24 @@ jobs:
         working-directory: backend
         run: uv run ruff format . --check --output-format=github
 
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Run pip-audit
+        working-directory: backend
+        run: |
+          uvx pip-audit --desc --format=json --output=audit.json || true
+          if [ -s audit.json ]; then
+            echo "::warning::Vulnerabilities found - see audit.json"
+            cat audit.json
+          fi
+
   frontend-lint:
     runs-on: ubuntu-latest
     steps:

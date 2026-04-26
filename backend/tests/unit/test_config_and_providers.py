@@ -4,7 +4,7 @@ from pathlib import Path
 import time
 
 from config import Settings, get_settings
-from services.processing import ProcessingService
+from services.processors.docling_parse import DoclingParseProcessor
 from services.provider_utils import resolve_provider_api_key
 from services import pricing
 
@@ -50,16 +50,16 @@ async def test_docling_parse_transcription_returns_markdown_payload(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ):
-    service = ProcessingService()
+    processor = DoclingParseProcessor()
     sample_file = tmp_path / "sample.docx"
     sample_file.write_bytes(b"PK\x03\x04minimal-docx")
     monkeypatch.setattr(
-        service.docling_service,
+        processor.docling_service,
         "parse_document",
         lambda _file_path: "# Invoice\n\nTotal: 10.00",
     )
 
-    result = await service._process_via_docling_parse(
+    result = await processor._run(
         file_path=str(sample_file),
         provider=None,
         model="gemini-2.5-flash",
@@ -75,8 +75,7 @@ async def test_docling_parse_transcription_returns_markdown_payload(
 
 @pytest.mark.asyncio
 async def test_docling_parse_returns_timeout_error_for_slow_parse(tmp_path):
-    service = ProcessingService()
-    service.docling_parse_timeout_seconds = 1
+    processor = DoclingParseProcessor(docling_parse_timeout_seconds=1)
     sample_file = tmp_path / "slow.docx"
     sample_file.write_bytes(b"PK\x03\x04slow-docx")
 
@@ -84,9 +83,9 @@ async def test_docling_parse_returns_timeout_error_for_slow_parse(tmp_path):
         time.sleep(2)
         return "# Slow"
 
-    service.docling_service.parse_document = _slow_parse
+    processor.docling_service.parse_document = _slow_parse
 
-    result = await service._process_via_docling_parse(
+    result = await processor._run(
         file_path=str(sample_file),
         provider=None,
         model="gemini-2.5-flash",
@@ -123,7 +122,7 @@ def test_pymupdf_extractor_reads_pdf_text(tmp_path):
     doc.save(str(pdf_path))
     doc.close()
 
-    service = ProcessingService()
-    content = service._extract_markdown_with_pymupdf(str(pdf_path))
+    processor = DoclingParseProcessor()
+    content = processor._extract_markdown_with_pymupdf(str(pdf_path))
 
     assert "PyMuPDF parse route check" in content

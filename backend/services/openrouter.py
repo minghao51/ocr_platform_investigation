@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from PIL import Image
 import json
 from .vlm_provider import VLMProvider

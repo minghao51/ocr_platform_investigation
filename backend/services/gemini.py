@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from PIL import Image
 import json
 from .vlm_provider import VLMProvider
@@ -105,8 +105,10 @@ class GeminiProvider(VLMProvider):
 
             # Return empty JSON if content is empty
             if not content_text or content_text.strip() == "":
-                print(f"Warning: Empty content received from Gemini model {model}")
-                print(f"Raw response: {result}")
+                logger.warning(
+                    "Empty content received from Gemini model %s", model
+                )
+                logger.debug("Raw response: %s", result)
                 content_text = "{}"
 
         except (KeyError, IndexError) as e:
