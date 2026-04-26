@@ -1,23 +1,24 @@
+import logging
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List
 from paths import DB_PATH
 
+_DEFAULT_JWT_SECRET = "change-me-in-production-use-openssl-rand-hex-32"
+
+logger = logging.getLogger(__name__)
+
 
 class Settings(BaseSettings):
-    # VLM Provider API Keys
     openrouter_api_key: str = ""
     gemini_api_key: str = ""
 
-    # Database
     database_url: str = f"sqlite:///{DB_PATH}"
 
-    # File Upload
     max_file_size: int = 10 * 1024 * 1024  # 10MB
     docling_parse_timeout_seconds: int = 60
 
-    # CORS Origins (comma-separated list, will be parsed into list)
     cors_origins_str: str = Field(
         default="http://localhost:5173,http://localhost:3000",
         validation_alias=AliasChoices("CORS_ORIGINS_STR", "CORS_ORIGINS"),
@@ -25,34 +26,26 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> List[str]:
-        """Parse CORS origins from comma-separated string"""
         return [
             origin.strip()
             for origin in self.cors_origins_str.split(",")
             if origin.strip()
         ]
 
-    # JWT Authentication
-    jwt_secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
+    jwt_secret_key: str = _DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
 
-    # Rate Limiting
-    # General API rate limit: 10 requests per minute (applies to all users via slowapi)
     rate_limit_per_minute: int = 10
-
-    # Demo user daily limit: 5 requests per day (for is_limited users)
-    # This is a separate cap that applies in addition to per-minute limits
     demo_daily_request_limit: int = 5
+
+    @property
+    def is_using_default_jwt_secret(self) -> bool:
+        return self.jwt_secret_key == _DEFAULT_JWT_SECRET
 
     @model_validator(mode="before")
     @classmethod
     def ignore_encrypted_dotenv_values(cls, data):
-        """
-        Allow local `uv run ...` usage even when `.env` contains dotenvx-encrypted
-        placeholders by treating undecrypted values as missing and falling back to
-        defaults/environment overrides.
-        """
         if not isinstance(data, dict):
             return data
 
@@ -70,4 +63,10 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings():
-    return Settings()
+    settings = Settings()
+    if settings.is_using_default_jwt_secret:
+        logger.warning(
+            "JWT secret key is set to the default value. "
+            "Set JWT_SECRET_KEY env var for production deployments."
+        )
+    return settings
