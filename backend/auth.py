@@ -3,7 +3,7 @@ Authentication utilities for JWT tokens and password hashing.
 """
 
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from passlib.context import CryptContext
 from config import get_settings
@@ -27,14 +27,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(user_id: int, username: str, is_admin: bool = False) -> str:
     """Create a JWT access token."""
     expires_delta = timedelta(hours=settings.jwt_expiration_hours)
-    expire = datetime.utcnow() + expires_delta
+    now_utc = datetime.now(timezone.utc)
+    expire = now_utc + expires_delta
 
     to_encode = {
         "user_id": user_id,
         "username": username,
         "is_admin": is_admin,
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": now_utc,
     }
 
     encoded_jwt = jwt.encode(

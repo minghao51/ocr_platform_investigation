@@ -1,5 +1,5 @@
 import logging
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List
@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file="../.env", extra="ignore")
+
     openrouter_api_key: str = ""
     gemini_api_key: str = ""
 
@@ -55,11 +57,6 @@ class Settings(BaseSettings):
                 continue
             sanitized[key] = value
         return sanitized
-
-    class Config:
-        env_file = "../.env"
-        extra = "ignore"
-
 
 @lru_cache
 def get_settings():

@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from routers import (
@@ -27,7 +28,36 @@ import logging
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
-app = FastAPI(title="OCR Platform")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Ensure startup migrations run and shutdown cleanup executes."""
+    from database.migrations import run_migrations
+
+    await run_migrations()
+    try:
+        yield
+    finally:
+        logger.info("Shutting down OCR Platform...")
+
+        try:
+            from database.pool import close_pool
+
+            await close_pool()
+            logger.info("Database pool closed")
+        except Exception as e:
+            logger.warning(f"Failed to close database pool: {e}")
+
+        try:
+            logger.info("WebSocket connections will close")
+        except Exception as e:
+            logger.warning(f"Note: {e}")
+
+        logger.info("Shutdown complete")
+
+
+app = FastAPI(title="OCR Platform", lifespan=lifespan)
 
 # Rate limiting
 app.state.limiter = limiter
@@ -122,36 +152,3 @@ async def spa_fallback(request: Request, call_next):
                 return FileResponse(str(index_path))
 
     return response
-
-
-# Graceful shutdown
-@app.on_event("startup")
-async def startup_event():
-    """Ensure the database schema is up to date before serving requests."""
-    from database.migrations import run_migrations
-
-    await run_migrations()
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on shutdown."""
-    logger.info("Shutting down OCR Platform...")
-
-    # Close database pool
-    try:
-        from database.pool import close_pool
-
-        await close_pool()
-        logger.info("Database pool closed")
-    except Exception as e:
-        logger.warning(f"Failed to close database pool: {e}")
-
-    # Close WebSocket connections
-    try:
-        # The ConnectionManager handles cleanup automatically on disconnect
-        logger.info("WebSocket connections will close")
-    except Exception as e:
-        logger.warning(f"Note: {e}")
-
-    logger.info("Shutdown complete")

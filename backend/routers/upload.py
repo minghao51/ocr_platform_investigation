@@ -26,19 +26,11 @@ async def upload_file(
     file: UploadFile = File(...),
     current_user: dict | None = Depends(get_optional_user),
 ):
-    """Upload a file for processing"""
+    """Upload a file for processing (streamed to disk)."""
     settings = get_settings()
     guest_token = request.headers.get("X-Guest-Token")
     if current_user is None:
         guest_token = guest_token or secrets.token_urlsafe(32)
-
-    content = await file.read()
-    if len(content) > settings.max_file_size:
-        max_size_mb = settings.max_file_size / (1024 * 1024)
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large. Max size is {max_size_mb:.0f}MB",
-        )
 
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
@@ -53,9 +45,25 @@ async def upload_file(
     file_id = str(uuid.uuid4())
     file_path = UPLOAD_DIR / f"{file_id}{file_ext}"
 
-    # Save file
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # Stream file to disk in chunks to avoid loading large files into memory
+    total_size = 0
+    chunk_size = 8192
+    try:
+        with open(file_path, "wb") as f:
+            while chunk := await file.read(chunk_size):
+                total_size += len(chunk)
+                if total_size > settings.max_file_size:
+                    max_size_mb = settings.max_file_size / (1024 * 1024)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Max size is {max_size_mb:.0f}MB",
+                    )
+                f.write(chunk)
+    except HTTPException:
+        # Clean up partial file if size limit was exceeded
+        if file_path.exists():
+            file_path.unlink()
+        raise
 
     # Determine file type and content type
     if file_ext in IMAGE_EXTENSIONS:
@@ -92,7 +100,7 @@ async def upload_file(
         original_filename=file.filename,
         file_extension=file_ext,
         file_path=str(file_path),
-        file_size=len(content),
+        file_size=total_size,
         content_type=content_type,
         user_id=current_user.get("user_id") if current_user else None,
         guest_token=guest_token,
@@ -102,7 +110,7 @@ async def upload_file(
         "file_id": file_id,
         "file_name": file.filename,
         "file_type": file_type,
-        "file_size": len(content),
+        "file_size": total_size,
     }
     if current_user is None:
         payload["guest_token"] = guest_token

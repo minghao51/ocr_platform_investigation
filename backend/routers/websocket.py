@@ -2,16 +2,59 @@
 WebSocket router for real-time job status updates.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
-from typing import Dict, Set
-from auth import verify_token
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status, Depends
+from typing import Dict, Set, Optional
 from database import crud
-import json
+from routers.job_serialization import serialize_job
+from dependencies import get_current_user
 import logging
+import secrets
+import time
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
+
+# ── Ticket-based auth for WebSockets ────────────────────────────────────────
+# Tickets are short-lived, single-use tokens exchanged for JWTs over HTTPS.
+# This prevents JWTs from leaking into server logs via WebSocket URL query params.
+
+TICKET_TTL_SECONDS = 60
+
+_ticket_store: Dict[str, dict] = {}
+
+
+def _create_ws_ticket(user_payload: dict) -> str:
+    ticket = secrets.token_urlsafe(32)
+    _ticket_store[ticket] = {
+        "user_id": user_payload.get("user_id"),
+        "is_admin": user_payload.get("is_admin", False),
+        "expires_at": time.time() + TICKET_TTL_SECONDS,
+    }
+    return ticket
+
+
+def _consume_ws_ticket(ticket: str) -> Optional[dict]:
+    data = _ticket_store.pop(ticket, None)
+    if data is None:
+        return None
+    if time.time() > data["expires_at"]:
+        return None
+    return data
+
+
+@router.post("/ws/ticket")
+async def create_websocket_ticket(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Exchange a JWT for a short-lived WebSocket ticket.
+
+    The ticket must be used within 60 seconds and is single-use.
+    Pass it as the `ticket` query parameter when connecting to the WebSocket.
+    """
+    ticket = _create_ws_ticket(current_user)
+    return {"ticket": ticket, "expires_in": TICKET_TTL_SECONDS}
 
 
 class ConnectionManager:
@@ -48,22 +91,7 @@ class ConnectionManager:
         await websocket.send_json(
             {
                 "type": "status",
-                "data": {
-                    "job_id": job["id"],
-                    "file_name": job["file_name"],
-                    "status": job["status"],
-                    "provider": job["provider"],
-                    "model": job["model"],
-                    "result": json.loads(job["result"]) if job.get("result") else None,
-                    "error": job.get("error_message"),
-                    "processing_time": job.get("processing_time_seconds"),
-                    "processing_method": job.get("processing_method"),
-                    "created_at": job["created_at"],
-                    "completed_at": job.get("completed_at"),
-                    "chunking_progress": job.get("metadata", {}).get(
-                        "chunking_progress"
-                    ),
-                },
+                "data": serialize_job(job),
             }
         )
 
@@ -112,22 +140,22 @@ async def broadcast_job_update(job_id: int, job_data: dict):
 
 @router.websocket("/ws/job/{job_id}")
 async def job_status_websocket(
-    websocket: WebSocket, job_id: int, token: str = Query(...)
+    websocket: WebSocket, job_id: int, ticket: str = Query(...)
 ):
     """
     WebSocket endpoint for real-time job status updates.
 
     Query parameters:
-        token: JWT authentication token (required)
+        ticket: Short-lived ticket obtained from POST /api/ws/ticket (required)
 
     Messages sent to client:
         - Initial job status on connection
         - Status updates when job changes
     """
-    # Verify JWT token
-    payload = verify_token(token)
+    # Verify ticket
+    payload = _consume_ws_ticket(ticket)
     if payload is None:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired ticket")
         return
 
     # Verify user has access to this job
