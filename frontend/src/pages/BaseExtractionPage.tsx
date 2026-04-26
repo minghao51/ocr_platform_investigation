@@ -370,7 +370,7 @@ export default function BaseExtractionPage({
         }, 2000);
     };
 
-    const connectWebSocketForJobStatus = (jobId: number, token: string) => {
+    const connectWebSocketForJobStatus = async (jobId: number) => {
         stopStatusUpdates();
 
         wsConnection.current = new JobStatusWebSocket();
@@ -389,18 +389,19 @@ export default function BaseExtractionPage({
             setError(`Connection error: ${error.message}`);
         });
 
-        wsConnection.current.connect(jobId, token);
+        await wsConnection.current.connect(jobId);
     };
 
     const connectJobStatusUpdates = (jobId: number) => {
         const token = getAuthToken();
         if (token) {
-            connectWebSocketForJobStatus(jobId, token);
+            void connectWebSocketForJobStatus(jobId);
             return;
         }
-
         startPollingJobStatus(jobId);
     };
+
+
 
     const handleReset = () => {
         stopStatusUpdates();

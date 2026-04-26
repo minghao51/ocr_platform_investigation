@@ -419,7 +419,7 @@ export async function getJobStatus(jobId: number): Promise<Job> {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to get job status');
+    throw await parseApiError(response, 'Failed to get job status');
   }
 
   return response.json();
@@ -431,6 +431,9 @@ export async function listSchemas(isTemplate?: boolean): Promise<Schema[]> {
   const response = await fetch(`${API_BASE}/schemas/${params}`, {
     headers: getAuthHeaders()
   });
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load schemas');
+  }
   return response.json();
 }
 
@@ -456,7 +459,7 @@ export async function getSchema(schemaId: number): Promise<Schema> {
   });
 
   if (!response.ok) {
-    throw new Error('Schema not found');
+    throw await parseApiError(response, 'Schema not found');
   }
 
   return response.json();
@@ -473,8 +476,7 @@ export async function createSchema(schema: Omit<Schema, 'id' | 'created_at' | 'u
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to create schema');
+    throw await parseApiError(response, 'Failed to create schema');
   }
 
   return response.json();
@@ -528,6 +530,9 @@ export async function listJobs(status?: string, provider?: string, limit = 50, o
   const response = await fetch(`${API_BASE}/jobs/?${params}`, {
     headers: getAuthHeaders()
   });
+  if (!response.ok) {
+    throw await parseApiError(response, 'Failed to load jobs');
+  }
   return response.json();
 }
 
@@ -852,8 +857,7 @@ export async function analyzePdf(fileId: string): Promise<PdfAnalysis> {
     headers: getAccessHeaders(),
   });
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'PDF analysis failed');
+    throw await parseApiError(response, 'PDF analysis failed');
   }
   return response.json();
 }
@@ -895,8 +899,7 @@ export async function checkUploadedImageQuality(file: File, estimatedDpi = 200):
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Quality check failed');
+    throw await parseApiError(response, 'Quality check failed');
   }
 
   return response.json();

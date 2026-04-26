@@ -3,6 +3,7 @@
  */
 
 import type { Job } from './api';
+import { getAuthToken } from './api';
 
 export interface WebSocketMessage {
   type: 'status' | 'status_update';
@@ -15,7 +16,6 @@ type ErrorCallback = (error: Error) => void;
 export class JobStatusWebSocket {
   private ws: WebSocket | null = null;
   private jobId: number | null = null;
-  private token: string | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 2000; // Start with 2 seconds
@@ -27,17 +27,22 @@ export class JobStatusWebSocket {
   /**
    * Connect to WebSocket for a specific job.
    */
-  connect(jobId: number, token: string): void {
+  async connect(jobId: number): Promise<void> {
     if (this.ws) {
       this.disconnect();
     }
 
-    // Store job ID and token for reconnection
     this.jobId = jobId;
-    this.token = token;
     this.isIntentionallyClosed = false;
 
-    const wsUrl = this.getWebSocketUrl(jobId, token);
+    // Fetch a short-lived ticket over HTTPS instead of passing JWT in URL
+    const ticket = await this._fetchTicket();
+    if (!ticket) {
+      this.errorCallback?.(new Error('Failed to obtain WebSocket ticket'));
+      return;
+    }
+
+    const wsUrl = this.getWebSocketUrl(jobId, ticket);
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
@@ -89,8 +94,8 @@ export class JobStatusWebSocket {
         console.log(`Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
         setTimeout(() => {
-          if (!this.isIntentionallyClosed && this.jobId !== null && this.token !== null) {
-            this.connect(this.jobId, this.token);
+          if (!this.isIntentionallyClosed && this.jobId !== null) {
+            void this.connect(this.jobId);
           }
         }, delay);
       } else if (event.code === 1008) {
@@ -98,6 +103,31 @@ export class JobStatusWebSocket {
         this.errorCallback?.(new Error('Authentication failed'));
       }
     };
+  }
+
+  /**
+   * Fetch a short-lived WebSocket ticket from the backend.
+   */
+  private async _fetchTicket(): Promise<string | null> {
+    const token = getAuthToken();
+    if (!token) {
+      return null;
+    }
+    try {
+      const response = await fetch('/api/ws/ticket', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const data = await response.json() as { ticket: string };
+      return data.ticket;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -130,10 +160,10 @@ export class JobStatusWebSocket {
   /**
    * Get WebSocket URL for a specific job.
    */
-  private getWebSocketUrl(jobId: number, token: string): string {
+  private getWebSocketUrl(jobId: number, ticket: string): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    return `${protocol}//${host}/api/ws/job/${jobId}?token=${encodeURIComponent(token)}`;
+    return `${protocol}//${host}/api/ws/job/${jobId}?ticket=${encodeURIComponent(ticket)}`;
   }
 
   /**
