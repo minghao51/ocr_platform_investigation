@@ -200,21 +200,21 @@ async def update_job_status(
         )
         total_tokens = usage.get("total_tokens") or usage.get("totalTokenCount")
 
+    async with connect() as db:
+        db.row_factory = aiosqlite.Row
+
         if prompt_tokens is not None and completion_tokens is not None:
             from services.pricing import calculate_cost
 
-            async with connect() as db_cost:
-                db_cost.row_factory = aiosqlite.Row
-                cursor = await db_cost.execute(
-                    "SELECT model FROM processing_jobs WHERE id = ?", (job_id,)
+            cursor = await db.execute(
+                "SELECT model FROM processing_jobs WHERE id = ?", (job_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                estimated_cost = calculate_cost(
+                    row["model"], prompt_tokens, completion_tokens
                 )
-                row = await cursor.fetchone()
-                if row:
-                    estimated_cost = calculate_cost(
-                        row["model"], prompt_tokens, completion_tokens
-                    )
 
-    async with connect() as db:
         completed_at = (
             datetime.now().isoformat() if status in ("success", "error") else None
         )
@@ -235,7 +235,6 @@ async def update_job_status(
             update_fields["error_message"] = error_message
             update_fields["completed_at"] = completed_at
 
-        # Validate all column names before SQL interpolation
         validate_update_columns(set(update_fields.keys()))
 
         await db.execute(
@@ -246,7 +245,6 @@ async def update_job_status(
         )
         await db.commit()
 
-        db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT * FROM processing_jobs WHERE id = ?", (job_id,)
         )
@@ -314,14 +312,21 @@ async def delete_job(job_id: int) -> bool:
 
 async def update_job_metadata(job_id: int, metadata: Dict[str, Any]) -> None:
     """Update job metadata JSON without mutating the extracted result payload."""
-    current = await get_job(job_id)
-    merged_metadata = metadata
-    if current and current.get("metadata"):
-        existing = _loads_if_json(current["metadata"])
-        if isinstance(existing, dict):
-            merged_metadata = {**existing, **metadata}
-
     async with connect() as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT metadata FROM processing_jobs WHERE id = ?", (job_id,)
+        )
+        row = await cursor.fetchone()
+        merged_metadata = metadata
+        if row and row["metadata"]:
+            try:
+                existing = json.loads(row["metadata"])
+                if isinstance(existing, dict):
+                    merged_metadata = {**existing, **metadata}
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         await db.execute(
             "UPDATE processing_jobs SET metadata = ? WHERE id = ?",
             (json.dumps(merged_metadata), job_id),
