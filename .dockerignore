@@ -12,17 +12,27 @@
 .github
 .env
 .env.local
+.env.keys
 .context7
 .claude
+.opencode
 .planning
 .worktrees
 .vscode
 .idea
 
+AGENTS.md
+CLAUDE.md
+README.md
+render.yaml
+docker-compose.yml
+
 data/
 backend/data/
 backend/.venv/
 backend/tests/
+backend/requirements*.txt
+backend/benchmarks/cord/
 frontend/dist/
 frontend/.vite/
 docs/

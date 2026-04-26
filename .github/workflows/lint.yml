@@ -43,11 +43,23 @@ jobs:
       - name: Run pip-audit
         working-directory: backend
         run: |
-          uvx pip-audit --desc --format=json --output=audit.json || true
-          if [ -s audit.json ]; then
-            echo "::warning::Vulnerabilities found - see audit.json"
-            cat audit.json
-          fi
+          uvx pip-audit --desc --format=json --output=audit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("audit.json")
+          if not path.exists():
+            raise SystemExit("pip-audit did not produce audit.json")
+
+          data = json.loads(path.read_text() or "[]")
+          vuln_count = sum(len(dep.get("vulns", [])) for dep in data)
+          if vuln_count > 0:
+            print(f"::error::Detected {vuln_count} Python dependency vulnerabilities")
+            print(path.read_text())
+            raise SystemExit(1)
+          print("No Python dependency vulnerabilities detected")
+          PY
 
   frontend-lint:
     runs-on: ubuntu-latest

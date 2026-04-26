@@ -5,11 +5,14 @@ WORKDIR /app
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/root/.local/bin:$PATH"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN --mount=type=cache,target=/root/.cache/uv-installer \
+    curl -LsSf https://astral.sh/uv/install.sh | sh
 
 
 # Stage 1: Backend dependencies and source
@@ -18,10 +21,10 @@ FROM python-base AS backend
 ENV UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
 
 COPY backend/pyproject.toml backend/uv.lock ./
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
-# Copy backend code
 COPY backend/ .
 
 
@@ -30,13 +33,11 @@ FROM node:20-alpine AS frontend
 
 WORKDIR /app/frontend
 
-# Copy frontend package files separately for better caching
 COPY frontend/package.json frontend/package-lock.json* ./
 
-# Install all dependencies (including dev dependencies for build)
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
-# Copy frontend source code
 COPY frontend/src ./src
 COPY frontend/index.html .
 COPY frontend/vite.config.ts .
@@ -45,14 +46,15 @@ COPY frontend/tsconfig.node.json .
 COPY frontend/postcss.config.js .
 COPY frontend/tailwind.config.js .
 
-# Build frontend
 RUN npm run build
 
 
 # Stage 3: Final runtime image
 FROM python:3.11-slim AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     curl \
     libgl1 \
@@ -65,7 +67,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libice6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dotenvx (pinned version)
 ENV DOTENVX_VERSION=1.61.1
 RUN curl -SsfL https://github.com/dotenvx/dotenvx/releases/download/v${DOTENVX_VERSION}/dotenvx-${DOTENVX_VERSION}-linux-x86_64.tar.gz \
     -o /tmp/dotenvx.tar.gz \
@@ -73,34 +74,24 @@ RUN curl -SsfL https://github.com/dotenvx/dotenvx/releases/download/v${DOTENVX_V
     && rm /tmp/dotenvx.tar.gz \
     && dotenvx --version
 
-# Copy backend code and virtual environment from stage 1
 COPY --from=backend /app /app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV HF_HOME="/app/model-cache/huggingface"
 
-# Copy frontend build from stage 2
 COPY --from=frontend /app/frontend/dist /app/frontend/dist
 
-# Create non-root user and data directory
 RUN groupadd -g 1000 appgroup && \
     useradd -u 1000 -g appgroup -m appuser && \
     mkdir -p /app/data /app/model-cache && \
-    chown -R appuser:appgroup /app/data /app/model-cache /app/frontend/dist
+    chown -R appuser:appgroup /app/data /app/model-cache /app/frontend/dist && \
+    chmod +x /app/scripts/validate_dotenvx.sh
 
-# Copy dotenvx validation script
-COPY backend/scripts/validate_dotenvx.sh /app/backend/scripts/validate_dotenvx.sh
-RUN chmod +x /app/backend/scripts/validate_dotenvx.sh
-
-# Expose port
 EXPOSE 8000
 
-# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
-# Run as non-root user
 USER appuser
 
-# Initialize database and start application
 WORKDIR /app
-CMD ["dotenvx", "run", "--", "sh", "-c", "backend/scripts/validate_dotenvx.sh && python -m database.migrations && (python scripts/prewarm_docling_extract.py || true) && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["dotenvx", "run", "--", "sh", "-c", "scripts/validate_dotenvx.sh && python -m database.migrations && (python scripts/prewarm_docling_extract.py || true) && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
