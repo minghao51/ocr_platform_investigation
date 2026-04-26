@@ -11,24 +11,101 @@ providers:
       - id: "docling-parse"
         name: "PyMuPDF Parse"
         tier: "free"
+        capabilities: ["pdf", "docx", "pptx"]
+        context_window: null
         description: "PyMuPDF PDF parsing + provider-backed LLM structuring"
+        pricing: null
+
       - id: "docling-extract"
         name: "Docling Extract"
         tier: "free"
+        capabilities: ["vision", "pdf", "image"]
+        context_window: null
         description: "Best accuracy (86%), local VLM, free, private"
+        pricing: null
 
   - name: "openrouter"
     display_name: "OpenRouter"
     models:
+      - id: "qwen/qwen3.6-plus:free"
+        name: "Qwen3.6 Plus (Free)"
+        tier: "free"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 262144
+        description: "Free tier model for low-cost extraction"
+        pricing:
+          input_per_1m: 0.0
+          output_per_1m: 0.0
+
       - id: "qwen/qwen3.5-flash-02-23"
         name: "Qwen3.5 Flash"
         tier: "lite"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 1000000
+        description: "Cheapest paid vision model, native VL"
+        pricing:
+          input_per_1m: 0.065
+          output_per_1m: 0.26
+
+      - id: "google/gemma-4-31b-it"
+        name: "Gemma 4 31B IT"
+        tier: "lite"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 262144
+        description: "Google open VLM, strong OCR and table extraction"
+        pricing:
+          input_per_1m: 0.13
+          output_per_1m: 0.38
+
+      - id: "google/gemini-2.5-flash-lite"
+        name: "Gemini 2.5 Flash Lite"
+        tier: "lite"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 1048576
+        description: "Ultra-cheap, fast, 1M context"
+        pricing:
+          input_per_1m: 0.10
+          output_per_1m: 0.40
+
+      - id: "google/gemini-2.5-flash"
+        name: "Gemini 2.5 Flash"
+        tier: "balanced"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 1048576
+        description: "Balanced Gemini model via OpenRouter"
+        pricing:
+          input_per_1m: 0.30
+          output_per_1m: 2.50
+
+      - id: "google/gemini-3-flash-preview"
+        name: "Gemini 3 Flash Preview"
+        tier: "balanced"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 1048576
+        description: "Near-Pro reasoning, #1 Finance ranking"
+        pricing:
+          input_per_1m: 0.50
+          output_per_1m: 3.00
+
       - id: "x-ai/grok-4.1-fast"
         name: "Grok 4.1 Fast"
         tier: "balanced"
+        capabilities: ["vision", "reasoning"]
+        context_window: 2000000
+        description: "Cheapest paid vision, 2M context"
+        pricing:
+          input_per_1m: 0.20
+          output_per_1m: 0.50
+
       - id: "openai/gpt-4.1-mini"
         name: "GPT-4.1 Mini"
         tier: "balanced"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 1048576
+        description: "General-purpose compact multimodal model"
+        pricing:
+          input_per_1m: 0.40
+          output_per_1m: 1.60
 
   - name: "gemini"
     display_name: "Google Gemini"
@@ -36,18 +113,62 @@ providers:
       - id: "gemini-3-pro-preview"
         name: "Gemini 3 Pro Preview"
         tier: "premium"
+        capabilities: ["vision", "thinking", "pdf", "video", "audio"]
+        context_window: 1048576
+        description: "Highest quality Gemini preview model"
+        pricing:
+          input_per_1m: 2.00
+          output_per_1m: 12.00
+
       - id: "gemini-3-flash-preview"
         name: "Gemini 3 Flash Preview"
         tier: "balanced"
+        capabilities: ["vision", "thinking", "pdf", "video", "audio"]
+        context_window: 1048576
+        description: "Balanced speed and intelligence for scale"
+        pricing:
+          input_per_1m: 0.15
+          output_per_1m: 1.50
+
       - id: "gemini-2.5-pro"
         name: "Gemini 2.5 Pro"
         tier: "premium"
+        capabilities: ["vision", "thinking", "pdf", "video", "audio"]
+        context_window: 1048576
+        description: "Higher reasoning quality Gemini 2.5 tier"
+        pricing:
+          input_per_1m: 1.25
+          output_per_1m: 10.00
+
       - id: "gemini-2.5-flash"
         name: "Gemini 2.5 Flash"
         tier: "balanced"
+        capabilities: ["vision", "thinking", "pdf", "video", "audio"]
+        context_window: 1048576
+        description: "Balanced speed and quality"
+        pricing:
+          input_per_1m: 0.15
+          output_per_1m: 1.50
+
       - id: "gemini-2.5-flash-lite"
         name: "Gemini 2.5 Flash Lite"
         tier: "lite"
+        capabilities: ["vision", "thinking", "pdf", "video", "audio"]
+        context_window: 1048576
+        description: "Fastest, most cost-efficient model"
+        pricing:
+          input_per_1m: 0.10
+          output_per_1m: 0.40
+
+      - id: "gemini-2.0-flash"
+        name: "Gemini 2.0 Flash"
+        tier: "balanced"
+        capabilities: ["vision", "thinking", "pdf", "video", "audio"]
+        context_window: 1048576
+        description: "Stable balanced Gemini model"
+        pricing:
+          input_per_1m: 0.10
+          output_per_1m: 0.40
 
   - name: "litellm"
     display_name: "LiteLLM (Unified)"
@@ -55,3 +176,9 @@ providers:
       - id: "google/gemma-4-31b-it"
         name: "Gemma 4 31B IT"
         tier: "lite"
+        capabilities: ["vision", "reasoning", "structured_output"]
+        context_window: 262144
+        description: "Google open VLM, strong OCR and table extraction"
+        pricing:
+          input_per_1m: 0.13
+          output_per_1m: 0.38
