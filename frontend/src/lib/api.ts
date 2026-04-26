@@ -127,7 +127,10 @@ export interface LoginResponse extends AuthToken {}
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   const response = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Login-Username': credentials.username,
+    },
     body: JSON.stringify(credentials),
   });
 

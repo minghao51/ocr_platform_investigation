@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MarkdownViewerProps {
   markdown: string;
@@ -28,30 +30,6 @@ export default function MarkdownViewer({ markdown, fileName }: MarkdownViewerPro
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  // Simple markdown-to-HTML converter for preview
-  const renderMarkdown = (text: string) => {
-    const html = text
-      // Headers
-      .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>')
-      // Bold and italic
-      .replace(/\*\*\*(.*?)\*\*\*/gim, '<strong><em>$1</em></strong>')
-      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-      // Code blocks
-      .replace(/```(\w+)?\n([\s\S]*?)```/gim, '<pre class="bg-gray-100 p-3 rounded-md my-3 overflow-x-auto"><code>$2</code></pre>')
-      .replace(/`([^`]+)`/gim, '<code class="bg-gray-100 px-1 rounded">$1</code>')
-      // Lists
-      .replace(/^\* (.*$)/gim, '<li class="ml-4">$1</li>')
-      .replace(/^\d+\. (.*$)/gim, '<li class="ml-4">$1</li>')
-      // Line breaks and paragraphs
-      .replace(/\n\n/g, '</p><p class="my-3">')
-      .replace(/\n/g, '<br />');
-
-    return `<div class="prose prose-sm max-w-none">${html}</div>`;
   };
 
   return (
@@ -89,10 +67,34 @@ export default function MarkdownViewer({ markdown, fileName }: MarkdownViewerPro
           </div>
         </div>
         <div className="p-4 overflow-auto max-h-96">
-          <div
-            className="text-gray-800 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown) }}
-          />
+          <ReactMarkdown
+            className="prose prose-sm max-w-none text-gray-800 leading-relaxed"
+            remarkPlugins={[remarkGfm]}
+            components={{
+              pre: ({ children }) => (
+                <pre className="bg-gray-100 p-3 rounded-md my-3 overflow-x-auto">
+                  {children}
+                </pre>
+              ),
+              code: ({ children, className, ...props }) => {
+                const inline = !className;
+                if (inline) {
+                  return (
+                    <code className="bg-gray-100 px-1 rounded" {...props}>
+                      {children}
+                    </code>
+                  );
+                }
+                return (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                );
+              },
+            }}
+          >
+            {markdown}
+          </ReactMarkdown>
         </div>
       </div>
 
