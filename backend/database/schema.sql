@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_name TEXT NOT NULL,
     file_type TEXT NOT NULL,  -- 'image' or 'pdf'
-    provider TEXT NOT NULL,    -- 'nebius', 'openrouter', 'gemini'
+    provider TEXT NOT NULL,    -- 'openrouter', 'gemini', 'litellm', 'docling-local'
     model TEXT NOT NULL,
     schema_id INTEGER,
     schema_name TEXT,
