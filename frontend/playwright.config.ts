@@ -21,6 +21,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: E2E_DATABASE_URL,
       JWT_SECRET_KEY: E2E_JWT_SECRET,
+      ENABLE_JOB_WORKER: 'false',
     },
   },
 });

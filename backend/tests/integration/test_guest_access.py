@@ -61,8 +61,7 @@ def test_guest_can_upload_process_and_read_own_job(
     async def _noop_processing(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr("routers.processing.run_processing_job", _noop_processing)
-    monkeypatch.setattr("routers.processing.run_text_processing_job", _noop_processing)
+    monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
 
     upload_response = client.post(
         "/api/upload",
@@ -114,7 +113,7 @@ def test_guest_can_queue_transcription_for_docx(
     async def _noop_processing(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr("routers.processing.run_processing_job", _noop_processing)
+    monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
 
     upload_response = client.post(
         "/api/upload",
@@ -154,7 +153,7 @@ def test_document_rejects_vision_processing(
     async def _noop_processing(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr("routers.processing.run_processing_job", _noop_processing)
+    monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
 
     upload_response = client.post(
         "/api/upload",
@@ -288,8 +287,7 @@ def test_auto_requires_provider_model_when_pdf_routes_to_provider_method(
         return None
 
     monkeypatch.setattr("routers.processing.DocumentClassifier", lambda: _Classifier())
-    monkeypatch.setattr("routers.processing.run_processing_job", _noop_processing)
-    monkeypatch.setattr("routers.processing.run_text_processing_job", _noop_processing)
+    monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
 
     upload_response = client.post(
         "/api/upload",
@@ -343,8 +341,7 @@ def test_auto_with_provider_model_supports_image_and_audio_paths(
     async def _noop_processing(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr("routers.processing.run_processing_job", _noop_processing)
-    monkeypatch.setattr("routers.processing.run_text_processing_job", _noop_processing)
+    monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
 
     file_bytes = _create_test_image() if mime_type.startswith("image/") else _create_test_audio()
     upload_response = client.post(
