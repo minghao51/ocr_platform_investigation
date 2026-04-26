@@ -3,9 +3,6 @@ from pathlib import Path
 import yaml
 import logging
 
-from services.openrouter import OpenRouterProvider
-from services.gemini import GeminiProvider
-from services.litellm_provider import LiteLLMProvider
 from config import get_settings
 from services.provider_utils import resolve_provider_api_key
 
@@ -37,34 +34,15 @@ async def list_providers():
         "litellm": bool(resolve_provider_api_key("litellm").strip()),
     }
 
-    runtime_models = {}
-    if api_key_map.get("openrouter"):
-        try:
-            runtime_models["openrouter"] = OpenRouterProvider(settings.openrouter_api_key).get_models()
-        except Exception:
-            pass
-    if api_key_map.get("gemini"):
-        try:
-            runtime_models["gemini"] = GeminiProvider(settings.gemini_api_key).get_models()
-        except Exception:
-            pass
-    if api_key_map.get("litellm"):
-        try:
-            runtime_models["litellm"] = LiteLLMProvider(resolve_provider_api_key("litellm")).get_models()
-        except Exception:
-            pass
-
     providers = []
     for prov_cfg in config.get("providers", []):
         name = prov_cfg["name"]
 
-        # Docling is a processing method, not a cloud provider selection.
         if name == "docling":
             continue
 
         has_key = api_key_map.get(name, False)
-        yaml_models = prov_cfg.get("models", [])
-        models = yaml_models if yaml_models else runtime_models.get(name, [])
+        models = prov_cfg.get("models", [])
 
         providers.append({
             "name": name,
