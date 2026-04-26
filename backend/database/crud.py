@@ -1,6 +1,5 @@
 import aiosqlite
 import json
-import sqlite3
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from database.pool import connect
@@ -134,42 +133,24 @@ async def create_job(
 ) -> int:
     """Create a new processing job"""
     async with connect() as db:
-        try:
-            cursor = await db.execute(
-                """INSERT INTO processing_jobs
-                   (file_name, file_type, provider, model, schema_id, schema_name, status, processing_method, document_type, user_id, guest_token)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    file_name,
-                    file_type,
-                    provider,
-                    model,
-                    schema_id,
-                    schema_name,
-                    "pending",
-                    processing_method,
-                    document_type,
-                    user_id,
-                    guest_token,
-                ),
-            )
-        except sqlite3.OperationalError:
-            cursor = await db.execute(
-                """INSERT INTO processing_jobs
-                   (file_name, file_type, provider, model, schema_id, schema_name, status, processing_method, user_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    file_name,
-                    file_type,
-                    provider,
-                    model,
-                    schema_id,
-                    schema_name,
-                    "pending",
-                    processing_method,
-                    user_id,
-                ),
-            )
+        cursor = await db.execute(
+            """INSERT INTO processing_jobs
+               (file_name, file_type, provider, model, schema_id, schema_name, status, processing_method, document_type, user_id, guest_token)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                file_name,
+                file_type,
+                provider,
+                model,
+                schema_id,
+                schema_name,
+                "pending",
+                processing_method,
+                document_type,
+                user_id,
+                guest_token,
+            ),
+        )
         await db.commit()
         return cursor.lastrowid
 
@@ -378,37 +359,21 @@ async def create_uploaded_file(
 ) -> int:
     """Create a new uploaded file record"""
     async with connect() as db:
-        try:
-            cursor = await db.execute(
-                """INSERT INTO uploaded_files
-                   (file_id, original_filename, file_extension, file_path, file_size, content_type, user_id, guest_token)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    file_id,
-                    original_filename,
-                    file_extension,
-                    file_path,
-                    file_size,
-                    content_type,
-                    user_id,
-                    guest_token,
-                ),
-            )
-        except sqlite3.OperationalError:
-            cursor = await db.execute(
-                """INSERT INTO uploaded_files
-                   (file_id, original_filename, file_extension, file_path, file_size, content_type, user_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    file_id,
-                    original_filename,
-                    file_extension,
-                    file_path,
-                    file_size,
-                    content_type,
-                    user_id,
-                ),
-            )
+        cursor = await db.execute(
+            """INSERT INTO uploaded_files
+               (file_id, original_filename, file_extension, file_path, file_size, content_type, user_id, guest_token)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                file_id,
+                original_filename,
+                file_extension,
+                file_path,
+                file_size,
+                content_type,
+                user_id,
+                guest_token,
+            ),
+        )
         await db.commit()
         return cursor.lastrowid
 

@@ -26,6 +26,9 @@ class ConnectionWrapper:
 
         self._connection = await aiosqlite.connect(self.db_path)
         self._connection.row_factory = aiosqlite.Row
+        # Enable WAL mode for better concurrency and performance
+        await self._connection.execute("PRAGMA journal_mode=WAL")
+        await self._connection.execute("PRAGMA busy_timeout=5000")
         return self._connection
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
