@@ -4,11 +4,16 @@ from pathlib import Path
 import time
 
 from config import Settings, get_settings
-from services.gemini import GeminiProvider
-from services.litellm_provider import LiteLLMProvider
-from services.openrouter import OpenRouterProvider
 from services.processing import ProcessingService
 from services.provider_utils import resolve_provider_api_key
+from services import pricing
+
+
+@pytest.fixture(autouse=True)
+def _clear_pricing_cache():
+    pricing.clear_cache()
+    yield
+    pricing.clear_cache()
 
 
 def test_settings_ignore_encrypted_values():
@@ -94,26 +99,18 @@ async def test_docling_parse_returns_timeout_error_for_slow_parse(tmp_path):
     assert "timed out after 1s" in result["error"]
 
 
-def test_provider_yaml_models_are_subset_of_runtime_models():
+def test_provider_yaml_models_have_required_fields():
     config_path = Path(__file__).resolve().parents[2] / "config" / "providers.yaml"
     config = yaml.safe_load(config_path.read_text())
 
-    runtime_model_ids = {
-        "openrouter": {
-            model["id"] for model in OpenRouterProvider("test-key").get_models()
-        },
-        "gemini": {model["id"] for model in GeminiProvider("test-key").get_models()},
-        "litellm": {
-            model["id"] for model in LiteLLMProvider("test-key").get_models()
-        },
-    }
-
     for provider in config.get("providers", []):
-        provider_name = provider["name"]
-        if provider_name == "docling":
-            continue
-        configured_model_ids = {model["id"] for model in provider.get("models", [])}
-        assert configured_model_ids <= runtime_model_ids[provider_name]
+        for model in provider.get("models", []):
+            assert "id" in model, f"Missing 'id' in {provider['name']}"
+            assert "name" in model, f"Missing 'name' in {provider['name']}/{model.get('id')}"
+            assert "tier" in model, f"Missing 'tier' in {provider['name']}/{model.get('id')}"
+            if model.get("pricing") is not None:
+                assert "input_per_1m" in model["pricing"], f"Missing pricing.input_per_1m in {model['id']}"
+                assert "output_per_1m" in model["pricing"], f"Missing pricing.output_per_1m in {model['id']}"
 
 
 def test_pymupdf_extractor_reads_pdf_text(tmp_path):

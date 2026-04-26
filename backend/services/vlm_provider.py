@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 import httpx
 import base64
 from io import BytesIO
@@ -47,11 +47,6 @@ class VLMProvider(ABC):
                 - usage (dict): Token usage stats
                 - error (str, optional): Error message if failed
         """
-        pass
-
-    @abstractmethod
-    def get_models(self) -> List[Dict[str, Any]]:
-        """Get list of available models with metadata"""
         pass
 
     @abstractmethod
