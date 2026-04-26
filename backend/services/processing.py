@@ -1,10 +1,7 @@
 import time
 import json
-import asyncio
 import logging
-from typing import Dict, Any, Optional, Type
-from pathlib import Path
-from services.vlm_provider import VLMProvider
+from typing import Dict, Any, Optional
 from services.openrouter import OpenRouterProvider
 from services.gemini import GeminiProvider
 from services.litellm_provider import LiteLLMProvider
@@ -17,86 +14,16 @@ from services.docling_service import DoclingService
 from services.chunking_service import MarkdownSplitter
 from services.transcription_service import TranscriptionService
 from services.provider_utils import resolve_provider_api_key
+from services.processing_utils import update_job_status_with_broadcast
+from services.processors.factory import ProcessorFactory
 from config import get_settings
 from database import crud
 
-CHUNK_THRESHOLD_RATIO = 0.8
 logger = logging.getLogger(__name__)
 
 
 def _get_max_file_size() -> int:
     return get_settings().max_file_size
-
-def parse_and_validate_response(
-    content: str,
-    schema_definition: Dict[str, Any],
-    schema_service: Optional[SchemaService] = None,
-) -> Dict[str, Any]:
-    """
-    Parse JSON content and validate against schema.
-    Returns a dict with success status and either data/error.
-    """
-    if schema_service is None:
-        schema_service = SchemaService()
-
-    try:
-        data = json.loads(content)
-        if isinstance(data, str):
-            try:
-                data = json.loads(data)
-            except json.JSONDecodeError:
-                pass
-
-        is_valid, validated_data, error = schema_service.validate_data(
-            data, schema_definition
-        )
-
-        if is_valid:
-            return {"success": True, "data": validated_data}
-        else:
-            return {"success": False, "error": f"Validation failed: {error}"}
-    except json.JSONDecodeError as e:
-        return {"success": False, "error": f"Invalid JSON response: {str(e)}"}
-
-
-async def update_job_status_with_broadcast(
-    job_id: int,
-    status: str,
-    result: Optional[Dict[str, Any]] = None,
-    error_message: Optional[str] = None,
-    processing_time: Optional[float] = None,
-    usage: Optional[Dict[str, Any]] = None,
-):
-    """
-    Update job status in database and broadcast via WebSocket.
-
-    This function combines the database update with WebSocket notification
-    to keep all connected clients informed of job progress.
-    """
-    job = await crud.update_job_status(
-        job_id,
-        status,
-        result=result,
-        error_message=error_message,
-        processing_time=processing_time,
-        usage=usage,
-    )
-
-    # Broadcast update via WebSocket if job was found
-    if job:
-        try:
-            # Import here to avoid circular dependency
-            from routers.websocket import broadcast_job_update
-
-            await broadcast_job_update(job_id, job)
-        except Exception as e:
-            # Log but don't fail - WebSocket is optional
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Failed to broadcast job update via WebSocket: {e}")
-
-    return job
 
 
 class ProcessingService:
@@ -123,48 +50,12 @@ class ProcessingService:
         self.auto_preprocess = auto_preprocess
         self.skip_quality = skip_quality
 
-    def _extract_markdown_with_pymupdf(self, file_path: str) -> str:
-        import fitz  # PyMuPDF
-
-        doc = fitz.open(file_path)
-        try:
-            parts = []
-            for i, page in enumerate(doc, start=1):
-                try:
-                    page_markdown = page.get_text("markdown").strip()
-                except Exception:
-                    page_markdown = ""
-                if not page_markdown:
-                    page_markdown = page.get_text("text").strip()
-                if page_markdown:
-                    parts.append(f"\n\n--- PAGE {i} ---\n\n{page_markdown}")
-            if not parts:
-                raise ValueError("No text extracted from PDF via PyMuPDF")
-            return "".join(parts)
-        finally:
-            doc.close()
-
-    async def _parse_with_timeout(self, file_path: str) -> str:
-        suffix = Path(file_path).suffix.lower()
-        parser = (
-            self._extract_markdown_with_pymupdf
-            if suffix == ".pdf"
-            else self.docling_service.parse_document
+        self._factory = ProcessorFactory(
+            quality_threshold=quality_threshold,
+            auto_preprocess=auto_preprocess,
+            skip_quality=skip_quality,
+            docling_parse_timeout_seconds=self.docling_parse_timeout_seconds,
         )
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(parser, file_path),
-                timeout=self.docling_parse_timeout_seconds,
-            )
-        except asyncio.TimeoutError as exc:
-            logger.error(
-                "Parse timed out after %ss for %s",
-                self.docling_parse_timeout_seconds,
-                file_path,
-            )
-            raise TimeoutError(
-                f"Parsing timed out after {self.docling_parse_timeout_seconds}s"
-            ) from exc
 
     def get_provider(self, provider_name: str, api_key: str):
         """Get provider instance"""
@@ -173,421 +64,6 @@ class ProcessingService:
             raise ValueError(f"Unknown provider: {provider_name}")
 
         return provider_class(api_key)
-
-    def _validate_file_size(self, file_path: str) -> None:
-        """Validate file is under size limit"""
-        max_size = _get_max_file_size()
-        size = Path(file_path).stat().st_size
-        if size > max_size:
-            raise ValueError(
-                f"File too large ({size / 1024 / 1024:.1f}MB). Max: {max_size / 1024 / 1024}MB"
-            )
-
-    def _should_chunk(self, text: str, model: str) -> bool:
-        """Check if document needs chunking"""
-        # Get model context window (simplified)
-        context_windows = {
-            "gpt-4o": 128000,
-            "gpt-4o-mini": 128000,
-            "gemini-2.0-flash": 1000000,
-        }
-        max_tokens = context_windows.get(model, 128000)
-        threshold = int(max_tokens * CHUNK_THRESHOLD_RATIO)
-
-        return self.chunking_service.count_tokens(text) > threshold
-
-    async def _process_via_docling_parse(
-        self,
-        file_path: str,
-        provider,
-        model: str,
-        schema_definition: Optional[Dict[str, Any]],
-        prompt: str,
-        is_transcription: bool = False,
-        job_id: Optional[int] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Process document using PyMuPDF parsing for PDFs and provider-backed LLM structuring.
-
-        This method extracts unstructured markdown/text from documents,
-        then uses VLM/LLM to structure it according to the schema.
-
-        Use cases:
-        - Multi-format support (PDF, DOCX, PPTX, images)
-        - Unstructured extraction (RAG, search, archival)
-        - Cost-sensitive processing (free extraction, cheap structuring)
-        - Large documents (auto-chunking support)
-
-        Pipeline:
-        1. PDF parsing (PyMuPDF for PDFs, Docling for non-PDF docs) → Markdown/text
-        2. LLM → Structured JSON
-        """
-        try:
-            # Validate file size
-            self._validate_file_size(file_path)
-
-            # Transcription mode returns markdown directly instead of JSON.
-            if is_transcription:
-                try:
-                    markdown_content = await self._parse_with_timeout(file_path)
-                except Exception as e:
-                    return {
-                        "success": False,
-                        "error": f"Docling extraction failed: {str(e)}",
-                        "metadata": {"extraction_method": "transcription"},
-                    }
-
-                return {
-                    "success": True,
-                    "data": {"text": markdown_content},
-                    "metadata": {
-                        "extraction_method": "transcription",
-                        "chunked": False,
-                    },
-                }
-
-            if schema_definition is None:
-                try:
-                    markdown_content = await self._parse_with_timeout(file_path)
-                except Exception as e:
-                    return {
-                        "success": False,
-                        "error": f"Docling extraction failed: {str(e)}",
-                        "metadata": {"extraction_method": "docling-parse"},
-                    }
-
-                return {
-                    "success": True,
-                    "data": {"text": markdown_content},
-                    "metadata": {
-                        "extraction_method": "docling-parse",
-                        "chunked": False,
-                        "raw_output": True,
-                    },
-                }
-
-            # Extract content using Docling
-            try:
-                markdown_content = await self._parse_with_timeout(file_path)
-            except Exception as e:
-                return {
-                    "success": False,
-                    "error": f"Docling extraction failed: {str(e)}",
-                }
-
-            # Check if chunking is needed
-            if self._should_chunk(markdown_content, model):
-                return await self._process_chunked_document(
-                    markdown_content,
-                    provider,
-                    model,
-                    schema_definition,
-                    prompt,
-                    job_id,
-                    **kwargs,
-                )
-
-            # Process as single document
-            result = await provider.process_text(
-                text=markdown_content,
-                prompt=prompt,
-                schema_definition=schema_definition,
-                model=model,
-                **kwargs,
-            )
-
-            # Check for provider-level errors
-            if "error" in result:
-                return {
-                    "success": False,
-                    "error": f"Provider error: {result['error']}",
-                    "raw_response": result,
-                }
-
-            # Validate result
-            content = result.get("content") or "{}"
-            validation_result = parse_and_validate_response(
-                content, schema_definition, self.schema_service
-            )
-
-            if validation_result["success"]:
-                return {
-                    "success": True,
-                    "data": validation_result["data"],
-                    "raw_response": result,
-                    "metadata": {
-                        "extraction_method": "docling-parse",
-                        "chunked": False,
-                    },
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": validation_result["error"],
-                    "raw_response": result,
-                }
-
-        except ValueError as e:
-            return {
-                "success": False,
-                "error": str(e),
-            }
-        except Exception as e:
-            error_type = type(e).__name__
-            if "docling" in str(e).lower() or "Docling" in error_type:
-                return {
-                    "success": False,
-                    "error": f"Docling error: {str(e)}",
-                }
-            return {
-                "success": False,
-                "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
-            }
-
-    async def _process_chunked_document(
-        self,
-        markdown_content: str,
-        provider,
-        model: str,
-        schema_definition: Optional[Dict[str, Any]],
-        prompt: str,
-        job_id: Optional[int] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Process large document by splitting into chunks and merging results.
-
-        This method chunks the document, processes each chunk separately,
-        and merges the results intelligently.
-        """
-        try:
-            if schema_definition is None:
-                return {
-                    "success": False,
-                    "error": "Raw output is not supported for chunked document processing.",
-                }
-
-            # Split document into chunks
-            chunks = self.chunking_service.split(markdown_content)
-
-            if not chunks:
-                return {
-                    "success": False,
-                    "error": "Failed to split document into chunks",
-                }
-
-            results = []
-            errors = []
-
-            # Process each chunk
-            for i, chunk in enumerate(chunks):
-                chunk_prompt = f"{prompt}\n\n(Process chunk {i + 1} of {len(chunks)})"
-
-                try:
-                    result = await provider.process_text(
-                        text=chunk,
-                        prompt=chunk_prompt,
-                        schema_definition=schema_definition,
-                        model=model,
-                        **kwargs,
-                    )
-
-                    # Check for provider-level errors
-                    if "error" in result:
-                        errors.append(f"Chunk {i + 1}: {result['error']}")
-                        continue
-
-                    # Validate result
-                    content = result.get("content") or "{}"
-                    validation_result = parse_and_validate_response(
-                        content, schema_definition, self.schema_service
-                    )
-
-                    if validation_result["success"]:
-                        results.append(validation_result["data"])
-                    else:
-                        errors.append(f"Chunk {i + 1}: {validation_result['error']}")
-
-                except Exception as e:
-                    errors.append(f"Chunk {i + 1}: {type(e).__name__}: {str(e)}")
-
-            # Merge results
-            if not results:
-                return {
-                    "success": False,
-                    "error": f"All chunks failed to process: {'; '.join(errors)}",
-                    "errors": errors,
-                }
-
-            # Simple merge: combine all results
-            # For more sophisticated merging, you might implement field-specific logic
-            merged_data = {}
-            for result in results:
-                if isinstance(result, dict):
-                    for key, value in result.items():
-                        if key not in merged_data:
-                            merged_data[key] = value
-                        elif isinstance(value, list):
-                            # Append to existing list
-                            if isinstance(merged_data[key], list):
-                                merged_data[key].extend(value)
-                            else:
-                                # Convert to list if needed
-                                merged_data[key] = [merged_data[key]] + value
-                        elif isinstance(value, dict) and isinstance(
-                            merged_data.get(key), dict
-                        ):
-                            # Merge nested dicts
-                            merged_data[key].update(value)
-
-            return {
-                "success": len(errors) == 0,
-                "data": merged_data,
-                "raw_response": {
-                    "total_chunks": len(chunks),
-                    "successful_chunks": len(results),
-                    "failed_chunks": len(errors),
-                    "chunk_results": results,
-                },
-                "errors": errors if errors else None,
-                "metadata": {
-                    "extraction_method": "docling-parse",
-                    "chunked": True,
-                    "total_chunks": len(chunks),
-                    "successful_chunks": len(results),
-                },
-            }
-
-        except Exception as e:
-            logger.error("Chunk processing error: %s", e, exc_info=True)
-            return {
-                "success": False,
-                "error": f"Chunk processing error: {type(e).__name__}: {str(e)}",
-            }
-
-    async def _process_via_docling_extract(
-        self,
-        file_path: str,
-        schema_definition: Dict[str, Any],
-        job_id: Optional[int] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Process document using Docling DocumentExtractor (docling-extract).
-
-        This method uses Docling's local VLM (NuExtract) for direct schema-based
-        extraction, WITHOUT requiring any cloud VLM/LLM.
-
-        Use cases:
-        - Accuracy-critical applications (86% vs 69% for cloud VLMs)
-        - Privacy-sensitive data (100% local processing)
-        - Cost-sensitive workloads (free, no API costs)
-        - High-volume processing (amortizes setup cost)
-
-        Pipeline:
-        1. Docling DocumentExtractor (local VLM) → Structured JSON
-        2. No cloud API required
-
-        Dependencies:
-        - docling
-        - qwen-vl-utils (for NuExtract model)
-        - torch (backend for NuExtract)
-
-        Performance:
-        - Accuracy: 86% (CORD receipts)
-        - Latency: ~26s per document
-        - Memory: ~1GB RAM
-        - Cost: $0 (local)
-        """
-        import time
-        from docling.document_extractor import DocumentExtractor
-        from docling.datamodel.base_models import InputFormat
-
-        try:
-            # Validate file size
-            self._validate_file_size(file_path)
-
-            start_time = time.time()
-
-            # Initialize DocumentExtractor
-            # Auto-detect format from file extension
-            file_ext = Path(file_path).suffix.lower()
-
-            if file_ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff"]:
-                allowed_formats = [InputFormat.IMAGE]
-            elif file_ext == ".pdf":
-                allowed_formats = [InputFormat.PDF]
-            else:
-                # Default to both
-                allowed_formats = [InputFormat.IMAGE, InputFormat.PDF]
-
-            extractor = DocumentExtractor(allowed_formats=allowed_formats)
-
-            # Extract with schema directly (local VLM)
-            result = extractor.extract(source=file_path, template=schema_definition)
-
-            processing_time = time.time() - start_time
-
-            # Get extracted data from first page
-            if result.pages and len(result.pages) > 0:
-                page_data = result.pages[0]
-                extracted = page_data.extracted_data
-
-                # Validate against schema
-                schema_service = SchemaService()
-                is_valid, validated_data, error = schema_service.validate_data(
-                    extracted, schema_definition
-                )
-
-                if is_valid:
-                    return {
-                        "success": True,
-                        "data": validated_data,
-                        "raw_response": extracted,
-                        "metadata": {
-                            "extraction_method": "docling-extract",
-                            "processing_time": processing_time,
-                            "pages_processed": len(result.pages),
-                        },
-                        "usage": {},  # No API usage (local)
-                        "cost": 0.0,  # Free (local processing)
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": f"Schema validation failed: {error}",
-                        "raw_response": extracted,
-                        "metadata": {
-                            "extraction_method": "docling-extract",
-                            "processing_time": processing_time,
-                        },
-                    }
-            else:
-                return {
-                    "success": False,
-                    "error": "No data extracted from document",
-                    "metadata": {
-                        "extraction_method": "docling-extract",
-                        "processing_time": processing_time,
-                    },
-                }
-
-        except Exception as e:
-            logger.error("Docling extract error: %s", e, exc_info=True)
-            error_type = type(e).__name__
-            if "docling" in str(e).lower() or "Docling" in error_type:
-                return {
-                    "success": False,
-                    "error": f"Docling extractor error: {str(e)}",
-                    "metadata": {"extraction_method": "docling-extract"},
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
-                    "metadata": {"extraction_method": "docling-extract"},
-                }
 
     async def process_file(
         self,
@@ -603,7 +79,7 @@ class ProcessingService:
         """Process a file (image or PDF)"""
         extraction_method = kwargs.pop(
             "extraction_method", "docling-parse"
-        )  # Default to docling-parse
+        )
         is_transcription = kwargs.pop("is_transcription", False)
 
         # Handle docling-extract (local VLM, no API key needed)
@@ -613,27 +89,20 @@ class ProcessingService:
                     "success": False,
                     "error": "Raw output is not supported for docling-extract.",
                 }
-            return await self._process_via_docling_extract(
-                file_path, schema_definition, **kwargs
+            processor = self._factory.get_processor(extraction_method, file_type)
+            return await processor.process(
+                None, file_path, file_type, provider_name, model,
+                schema_definition, prompt, **kwargs,
             )
 
         # Handle docling-parse (Docling + VLM)
         if extraction_method == "docling-parse":
-            # Get API key for VLM step
-            api_key = resolve_provider_api_key(provider_name)
-            if not api_key:
-                raise ValueError(f"No API key configured for {provider_name}")
-
-            async with self.get_provider(provider_name, api_key) as provider:
-                return await self._process_via_docling_parse(
-                    file_path,
-                    provider,
-                    model,
-                    schema_definition,
-                    prompt,
-                    is_transcription,
-                    **kwargs,
-                )
+            processor = self._factory.get_processor(extraction_method, file_type)
+            return await processor.process(
+                None, file_path, file_type, provider_name, model,
+                schema_definition, prompt, is_transcription=is_transcription,
+                **kwargs,
+            )
 
         # Get API key for other methods
         if schema_definition is None:
@@ -642,240 +111,11 @@ class ProcessingService:
                 "error": "Raw output is only supported for docling-parse.",
             }
 
-        api_key = resolve_provider_api_key(provider_name)
-        if not api_key:
-            raise ValueError(f"No API key configured for {provider_name}")
-
-        async with self.get_provider(provider_name, api_key) as provider:
-            if file_type == "pdf" and extraction_method == "hybrid":
-                return await self.hybrid_service.process_pdf(
-                    file_path, provider, model, schema_definition, prompt, **kwargs
-                )
-            elif file_type == "image":
-                return await self._process_single_image(
-                    file_path, provider, model, schema_definition, prompt, **kwargs
-                )
-            else:  # PDF or text
-                return await self._process_pdf(
-                    file_path, provider, model, schema_definition, prompt, **kwargs
-                )
-
-    async def _process_single_image(
-        self,
-        image_path: str,
-        provider,
-        model: str,
-        schema_definition: Dict[str, Any],
-        prompt: str,
-        job_id: Optional[int] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Process a single image with quality gate"""
-
-        # Load image
-        image = self.image_service.load_image(image_path)
-
-        quality_report = None
-
-        if not self.skip_quality:
-            # Quality gate check
-            quality_report = self.quality_gate.assess(image)
-
-            # Save quality info to job if job_id provided
-            if job_id is not None:
-                await crud.update_quality_info(
-                    job_id=job_id,
-                    quality_score=quality_report.overall_score,
-                    quality_checks=self.quality_gate.to_dict(quality_report),
-                )
-
-            # Check if quality is too low
-            if not quality_report.passed:
-                if self.auto_preprocess and quality_report.auto_fixable_issues:
-                    # Try to auto-fix
-                    preprocess_result = self.preprocessor.fix(
-                        image, quality_report=quality_report
-                    )
-                    image = preprocess_result.processed
-
-                    # Re-assess after preprocessing
-                    post_quality = self.quality_gate.assess(image)
-
-                    # Update job with preprocessing info
-                    if job_id is not None:
-                        await crud.update_quality_info(
-                            job_id=job_id,
-                            quality_score=post_quality.overall_score,
-                            quality_checks=self.quality_gate.to_dict(post_quality),
-                            preprocessing_applied=preprocess_result.applied,
-                        )
-
-                    quality_report = post_quality
-
-                    # If still below threshold after preprocessing, reject
-                    if quality_report.overall_score < self.quality_threshold:
-                        return {
-                            "success": False,
-                            "error": (
-                                f"Image quality is too poor for reliable extraction "
-                                f"(score: {quality_report.overall_score}/100, "
-                                f"threshold: {self.quality_threshold}). "
-                                f"Issues: {'; '.join(quality_report.recommendations)}"
-                            ),
-                            "quality_report": self.quality_gate.to_dict(quality_report),
-                        }
-                else:
-                    # No auto-preprocess or no fixable issues — reject
-                    return {
-                        "success": False,
-                        "error": (
-                            f"Image quality is too poor for reliable extraction "
-                            f"(score: {quality_report.overall_score}/100, "
-                            f"threshold: {self.quality_threshold}). "
-                            f"Issues: {'; '.join(quality_report.recommendations)}"
-                        ),
-                        "quality_report": self.quality_gate.to_dict(quality_report),
-                    }
-
-        # Resize for provider
-        target_size = provider.get_default_image_size()
-        image = self.image_service.resize_image(image, target_size)
-
-        # Process with VLM
-        result = await provider.process_image(
-            image, prompt, schema_definition, model, **kwargs
+        processor = self._factory.get_processor(extraction_method, file_type)
+        return await processor.process(
+            None, file_path, file_type, provider_name, model,
+            schema_definition, prompt, **kwargs,
         )
-
-        # Check for provider-level errors
-        if "error" in result:
-            return {
-                "success": False,
-                "error": f"Provider error: {result['error']}",
-                "raw_response": result,
-                "quality_report": self.quality_gate.to_dict(quality_report) if quality_report else None,
-            }
-
-        # Validate result
-        content = result.get("content") or "{}"
-
-        validation_result = parse_and_validate_response(
-            content, schema_definition, self.schema_service
-        )
-
-        if validation_result["success"]:
-            return {
-                "success": True,
-                "data": validation_result["data"],
-                "raw_response": result,
-                "quality_report": self.quality_gate.to_dict(quality_report) if quality_report else None,
-            }
-        else:
-            return {
-                "success": False,
-                "error": validation_result["error"],
-                "raw_response": result,
-                "quality_report": self.quality_gate.to_dict(quality_report) if quality_report else None,
-            }
-
-    async def _process_pdf(
-        self,
-        pdf_path: str,
-        provider,
-        model: str,
-        schema_definition: Dict[str, Any],
-        prompt: str,
-        job_id: Optional[int] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Process PDF (multiple pages) with quality gate"""
-
-        # Convert PDF to images
-        images = self.image_service.pdf_to_images(pdf_path)
-
-        results = []
-        errors = []
-        page_quality_reports = []
-
-        for i, image in enumerate(images):
-            if not self.skip_quality:
-                # Quality gate check per page
-                quality_report = self.quality_gate.assess(image)
-                page_quality_reports.append(quality_report)
-
-                # Auto-preprocess if needed
-                if (
-                    not quality_report.passed
-                    and self.auto_preprocess
-                    and quality_report.auto_fixable_issues
-                ):
-                    preprocess_result = self.preprocessor.fix(
-                        image, quality_report=quality_report
-                    )
-                    image = preprocess_result.processed
-                    quality_report = self.quality_gate.assess(image)
-
-                    if job_id is not None:
-                        prev = await crud.get_job(job_id)
-                        existing_preproc = []
-                        if prev and prev.get("preprocessing_applied"):
-                            try:
-                                existing_preproc = json.loads(prev["preprocessing_applied"])
-                            except Exception:
-                                pass
-                        merged = list(set(existing_preproc + preprocess_result.applied))
-                        await crud.update_quality_info(
-                            job_id=job_id,
-                            quality_checks=self.quality_gate.to_dict(quality_report),
-                            preprocessing_applied=merged,
-                        )
-
-            # Resize
-            target_size = provider.get_default_image_size()
-            resized = self.image_service.resize_image(image, target_size)
-
-            # Process
-            result = await provider.process_image(
-                resized, prompt, schema_definition, model, **kwargs
-            )
-
-            # Check for provider-level errors
-            if "error" in result:
-                errors.append(f"Page {i + 1}: {result['error']}")
-                continue
-
-            # Validate
-            content = result.get("content") or "{}"
-            validation_result = parse_and_validate_response(
-                content, schema_definition, self.schema_service
-            )
-
-            if validation_result["success"]:
-                results.append(validation_result["data"])
-            else:
-                errors.append(f"Page {i + 1}: {validation_result['error']}")
-
-        # Save aggregate quality info for PDF
-        if job_id is not None and page_quality_reports:
-            avg_score = sum(r.overall_score for r in page_quality_reports) / len(
-                page_quality_reports
-            )
-            # Save the first page's detailed checks as representative
-            await crud.update_quality_info(
-                job_id=job_id,
-                quality_score=round(avg_score, 1),
-                quality_checks=self.quality_gate.to_dict(page_quality_reports[0]),
-            )
-
-        return {
-            "success": len(errors) == 0,
-            "data": results,
-            "errors": errors if errors else None,
-            "total_pages": len(images),
-            "successful_pages": len(results),
-            "quality_report": self.quality_gate.to_dict(page_quality_reports[0])
-            if page_quality_reports
-            else None,
-        }
 
 
 async def run_processing_job(
@@ -905,10 +145,10 @@ async def run_processing_job(
         job = await crud.get_job(job_id)
         if not job:
             return
-        
+
         # Update status to processing
         await update_job_status_with_broadcast(job_id, "processing")
-        
+
     except Exception as e:
         processing_time = time.time() - start_time
         error_details = f"{type(e).__name__}: {str(e)}"
@@ -953,8 +193,8 @@ async def run_processing_job(
 
     try:
         result = await service.process_file(
-            file_id=str(job_id),  # Use job_id as file_id reference
-            file_path=file_path,  # Use the provided file_path
+            file_id=str(job_id),
+            file_path=file_path,
             file_type=file_type,
             provider_name=job["provider"],
             model=job["model"],
@@ -1028,7 +268,6 @@ async def run_text_processing_job(
     Best for: Digital PDFs with extractable text (faster & more cost-effective).
     """
 
-    from services.text_extraction import TextExtractionService
     from database import crud
     from services.schema_service import SchemaService
 
@@ -1073,83 +312,43 @@ async def run_text_processing_job(
     try:
         logger.info("Starting TEXT processing for job %s", job_id)
 
-        # Step 1: Extract text using pdfplumber
-        text_service = TextExtractionService()
-        extracted_text = text_service.extract_text_from_pdf(file_path)
+        from services.processors.text import TextProcessor
 
-        if not extracted_text:
-            await update_job_status_with_broadcast(
-                job_id,
-                "error",
-                error_message="This PDF appears to be image-based. Please use the Vision Extraction tab instead.",
-                processing_time=time.time() - start_time,
-            )
-            return
-
-        providers: Dict[str, Type[VLMProvider]] = {
-            "openrouter": OpenRouterProvider,
-            "gemini": GeminiProvider,
-            "litellm": LiteLLMProvider,
-        }
-
-        provider_class = providers.get(provider_name)
-        if not provider_class:
-            raise ValueError(f"Unknown provider: {provider_name}")
-
-        async with provider_class(api_key) as provider:
-            result = await provider.process_text(
-                text=extracted_text,
-                prompt=prompt,
-                schema_definition=schema_definition,
-                model=job["model"],
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-
-        # Check for errors
-        if "error" in result:
-            await update_job_status_with_broadcast(
-                job_id,
-                "error",
-                error_message=f"Provider error: {result['error']}",
-                processing_time=time.time() - start_time,
-            )
-            return
-
-        # Validate result
-        content = result.get("content") or "{}"
-        if schema_definition is None:
-            await update_job_status_with_broadcast(
-                job_id,
-                "success",
-                result={"text": content},
-                processing_time=time.time() - start_time,
-                usage=result.get("usage"),
-            )
-            logger.info("Processing completed for job %s", job_id)
-            return
-
-        schema_service = SchemaService()
-        validation_result = parse_and_validate_response(
-            content, schema_definition, schema_service
+        processor = TextProcessor()
+        result = await processor.process(
+            job_id=job_id,
+            file_path=file_path,
+            file_type="pdf",
+            provider_name=provider_name,
+            model=job["model"],
+            schema_definition=schema_definition,
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
 
-        if validation_result["success"]:
+        processing_time = time.time() - start_time
+
+        if result["success"]:
+            raw_response = result.get("raw_response", {})
+            usage = raw_response.get("usage") if isinstance(raw_response, dict) else None
             await update_job_status_with_broadcast(
                 job_id,
                 "success",
-                result=validation_result["data"],
-                processing_time=time.time() - start_time,
-                usage=result.get("usage"),
+                result=result.get("data"),
+                processing_time=processing_time,
+                usage=usage,
             )
             logger.info("Processing completed for job %s", job_id)
         else:
+            raw_response = result.get("raw_response", {})
+            usage = raw_response.get("usage") if isinstance(raw_response, dict) else None
             await update_job_status_with_broadcast(
                 job_id,
                 "error",
-                error_message=validation_result["error"],
-                processing_time=time.time() - start_time,
-                usage=result.get("usage"),
+                error_message=result.get("error"),
+                processing_time=processing_time,
+                usage=usage,
             )
 
     except Exception as e:
