@@ -145,3 +145,10 @@ async def check_and_increment_daily_limit(
             )
 
     return current_user
+
+
+async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """Allow only admin users to access privileged endpoints."""
+    if not current_user.get("is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user

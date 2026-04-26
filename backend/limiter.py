@@ -50,6 +50,11 @@ def get_rate_limit_value(*_args, **_kwargs) -> str:
     return f"{get_settings().rate_limit_per_minute}/minute"
 
 
+def get_login_rate_limit_value(*_args, **_kwargs) -> str:
+    """Dedicated login cap to reduce brute-force attempts."""
+    return "5/minute"
+
+
 limiter = Limiter(key_func=get_rate_limit_key)
 
 
@@ -59,3 +64,16 @@ def get_user_id(request: Request) -> str:
     if user and user.get("user_id") is not None:
         return str(user["user_id"])
     return get_remote_address(request)
+
+
+def get_login_rate_limit_key(request: Request) -> str:
+    """
+    Rate-limit login attempts by source IP and claimed username.
+
+    Frontend sends X-Login-Username to improve key granularity.
+    """
+    ip = get_remote_address(request)
+    username = (request.headers.get("X-Login-Username", "") or "").strip().lower()
+    if not username:
+        return f"login:{ip}:unknown"
+    return f"login:{ip}:{username[:128]}"

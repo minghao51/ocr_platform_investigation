@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 
 from database import crud
-from dependencies import get_current_user
+from dependencies import require_admin
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -17,7 +17,7 @@ async def get_usage_analytics(
     schema_name: Optional[str] = None,
     processing_method: Optional[str] = None,
     document_type: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_admin),
 ):
     _ = current_user
     return await crud.get_job_analytics(

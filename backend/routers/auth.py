@@ -2,11 +2,12 @@
 Authentication router - handles login and token management.
 """
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from pydantic import BaseModel
 from database import crud
 from auth import verify_password, create_access_token
 from dependencies import get_current_user
+from limiter import limiter, get_login_rate_limit_key, get_login_rate_limit_value
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -23,14 +24,16 @@ class LoginResponse(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest):
+@limiter.limit(get_login_rate_limit_value, key_func=get_login_rate_limit_key)
+async def login(request: Request, payload: LoginRequest):
     """
     Authenticate user and return JWT token.
 
     Raises 401 if credentials are invalid.
     """
+    _ = request
     # Get user from database
-    user = await crud.get_user_by_username(request.username)
+    user = await crud.get_user_by_username(payload.username)
 
     if not user:
         raise HTTPException(
@@ -39,7 +42,7 @@ async def login(request: LoginRequest):
         )
 
     # Verify password
-    if not verify_password(request.password, user["hashed_password"]):
+    if not verify_password(payload.password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",

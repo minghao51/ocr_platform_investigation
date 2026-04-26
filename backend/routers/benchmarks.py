@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from database import crud
+from dependencies import require_admin
 
 router = APIRouter(prefix="/api/benchmarks", tags=["benchmarks"])
 
@@ -10,8 +11,10 @@ async def list_benchmark_runs(
     limit: int = 50,
     dataset: Optional[str] = None,
     provider: Optional[str] = None,
+    current_user: dict = Depends(require_admin),
 ):
     """List benchmark runs with optional filters."""
+    _ = current_user
     limit = max(1, min(limit, 200))
     return await crud.list_benchmark_runs(
         limit=limit,
@@ -21,8 +24,12 @@ async def list_benchmark_runs(
 
 
 @router.get("/runs/{run_id}")
-async def get_benchmark_run(run_id: int):
+async def get_benchmark_run(
+    run_id: int,
+    current_user: dict = Depends(require_admin),
+):
     """Get a benchmark run by ID."""
+    _ = current_user
     run = await crud.get_benchmark_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Benchmark run not found")
@@ -30,8 +37,12 @@ async def get_benchmark_run(run_id: int):
 
 
 @router.get("/runs/{run_id}/results")
-async def get_benchmark_results(run_id: int):
+async def get_benchmark_results(
+    run_id: int,
+    current_user: dict = Depends(require_admin),
+):
     """Get all results for a benchmark run."""
+    _ = current_user
     run = await crud.get_benchmark_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Benchmark run not found")
@@ -43,8 +54,10 @@ async def get_benchmark_results(run_id: int):
 async def compare_models(
     dataset: str = "cord",
     limit: int = 20,
+    current_user: dict = Depends(require_admin),
 ):
     """Get comparison of all models on a dataset."""
+    _ = current_user
     limit = max(1, min(limit, 200))
     runs = await crud.list_benchmark_runs(limit=500, dataset=dataset)
     dataset_runs = [r for r in runs if r.get("overall_accuracy") is not None]
@@ -82,8 +95,11 @@ async def compare_models(
 
 
 @router.get("/models")
-async def get_benchmarked_models():
+async def get_benchmarked_models(
+    current_user: dict = Depends(require_admin),
+):
     """Return all provider/model combos that have benchmark data."""
+    _ = current_user
     runs = await crud.list_benchmark_runs(limit=500)
 
     models = {}

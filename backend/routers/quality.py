@@ -4,7 +4,7 @@ Quality Check API Endpoint
 Allows users to check image quality before submitting for OCR processing.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request
 from typing import Optional
 from pydantic import BaseModel
 from pathlib import Path
@@ -13,6 +13,8 @@ from services.quality_gate import QualityGate
 from services.image_service import ImageService
 from database import crud
 from dependencies import get_optional_user
+from config import get_settings
+from routers.shared import ensure_file_access
 import uuid
 import logging
 
@@ -44,6 +46,7 @@ class QualityCheckResponse(BaseModel):
 @router.post("/check", response_model=QualityCheckResponse)
 async def check_file_quality(
     payload: QualityCheckRequest,
+    request: Request,
     current_user: dict | None = Depends(get_optional_user),
 ):
     """
@@ -56,6 +59,7 @@ async def check_file_quality(
     file_record = await crud.get_uploaded_file(payload.file_id)
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
+    ensure_file_access(file_record, current_user, request.headers.get("X-Guest-Token"))
 
     file_path = Path(file_record["file_path"])
     if not file_path.exists():
@@ -85,6 +89,7 @@ async def check_file_quality(
 
 @router.post("/check-upload", response_model=QualityCheckResponse)
 async def check_uploaded_file_quality(
+    request: Request,
     file: UploadFile = File(...),
     estimated_dpi: Optional[int] = Form(200),
     current_user: dict | None = Depends(get_optional_user),
@@ -103,14 +108,26 @@ async def check_uploaded_file_quality(
             detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}",
         )
 
+    _ = current_user
+    settings = get_settings()
     # Save temporarily
     temp_id = str(uuid.uuid4())
     temp_path = Path(UPLOAD_DIR) / f"{temp_id}{ext}"
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
-        content = await file.read()
-        temp_path.write_bytes(content)
+        total_size = 0
+        chunk_size = 8192
+        with open(temp_path, "wb") as temp_file:
+            while chunk := await file.read(chunk_size):
+                total_size += len(chunk)
+                if total_size > settings.max_file_size:
+                    max_size_mb = settings.max_file_size / (1024 * 1024)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Max size is {max_size_mb:.0f}MB",
+                    )
+                temp_file.write(chunk)
 
         gate = QualityGate()
         image_service = ImageService()
@@ -119,6 +136,8 @@ async def check_uploaded_file_quality(
         report = gate.assess(image, estimated_dpi=estimated_dpi)
 
         return QualityCheckResponse(**gate.to_dict(report))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Quality check failed for uploaded file: {e}")
         raise HTTPException(status_code=500, detail=f"Quality check error: {str(e)}")
