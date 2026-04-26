@@ -20,9 +20,12 @@ from services.provider_utils import resolve_provider_api_key
 from config import get_settings
 from database import crud
 
-MAX_FILE_SIZE = 15 * 1024 * 1024  # 15MB
 CHUNK_THRESHOLD_RATIO = 0.8
 logger = logging.getLogger(__name__)
+
+
+def _get_max_file_size() -> int:
+    return get_settings().max_file_size
 
 def parse_and_validate_response(
     content: str,
@@ -173,10 +176,11 @@ class ProcessingService:
 
     def _validate_file_size(self, file_path: str) -> None:
         """Validate file is under size limit"""
+        max_size = _get_max_file_size()
         size = Path(file_path).stat().st_size
-        if size > MAX_FILE_SIZE:
+        if size > max_size:
             raise ValueError(
-                f"File too large ({size / 1024 / 1024:.1f}MB). Max: {MAX_FILE_SIZE / 1024 / 1024}MB"
+                f"File too large ({size / 1024 / 1024:.1f}MB). Max: {max_size / 1024 / 1024}MB"
             )
 
     def _should_chunk(self, text: str, model: str) -> bool:
@@ -456,12 +460,10 @@ class ProcessingService:
             }
 
         except Exception as e:
-            import traceback
-
+            logger.error("Chunk processing error: %s", e, exc_info=True)
             return {
                 "success": False,
                 "error": f"Chunk processing error: {type(e).__name__}: {str(e)}",
-                "traceback": traceback.format_exc(),
             }
 
     async def _process_via_docling_extract(
@@ -572,9 +574,7 @@ class ProcessingService:
                 }
 
         except Exception as e:
-            import traceback
-
-            # Check if it's a docling-related error
+            logger.error("Docling extract error: %s", e, exc_info=True)
             error_type = type(e).__name__
             if "docling" in str(e).lower() or "Docling" in error_type:
                 return {
@@ -586,7 +586,6 @@ class ProcessingService:
                 return {
                     "success": False,
                     "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
-                    "traceback": traceback.format_exc(),
                     "metadata": {"extraction_method": "docling-extract"},
                 }
 
@@ -912,17 +911,15 @@ async def run_processing_job(
         
     except Exception as e:
         processing_time = time.time() - start_time
-        import traceback
         error_details = f"{type(e).__name__}: {str(e)}"
-        print(f"ERROR processing job {job_id}: {error_details}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.error("Job %s failed during startup: %s", job_id, error_details, exc_info=True)
         await update_job_status_with_broadcast(
             job_id,
             "error",
             error_message=error_details,
             processing_time=processing_time,
         )
-
+        return
     # Determine file type from job record
     file_type = job["file_type"]
 
@@ -972,7 +969,7 @@ async def run_processing_job(
             is_transcription=is_transcription,
         )
 
-        print(f"Processing completed for job {job_id} Result: {result.get('success')}")
+        logger.info("Processing completed for job %s Result: %s", job_id, result.get('success'))
 
         processing_time = time.time() - start_time
 
@@ -1007,11 +1004,8 @@ async def run_processing_job(
 
     except Exception as e:
         processing_time = time.time() - start_time
-        import traceback
-
         error_details = f"{type(e).__name__}: {str(e)}"
-        print(f"ERROR processing job {job_id}: {error_details}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.error("Job %s failed: %s", job_id, error_details, exc_info=True)
         await update_job_status_with_broadcast(
             job_id,
             "error",
@@ -1077,7 +1071,7 @@ async def run_text_processing_job(
     start_time = time.time()
 
     try:
-        print(f"Starting TEXT processing for job {job_id}")
+        logger.info("Starting TEXT processing for job %s", job_id)
 
         # Step 1: Extract text using pdfplumber
         text_service = TextExtractionService()
@@ -1132,7 +1126,7 @@ async def run_text_processing_job(
                 processing_time=time.time() - start_time,
                 usage=result.get("usage"),
             )
-            print(f"Processing completed for job {job_id}")
+            logger.info("Processing completed for job %s", job_id)
             return
 
         schema_service = SchemaService()
@@ -1148,7 +1142,7 @@ async def run_text_processing_job(
                 processing_time=time.time() - start_time,
                 usage=result.get("usage"),
             )
-            print(f"Processing completed for job {job_id}")
+            logger.info("Processing completed for job %s", job_id)
         else:
             await update_job_status_with_broadcast(
                 job_id,
@@ -1160,11 +1154,8 @@ async def run_text_processing_job(
 
     except Exception as e:
         processing_time = time.time() - start_time
-        import traceback
-
         error_details = f"{type(e).__name__}: {str(e)}"
-        print(f"ERROR processing job {job_id}: {error_details}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.error("Text job %s failed: %s", job_id, error_details, exc_info=True)
         await update_job_status_with_broadcast(
             job_id,
             "error",
