@@ -32,7 +32,7 @@ class LiteLLMProvider(VLMProvider):
                 "content": [
                     {
                         "type": "text",
-                        "text": f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}",
+                        "text": prompt,
                     },
                     {
                         "type": "image_url",
@@ -43,6 +43,10 @@ class LiteLLMProvider(VLMProvider):
                 ],
             }
         ]
+
+        system_prompt = kwargs.pop("system_prompt", None)
+        if system_prompt:
+            messages.insert(0, {"role": "system", "content": system_prompt})
 
         try:
             response = await self._call_litellm(
@@ -78,26 +82,32 @@ class LiteLLMProvider(VLMProvider):
     ) -> Dict[str, Any]:
         litellm_model = self._resolve_model(model)
 
+        system_prompt_override = kwargs.pop("system_prompt", None)
+
         if schema_definition is None:
-            system_prompt = (
+            system_prompt = system_prompt_override or (
                 "You are a document transcription assistant. "
                 "Return only clean Markdown with no JSON wrapper."
             )
         else:
-            system_prompt = (
+            system_prompt = system_prompt_override or (
                 "You are a document data extraction assistant. "
-                "Extract information from the following text according to this JSON schema:\n\n"
-                f"{json.dumps(schema_definition, indent=2)}\n\n"
+                "Extract information from the following text according to the provided schema. "
                 "Return ONLY valid JSON. No explanations, no markdown formatting."
             )
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": f"{prompt}\n\nDocument text:\n{text}",
-            },
+            {"role": "user", "content": ""},
         ]
+
+        user_content = f"{prompt}\n\nDocument text:\n{text}"
+        if schema_definition is not None:
+            user_content += (
+                "\n\nTarget JSON schema:\n"
+                f"{json.dumps(schema_definition, indent=2)}"
+            )
+        messages[1]["content"] = user_content
 
         try:
             request_kwargs = {

@@ -798,6 +798,7 @@ async def list_prompt_learning_entries(
     schema_name: Optional[str] = None,
     provider: Optional[str] = None,
     model: Optional[str] = None,
+    processing_method: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
@@ -812,6 +813,9 @@ async def list_prompt_learning_entries(
         if model:
             query += " AND model = ?"
             params.append(model)
+        if processing_method:
+            query += " AND processing_method = ?"
+            params.append(processing_method)
         query += " ORDER BY updated_at DESC"
         cursor = await db.execute(query, params)
         rows = await cursor.fetchall()

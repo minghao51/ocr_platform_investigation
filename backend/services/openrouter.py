@@ -19,24 +19,25 @@ class OpenRouterProvider(VLMProvider):
     ) -> Dict[str, Any]:
         """Process image with OpenRouter"""
 
-        # Prepare messages
-        messages = [
+        system_prompt = kwargs.pop("system_prompt", None)
+
+        user_content = [
             {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{self.encode_image(image)}"
-                        },
-                    },
-                ],
-            }
+                "type": "text",
+                "text": prompt,
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{self.encode_image(image)}"
+                },
+            },
         ]
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_content})
 
         # Build structured output format
         json_schema = {
@@ -134,19 +135,27 @@ class OpenRouterProvider(VLMProvider):
         **kwargs,
     ) -> Dict[str, Any]:
         """Process text with OpenRouter text-only model"""
+        system_prompt_override = kwargs.pop("system_prompt", None)
+
         if schema_definition is None:
-            system_prompt = (
+            system_prompt = system_prompt_override or (
                 "You are a document transcription assistant. "
                 "Return only clean Markdown with no JSON wrapper."
             )
         else:
-            system_prompt = f"""You are a document data extraction assistant. Extract information from the following text according to this JSON schema:
-
-{json.dumps(schema_definition, indent=2)}
-
-Return ONLY valid JSON. No explanations, no markdown formatting."""
+            system_prompt = system_prompt_override or (
+                "You are a document data extraction assistant. "
+                "Extract information from the following text according to the provided schema. "
+                "Return ONLY valid JSON. No explanations, no markdown formatting."
+            )
 
         try:
+            user_content = f"{prompt}\n\nDocument text:\n{text}"
+            if schema_definition is not None:
+                user_content += (
+                    "\n\nTarget JSON schema:\n"
+                    f"{json.dumps(schema_definition, indent=2)}"
+                )
             response = await self.client.post(
                 f"{self.BASE_URL}/chat/completions",
                 headers={
@@ -159,7 +168,7 @@ Return ONLY valid JSON. No explanations, no markdown formatting."""
                         {"role": "system", "content": system_prompt},
                         {
                             "role": "user",
-                            "content": f"{prompt}\n\nDocument text:\n{text}",
+                            "content": user_content,
                         },
                     ],
                     "temperature": temperature,

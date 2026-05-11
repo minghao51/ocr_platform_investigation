@@ -29,6 +29,7 @@ class PromptLearningService:
             schema_name=job.get("schema_name"),
             provider=job.get("provider"),
             model=job.get("model"),
+            processing_method=job.get("processing_method"),
         )
         tags_counter = Counter(feedback_tags)
         guidance = (

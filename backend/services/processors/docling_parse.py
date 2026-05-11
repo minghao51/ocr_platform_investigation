@@ -110,16 +110,28 @@ class DoclingParseProcessor(Processor):
             results = []
             errors = []
 
+            system_prompt = kwargs.pop("system_prompt", None)
+
             for i, chunk in enumerate(chunks):
-                chunk_prompt = f"{prompt}\n\n(Process chunk {i + 1} of {len(chunks)})"
+                chunk_prompt = (
+                    f"{prompt}\n\n"
+                    f"<chunk_context>This is chunk {i + 1} of {len(chunks)} "
+                    f"from a larger document. Extract all relevant data from this chunk. "
+                    f"If this is not the first chunk, continue from where the previous chunk left off. "
+                    f"Do not repeat data already likely extracted from earlier chunks.</chunk_context>"
+                )
 
                 try:
+                    chunk_kwargs = {**kwargs}
+                    if system_prompt:
+                        chunk_kwargs["system_prompt"] = system_prompt
+
                     result = await provider.process_text(
                         text=chunk,
                         prompt=chunk_prompt,
                         schema_definition=schema_definition,
                         model=model,
-                        **kwargs,
+                        **chunk_kwargs,
                     )
 
                     if "error" in result:
@@ -147,6 +159,7 @@ class DoclingParseProcessor(Processor):
                 }
 
             merged_data = {}
+            merge_conflicts = []
             for result in results:
                 if isinstance(result, dict):
                     for key, value in result.items():
@@ -161,6 +174,16 @@ class DoclingParseProcessor(Processor):
                             merged_data.get(key), dict
                         ):
                             merged_data[key].update(value)
+                        elif merged_data.get(key) is None and value is not None:
+                            merged_data[key] = value
+                        elif value is not None and merged_data.get(key) != value:
+                            merge_conflicts.append(
+                                {
+                                    "field": key,
+                                    "kept_value": merged_data.get(key),
+                                    "discarded_value": value,
+                                }
+                            )
 
             return {
                 "success": len(errors) == 0,
@@ -177,6 +200,8 @@ class DoclingParseProcessor(Processor):
                     "chunked": True,
                     "total_chunks": len(chunks),
                     "successful_chunks": len(results),
+                    "merge_conflict_count": len(merge_conflicts),
+                    "merge_conflicts": merge_conflicts[:20],
                 },
             }
 

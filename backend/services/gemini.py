@@ -22,23 +22,20 @@ class GeminiProvider(VLMProvider):
     ) -> Dict[str, Any]:
         """Process image with Gemini"""
 
-        # Prepare content
-        content = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n{json.dumps(schema, indent=2)}"
-                        },
-                        {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": self.encode_image(image),
-                            }
-                        },
-                    ]
+        system_instruction = kwargs.pop("system_prompt", None)
+
+        parts = [
+            {"text": prompt},
+            {
+                "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": self.encode_image(image),
                 }
-            ],
+            },
+        ]
+
+        content: Dict[str, Any] = {
+            "contents": [{"parts": parts}],
             "generationConfig": {
                 "temperature": kwargs.get("temperature", 0.1),
                 "maxOutputTokens": kwargs.get("max_tokens", 4096),
@@ -46,6 +43,9 @@ class GeminiProvider(VLMProvider):
                 "responseSchema": self._convert_json_schema_to_gemini(schema),
             },
         }
+
+        if system_instruction:
+            content["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
         # Make API call
         response = await self.client.post(
@@ -172,6 +172,8 @@ class GeminiProvider(VLMProvider):
         **kwargs,
     ) -> Dict[str, Any]:
         """Process text with Gemini text-only model"""
+        system_instruction = kwargs.pop("system_prompt", None)
+
         prompt_text = f"{prompt}\n\nDocument text:\n{text}"
         generation_config: Dict[str, Any] = {
             "temperature": temperature,
@@ -186,19 +188,20 @@ class GeminiProvider(VLMProvider):
             generation_config["responseMimeType"] = "text/plain"
         else:
             prompt_text = (
-                f"{prompt}\n\nDocument text:\n{text}\n\n"
-                f"Respond ONLY with valid JSON matching this schema:\n{json.dumps(schema_definition, indent=2)}"
+                f"{prompt}\n\nDocument text:\n{text}"
             )
             generation_config["responseMimeType"] = "application/json"
             generation_config["responseSchema"] = self._convert_json_schema_to_gemini(
                 schema_definition
             )
 
-        # Prepare content (text-only, no image)
-        content = {
+        content: Dict[str, Any] = {
             "contents": [{"parts": [{"text": prompt_text}]}],
             "generationConfig": generation_config,
         }
+
+        if system_instruction:
+            content["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
         try:
             # Make API call
@@ -252,13 +255,16 @@ class GeminiProvider(VLMProvider):
                             f"Gemini response hit MAX_TOKENS (limit={max_tokens}), retrying with {retry_max} tokens"
                         )
                         generation_config["maxOutputTokens"] = retry_max
+                        retry_payload: Dict[str, Any] = {
+                            "contents": [{"parts": [{"text": prompt_text}]}],
+                            "generationConfig": generation_config,
+                        }
+                        if system_instruction:
+                            retry_payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
                         retry_response = await self.client.post(
                             f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
                             headers={"Content-Type": "application/json"},
-                            json={
-                                "contents": [{"parts": [{"text": prompt_text}]}],
-                                "generationConfig": generation_config,
-                            },
+                            json=retry_payload,
                         )
                         retry_response.raise_for_status()
                         retry_result = retry_response.json()

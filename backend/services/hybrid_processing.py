@@ -129,7 +129,7 @@ class HybridProcessingService:
         compact_pages = [
             {
                 "page_number": page["page_number"],
-                "text_preview": page["text_preview"],
+                "text_preview": page["text_preview"][:600],
                 "block_count": page["block_count"],
                 "image_count": page["image_count"],
                 "table_count": page["table_count"],
@@ -139,10 +139,13 @@ class HybridProcessingService:
         ]
         return (
             f"{base_prompt}\n\n"
-            "This is a hybrid OCR extraction task. Combine the provided visual page contact sheet with the OCR/layout notes below.\n"
-            "Use visual structure to resolve ambiguities, preserve row/section relationships, and prefer text/layout evidence when values conflict.\n\n"
-            f"OCR/layout context:\n{json.dumps(compact_pages, indent=2)}\n\n"
-            f"Target JSON schema:\n{json.dumps(schema_definition, indent=2)}"
+            "<hybrid_context>\n"
+            "This is a hybrid OCR extraction task. Combine the provided visual page "
+            "contact sheet with the OCR/layout notes below.\n"
+            "Use visual structure to resolve ambiguities, preserve row/section "
+            "relationships, and prefer text/layout evidence when values conflict.\n"
+            "</hybrid_context>\n\n"
+            f"<layout_data>\n{json.dumps(compact_pages, indent=2)}\n</layout_data>"
         )
 
     async def process_pdf(

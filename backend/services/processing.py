@@ -16,6 +16,8 @@ from services.transcription_service import TranscriptionService
 from services.provider_utils import resolve_provider_api_key
 from services.processing_utils import update_job_status_with_broadcast
 from services.processors.factory import ProcessorFactory
+from services.prompt_optimizer import PromptOptimizer
+from services.document_classifier import DocumentClassifier
 from config import get_settings
 from database import crud
 
@@ -183,6 +185,71 @@ async def run_processing_job(
     temperature = 0.1 if temperature_override is None else temperature_override
     max_tokens = 8192 if max_tokens_override is None else max_tokens_override
 
+    extraction_method = extraction_method_override or job.get("processing_method") or "vision"
+
+    quality_score = None
+    quality_assessment_failed = False
+    if file_type == "image" and extraction_method in ("vision", "hybrid"):
+        try:
+            img = ImageService.load_image(file_path)
+            quality_score = QualityGate().assess(img).overall_score
+        except Exception as exc:
+            quality_assessment_failed = True
+            logger.warning(
+                "Quality assessment failed for job %s (%s): %s",
+                job_id,
+                file_path,
+                exc,
+            )
+
+    doc_type_override = None
+    document_classification_failed = False
+    if file_path.lower().endswith(".pdf"):
+        try:
+            classifier = DocumentClassifier()
+            analysis = classifier.analyze_document(file_path)
+            if analysis.has_tables and analysis.complexity_score > 70:
+                doc_type_override = "table_heavy"
+            elif analysis.text_density < 50:
+                doc_type_override = "handwritten"
+        except Exception as exc:
+            document_classification_failed = True
+            logger.warning(
+                "Document classification failed for job %s (%s): %s",
+                job_id,
+                file_path,
+                exc,
+            )
+
+    optimizer = PromptOptimizer()
+    prompt_result = await optimizer.optimize_prompt(
+        prompt=prompt,
+        schema_definition=schema_definition,
+        schema_name=job.get("schema_name"),
+        provider=job["provider"],
+        model=job["model"],
+        processing_method=extraction_method,
+        is_raw_output=raw_output,
+        is_transcription=is_transcription,
+        quality_score=quality_score,
+        doc_type=doc_type_override,
+    )
+
+    optimized_prompt = prompt_result.user_prompt
+    optimized_schema = prompt_result.enriched_schema if prompt_result.enriched_schema else schema_definition
+    system_prompt = prompt_result.system_prompt
+
+    await crud.update_job_metadata(job_id, {
+        "prompt_optimization": {
+            "doc_type": prompt_result.doc_type_used,
+            "cot_enabled": prompt_result.cot_enabled,
+            "hints_injected": prompt_result.hints_injected,
+            "quality_score": quality_score,
+            "quality_assessment_failed": quality_assessment_failed,
+            "document_classification_failed": document_classification_failed,
+        },
+    })
+
     # Process
     service = ProcessingService(
         quality_threshold=quality_threshold if quality_threshold is not None else 40.0,
@@ -198,15 +265,14 @@ async def run_processing_job(
             file_type=file_type,
             provider_name=job["provider"],
             model=job["model"],
-            schema_definition=schema_definition,
-            prompt=prompt,
+            schema_definition=optimized_schema,
+            prompt=optimized_prompt,
             temperature=temperature,
             max_tokens=max_tokens,
             job_id=job_id,
-            extraction_method=extraction_method_override
-            or job.get("processing_method")
-            or "vision",
+            extraction_method=extraction_method,
             is_transcription=is_transcription,
+            system_prompt=system_prompt,
         )
 
         logger.info("Processing completed for job %s Result: %s", job_id, result.get('success'))
@@ -297,6 +363,21 @@ async def run_text_processing_job(
     temperature = 0.1 if temperature_override is None else temperature_override
     max_tokens = 8192 if max_tokens_override is None else max_tokens_override
 
+    optimizer = PromptOptimizer()
+    prompt_result = await optimizer.optimize_prompt(
+        prompt=prompt,
+        schema_definition=schema_definition,
+        schema_name=job.get("schema_name"),
+        provider=job["provider"],
+        model=job["model"],
+        processing_method="text",
+        is_raw_output=raw_output,
+    )
+
+    optimized_prompt = prompt_result.user_prompt
+    optimized_schema = prompt_result.enriched_schema if prompt_result.enriched_schema else schema_definition
+    system_prompt = prompt_result.system_prompt
+
     # Get API key
     provider_name = job["provider"]
     api_key = resolve_provider_api_key(provider_name)
@@ -321,10 +402,11 @@ async def run_text_processing_job(
             file_type="pdf",
             provider_name=provider_name,
             model=job["model"],
-            schema_definition=schema_definition,
-            prompt=prompt,
+            schema_definition=optimized_schema,
+            prompt=optimized_prompt,
             temperature=temperature,
             max_tokens=max_tokens,
+            system_prompt=system_prompt,
         )
 
         processing_time = time.time() - start_time

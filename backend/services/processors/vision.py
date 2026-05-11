@@ -102,8 +102,13 @@ class VisionProcessor(Processor):
         target_size = provider.get_default_image_size()
         image = self.image_service.resize_image(image, target_size)
 
+        provider_kwargs = {k: v for k, v in kwargs.items()}
+        system_prompt = provider_kwargs.pop("system_prompt", None)
+        if system_prompt:
+            provider_kwargs["system_prompt"] = system_prompt
+
         result = await provider.process_image(
-            image, prompt, schema_definition, model, **kwargs
+            image, prompt, schema_definition, model, **provider_kwargs
         )
 
         if "error" in result:
