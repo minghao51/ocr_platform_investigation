@@ -187,9 +187,16 @@ class TestUploadEndpoint:
         data = response.json()
         assert "error" in data or "detail" in data
 
-    def test_upload_large_file(self):
+    def test_upload_large_file(self, client, temp_db_env):
         """Test uploading a file larger than 10MB."""
-        pass
+        oversized = b"\x00" * (10 * 1024 * 1024 + 1)
+        response = client.post(
+            "/api/upload",
+            files={"file": ("too-large.pdf", oversized, "application/pdf")},
+            headers=get_auth_header(),
+        )
+        assert response.status_code == 413
+        assert "File too large" in response.json().get("detail", "")
 
 
 class TestJobsEndpoints:
@@ -235,8 +242,10 @@ class TestProcessWorkflow:
         img_bytes.seek(0)
         return img_bytes
 
-    def test_full_processing_workflow(self, client, temp_db_env, monkeypatch):
-        """Test complete workflow: upload -> process -> status -> results."""
+    def test_full_processing_workflow(self, client, temp_db_env):
+        """Test workflow: upload -> queue processing -> status retrieval."""
+        import time
+
         img_bytes = self.create_test_image()
         upload_response = client.post(
             "/api/upload",
@@ -245,8 +254,48 @@ class TestProcessWorkflow:
         )
 
         assert upload_response.status_code == 200
-        _file_id = upload_response.json()["file_id"]
-        pass
+        file_id = upload_response.json()["file_id"]
+
+        schema_name = "workflow_schema_" + str(time.time_ns())
+        schema_response = client.post(
+            "/api/schemas",
+            json={
+                "name": schema_name,
+                "description": "Workflow schema",
+                "definition": {
+                    "type": "object",
+                    "properties": {"title": {"type": "string"}},
+                },
+            },
+            headers=get_auth_header(),
+        )
+        assert schema_response.status_code == 200
+        schema_id = schema_response.json()["id"]
+
+        process_response = client.post(
+            "/api/process",
+            json={
+                "file_id": file_id,
+                "provider": "gemini",
+                "model": "gemini-2.5-flash",
+                "schema_id": schema_id,
+                "extraction_method": "vision",
+            },
+            headers=get_auth_header(),
+        )
+        assert process_response.status_code == 200
+        payload = process_response.json()
+        assert payload["status"] == "pending"
+        assert isinstance(payload["job_id"], int)
+
+        status_response = client.get(
+            f"/api/process/status/{payload['job_id']}",
+            headers=get_auth_header(),
+        )
+        assert status_response.status_code == 200
+        job = status_response.json()
+        assert job["job_id"] == payload["job_id"]
+        assert job["status"] in {"pending", "processing", "success", "error"}
 
 
 class TestErrorHandling:

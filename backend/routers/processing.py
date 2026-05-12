@@ -241,8 +241,12 @@ async def process_document(
     if classification_info:
         try:
             await crud.update_job_metadata(job_id, classification_info)
-        except Exception:
-            pass  # Metadata update is optional
+        except Exception as exc:
+            logger.warning(
+                "Failed to store classification metadata for job %s: %s",
+                job_id,
+                exc,
+            )
 
     # Queue background processing with appropriate method
     if processing_method == "text":

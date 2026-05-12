@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from typing import Any, Dict, List
 from services.schema_service import SchemaService
-from routers.providers import list_providers
+from services.provider_catalog import list_provider_catalog
 
 router = APIRouter(prefix="/api/extract", tags=["extract-settings"])
 
@@ -67,7 +67,7 @@ SCHEMA_MODES: List[Dict[str, Any]] = [
 
 @router.get("/settings")
 async def get_extract_settings():
-    providers = await list_providers()
+    providers = list_provider_catalog()
     templates = SchemaService.get_builtin_templates()
 
     return {

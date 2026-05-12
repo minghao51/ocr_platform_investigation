@@ -18,8 +18,9 @@ def temp_db_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     uploads_dir = tmp_path / "uploads"
     uploads_dir.mkdir(parents=True, exist_ok=True)
 
+    monkeypatch.setattr("paths.get_db_path", lambda: db_path)
     monkeypatch.setattr("database.pool.get_db_path", lambda: db_path)
-    monkeypatch.setattr("database.migrations._get_db_path", lambda: db_path)
+    monkeypatch.setattr("database.migrations.get_db_path", lambda: db_path)
     monkeypatch.setattr("dependencies._get_cached_db_path", lambda: db_path)
     monkeypatch.setattr("routers.upload.UPLOAD_DIR", uploads_dir)
 
