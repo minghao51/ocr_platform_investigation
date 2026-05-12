@@ -58,14 +58,6 @@ def get_login_rate_limit_value(*_args, **_kwargs) -> str:
 limiter = Limiter(key_func=get_rate_limit_key)
 
 
-def get_user_id(request: Request) -> str:
-    """Get user ID from request for rate limiting."""
-    user = _get_request_user(request)
-    if user and user.get("user_id") is not None:
-        return str(user["user_id"])
-    return get_remote_address(request)
-
-
 def get_login_rate_limit_key(request: Request) -> str:
     """
     Rate-limit login attempts by source IP and claimed username.

@@ -50,7 +50,10 @@ async def login(request: Request, payload: LoginRequest):
 
     # Create access token
     access_token = create_access_token(
-        user_id=user["id"], username=user["username"], is_admin=bool(user["is_admin"])
+        user_id=user["id"],
+        username=user["username"],
+        is_admin=bool(user["is_admin"]),
+        token_version=int(user.get("token_version") or 0),
     )
 
     return LoginResponse(
@@ -74,6 +77,18 @@ async def verify_token_endpoint(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
-# Note: We use JWT tokens which are stateless, so there's no logout endpoint.
-# The frontend simply needs to delete the stored token.
-# To implement token revocation, we would need to use a token blacklist in Redis/DB.
+@router.post("/logout")
+async def logout(current_user: dict = Depends(get_current_user)):
+    """
+    Revoke currently active JWTs for this user by rotating token version.
+    """
+    user_id = current_user.get("user_id")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user context"
+        )
+
+    updated = await crud.increment_token_version(int(user_id))
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "Logged out successfully"}

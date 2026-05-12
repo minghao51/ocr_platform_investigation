@@ -52,12 +52,7 @@ async def lifespan(_app: FastAPI):
             await close_pool()
             logger.info("Database pool closed")
         except Exception as e:
-            logger.warning(f"Failed to close database pool: {e}")
-
-        try:
-            logger.info("WebSocket connections will close")
-        except Exception as e:
-            logger.warning(f"Note: {e}")
+            logger.warning("Failed to close database pool: %s", e)
 
         try:
             from services.job_queue import stop_job_worker
@@ -65,7 +60,7 @@ async def lifespan(_app: FastAPI):
             await stop_job_worker()
             logger.info("Job queue worker stopped")
         except Exception as e:
-            logger.warning(f"Failed to stop job queue worker: {e}")
+            logger.warning("Failed to stop job queue worker: %s", e)
 
         logger.info("Shutdown complete")
 

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     hashed_password TEXT NOT NULL,
     is_admin BOOLEAN DEFAULT 0,
+    token_version INTEGER DEFAULT 0,
     daily_requests INTEGER DEFAULT 0,
     last_request_date TEXT,
     is_limited BOOLEAN DEFAULT 0,

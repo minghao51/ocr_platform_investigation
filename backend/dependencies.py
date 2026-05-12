@@ -11,25 +11,12 @@ from config import get_settings
 import aiosqlite
 from datetime import date
 from database.pool import get_db_path
+from database.crud.users import get_user_by_id
 
 
 @lru_cache
 def _get_cached_db_path() -> Path:
-    """Cache DB path to avoid repeated settings lookups."""
     return get_db_path()
-
-
-async def _get_user_usage(user_id: int) -> Tuple[int, str, bool]:
-    """Fetch user's daily usage stats from database."""
-    async with aiosqlite.connect(_get_cached_db_path()) as db:
-        cursor = await db.execute(
-            "SELECT daily_requests, last_request_date, is_limited FROM users WHERE id = ?",
-            (user_id,),
-        )
-        row = await cursor.fetchone()
-        if row:
-            return row
-        return (0, "", False)
 
 
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
@@ -62,6 +49,24 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    token_version = payload.get("token_version")
+    user_id = payload.get("user_id")
+    if token_version is not None and user_id is not None:
+        user_record = await get_user_by_id(user_id)
+        if not user_record:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        current_token_version = int(user_record.get("token_version") or 0)
+        if current_token_version != int(token_version):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     return payload
 
 
@@ -88,6 +93,24 @@ async def get_optional_user(
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    token_version = payload.get("token_version")
+    user_id = payload.get("user_id")
+    if token_version is not None and user_id is not None:
+        user_record = await get_user_by_id(user_id)
+        if not user_record:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        current_token_version = int(user_record.get("token_version") or 0)
+        if current_token_version != int(token_version):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     return payload
 
