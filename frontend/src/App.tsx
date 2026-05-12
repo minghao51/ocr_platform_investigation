@@ -146,7 +146,7 @@ function App() {
                     </span>
                     <button
                       onClick={() => {
-                        logout();
+                        void logout();
                         setAuthUser(null);
                       }}
                       className="text-sm text-gray-500 hover:text-gray-700"

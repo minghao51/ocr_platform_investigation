@@ -1,48 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { listProviders, analyzePdf, getBenchmarkedModels, Provider, BenchmarkedModel } from '../lib/api';
+import { listProviders, analyzePdf, getBenchmarkedModels } from '../lib/api';
+import type { Provider, BenchmarkedModel } from '../lib/api';
 import { Skeleton } from './LoadingSpinner';
-import { ExtractionMethod } from './ExtractionModeSelector';
-
-const PROVIDER_REQUIRED_METHODS: ExtractionMethod[] = [
-  'auto',
-  'text',
-  'vision',
-  'hybrid',
-  'docling-parse',
-  'transcription',
-];
-
-const FILE_TYPE_METHODS: Record<string, ExtractionMethod[]> = {
-  image: ['docling-extract', 'vision'],
-  audio: ['transcription'],
-  document: ['docling-parse', 'transcription'],
-};
-
-const PDF_ALL_METHODS: ExtractionMethod[] = [
-  'docling-extract', 'docling-parse', 'auto', 'text', 'vision', 'hybrid', 'transcription',
-];
-
-const METHOD_LABELS: Record<string, string> = {
-  auto: 'Auto',
-  text: 'Text',
-  vision: 'Vision',
-  hybrid: 'Hybrid',
-  'docling-parse': 'PyMuPDF + LLM',
-  'docling-extract': 'Docling Local Extract',
-  transcription: 'Transcription',
-};
-
-const METHOD_COLORS: Record<string, string> = {
-  auto: 'bg-purple-100 border-purple-300 text-purple-800',
-  text: 'bg-green-100 border-green-300 text-green-800',
-  vision: 'bg-blue-100 border-blue-300 text-blue-800',
-  hybrid: 'bg-orange-100 border-orange-300 text-orange-800',
-  'docling-parse': 'bg-indigo-100 border-indigo-300 text-indigo-800',
-  'docling-extract': 'bg-emerald-100 border-emerald-300 text-emerald-800',
-  transcription: 'bg-teal-100 border-teal-300 text-teal-800',
-};
-
-const METHOD_COLORS_DISABLED = 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed';
+import {
+  type ExtractionMethod,
+  ALL_METHODS,
+  PROVIDER_REQUIRED_METHODS,
+  FILE_TYPE_METHODS,
+  getMethodMeta,
+  getMethodPillClass,
+  PILL_CLASS_DISABLED,
+} from '../lib/methods';
 
 interface MethodModelSelectorProps {
   provider: string;
@@ -85,7 +53,7 @@ export default function MethodModelSelector({
     if (fileType === 'application/pdf') {
       analyzePdf(fileId)
         .then((analysis) => setPdfMethods(analysis.suggested_methods as ExtractionMethod[]))
-        .catch(() => setPdfMethods(PDF_ALL_METHODS));
+        .catch(() => setPdfMethods(ALL_METHODS));
     } else {
       setPdfMethods(null);
     }
@@ -122,10 +90,10 @@ export default function MethodModelSelector({
   };
 
   const availableMethods = useMemo(() => {
-    if (!fileType) return PDF_ALL_METHODS;
+    if (!fileType) return ALL_METHODS;
 
     if (fileType === 'application/pdf') {
-      return pdfMethods || PDF_ALL_METHODS;
+      return pdfMethods || ALL_METHODS;
     }
 
     if (fileType.startsWith('image/')) return FILE_TYPE_METHODS.image;
@@ -195,10 +163,10 @@ export default function MethodModelSelector({
           Extraction Method
         </label>
         <div className="flex flex-wrap gap-2">
-          {PDF_ALL_METHODS.map((method) => {
+          {ALL_METHODS.map((method) => {
             const isAvailable = availableMethods.includes(method);
             const isSelected = extractionMethod === method;
-            const colorClass = isAvailable ? METHOD_COLORS[method] : METHOD_COLORS_DISABLED;
+            const colorClass = isAvailable ? getMethodPillClass(method) : PILL_CLASS_DISABLED;
 
             return (
               <button
@@ -212,19 +180,19 @@ export default function MethodModelSelector({
                 `}
                 title={!isAvailable ? 'Not available for this file type' : undefined}
               >
-                {METHOD_LABELS[method]}
+                {getMethodMeta(method).label}
               </button>
             );
           })}
         </div>
         {fileType && availableMethods.length === 1 && (
           <p className="mt-2 text-xs text-gray-500">
-            Auto-selected: only <span className="font-medium">{METHOD_LABELS[availableMethods[0]]}</span> is available for this file type.
+            Auto-selected: only <span className="font-medium">{getMethodMeta(availableMethods[0]).label}</span> is available for this file type.
           </p>
         )}
         {fileType === 'application/pdf' && pdfMethods && (
           <p className="mt-2 text-xs text-gray-500">
-            {pdfMethods.length < PDF_ALL_METHODS.length
+            {pdfMethods.length < ALL_METHODS.length
               ? 'PDF appears to be image-based. Text extraction methods are available but may not work well.'
               : 'PDF has a text layer. All extraction methods are available.'}
           </p>

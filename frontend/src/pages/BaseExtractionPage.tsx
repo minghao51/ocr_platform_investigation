@@ -5,7 +5,7 @@ import FileUpload from '@/components/FileUpload';
 import MethodModelSelector from '@/components/MethodModelSelector';
 import SchemaEditor from '@/components/SchemaEditor';
 import ResultsDisplay from '@/components/ResultsDisplay';
-import { ExtractionMethod } from '@/components/ExtractionModeSelector';
+import type { ExtractionMethod } from '@/lib/methods';
 import AdvancedOptions from '@/components/AdvancedOptions';
 import { QualityBadge } from '@/components/QualityBadge';
 

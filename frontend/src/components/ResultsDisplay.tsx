@@ -1,9 +1,9 @@
-import { Job } from '../lib/api';
+import type { Job, JobCorrection } from '../lib/api';
 import ProcessingStatus from './ProcessingStatus';
 import ExtractedDataDisplay from './ExtractedDataDisplay';
-import type { ExtractionMethod } from './ExtractionModeSelector';
 import CorrectionReviewPanel from './CorrectionReviewPanel';
-import type { JobCorrection } from '@/lib/api';
+import type { ExtractionMethod } from '../lib/methods';
+import { getMethodMeta } from '../lib/methods';
 
 interface ResultsDisplayProps {
   job: Job;
@@ -14,105 +14,12 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
   const errorMessage = typeof job.error === 'string' ? job.error : null;
   const hasResult = job.result !== null && job.result !== undefined;
 
-  const getMethodBadgeColor = (method: ExtractionMethod): string => {
-    switch (method) {
-      case 'text':
-        return 'bg-green-100 text-green-800';
-      case 'auto':
-        return 'bg-purple-100 text-purple-800';
-      case 'vision':
-        return 'bg-blue-100 text-blue-800';
-      case 'hybrid':
-        return 'bg-orange-100 text-orange-800';
-      case 'docling-parse':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'docling-extract':
-        return 'bg-emerald-100 text-emerald-800';
-      case 'transcription':
-        return 'bg-teal-100 text-teal-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getMethodLabel = (method: ExtractionMethod): string => {
-    switch (method) {
-      case 'text':
-        return 'Text Extraction';
-      case 'auto':
-        return 'Auto-Detection';
-      case 'vision':
-        return 'Vision Extraction';
-      case 'hybrid':
-        return 'Hybrid Extraction';
-      case 'docling-parse':
-        return 'PyMuPDF + LLM';
-      case 'docling-extract':
-        return 'Docling Local Extract';
-      case 'transcription':
-        return 'Transcription';
-      default:
-        return 'Unknown';
-    }
-  };
-
   const getProcessingMethodLabel = (method?: string): string => {
-    switch (method) {
-      case 'text':
-        return 'Text Pipeline (Fast)';
-      case 'hybrid':
-        return 'Hybrid Pipeline (Balanced)';
-      case 'vision':
-        return 'Vision Pipeline (Accurate)';
-      case 'docling-parse':
-        return 'PyMuPDF + LLM';
-      case 'docling-extract':
-        return 'Docling Local Extract';
-      case 'transcription':
-        return 'Transcription';
-      default:
-        return 'Unknown Pipeline';
-    }
-  };
-
-  const getProcessingMethodColor = (method?: string): string => {
-    switch (method) {
-      case 'text':
-        return 'bg-green-100 text-green-800';
-      case 'hybrid':
-        return 'bg-orange-100 text-orange-800';
-      case 'vision':
-        return 'bg-blue-100 text-blue-800';
-      case 'docling-parse':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'docling-extract':
-        return 'bg-emerald-100 text-emerald-800';
-      case 'transcription':
-        return 'bg-teal-100 text-teal-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getMethodDescription = (method: ExtractionMethod): string => {
-    switch (method) {
-      case 'auto':
-        return 'Automatically selecting optimal pipeline...';
-      case 'text':
-        return 'Fast, cost-effective extraction for digital PDFs';
-      case 'vision':
-        return 'High accuracy for images and scanned documents';
-      case 'hybrid':
-        return 'Combines text extraction and vision processing';
-      case 'docling-parse':
-        return 'Multi-format support with cost-optimized extraction';
-      case 'docling-extract':
-        return 'Local structured extraction with Docling';
-      case 'transcription':
-        return 'Full document transcription to Markdown';
-      default:
-        return '';
-    }
+    if (!method) return 'Unknown Pipeline';
+    if (method === 'vision') return 'Vision Pipeline (Accurate)';
+    if (method === 'text') return 'Text Pipeline (Fast)';
+    if (method === 'hybrid') return 'Hybrid Pipeline (Balanced)';
+    return getMethodMeta(method as ExtractionMethod).badgeLabel;
   };
 
   return (
@@ -122,8 +29,8 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
         <div className="flex items-center gap-2 flex-wrap">
           {/* Requested method */}
           <span className="text-xs text-gray-600">Requested:</span>
-          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getMethodBadgeColor(processingMethod)}`}>
-            {getMethodLabel(processingMethod)}
+          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getMethodMeta(processingMethod).badgeClass}`}>
+            {getMethodMeta(processingMethod).badgeLabel}
           </span>
 
           {/* Actual method used (shown after job starts) */}
@@ -131,7 +38,7 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
             <>
               <span className="text-xs text-gray-600">→</span>
               <span className="text-xs text-gray-600">Detected:</span>
-              <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getProcessingMethodColor(job.processing_method)}`}>
+              <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getMethodMeta(job.processing_method as ExtractionMethod).badgeClass}`}>
                 {getProcessingMethodLabel(job.processing_method)}
               </span>
             </>
@@ -140,7 +47,7 @@ export default function ResultsDisplay({ job, processingMethod }: ResultsDisplay
           {/* Description */}
           {!job.processing_method && (
             <span className="text-xs text-gray-600">
-              {getMethodDescription(processingMethod)}
+              {getMethodMeta(processingMethod).description}
             </span>
           )}
         </div>

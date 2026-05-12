@@ -1,6 +1,7 @@
-import { Job } from '../lib/api';
+import type { Job } from '../lib/api';
 import { useState, useEffect } from 'react';
 import { QualityBadge, QualityScoreBadge } from './QualityBadge';
+import { getStatusColor } from '../lib/status';
 
 interface ProcessingStatusProps {
   job: Job;
@@ -28,20 +29,6 @@ export default function ProcessingStatus({ job }: ProcessingStatusProps) {
       setElapsedTime(0);
     }
   }, [job.status, jobStartTime]);
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'success':
-        return 'bg-green-100 text-green-800';
-      case 'error':
-        return 'bg-red-100 text-red-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'pending':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();

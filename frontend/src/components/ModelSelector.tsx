@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { listProviders, Provider } from '../lib/api';
+import { useEffect, useRef } from 'react';
+import { useProviders, getDefaultProvider } from '../hooks/useProviders';
 import { Skeleton } from './LoadingSpinner';
 
 interface ModelSelectorProps {
@@ -15,53 +15,20 @@ export default function ModelSelector({
   onProviderChange,
   onModelChange,
 }: ModelSelectorProps) {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { providers, loading, error, retry } = useProviders();
+  const didAutoSelect = useRef(false);
 
   useEffect(() => {
-    loadProviders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadProviders = async () => {
-    try {
-      setLoading(true);
-      const data = await listProviders();
-
-      // Sort providers: Gemini first, then enabled providers, then disabled providers
-      const sortedProviders = data.sort((a, b) => {
-        const ORDER = ['gemini', 'openrouter', 'litellm'];
-        const ai = ORDER.indexOf(a.name);
-        const bi = ORDER.indexOf(b.name);
-        if (ai !== -1 && bi !== -1) return ai - bi;
-        if (ai !== -1) return -1;
-        if (bi !== -1) return -1;
-
-        if (a.has_api_key && !b.has_api_key) return -1;
-        if (!a.has_api_key && b.has_api_key) return 1;
-
-        return 0;
-      });
-
-      setProviders(sortedProviders);
-
-      // Auto-select first available provider and model if not set
-      const firstAvailableProvider = sortedProviders.find(p => p.has_api_key && p.models.length > 0);
-      if (firstAvailableProvider && !provider) {
-        onProviderChange(firstAvailableProvider.name);
-        if (!model) {
-          onModelChange(firstAvailableProvider.models[0].id);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load providers');
-    } finally {
-      setLoading(false);
+    if (didAutoSelect.current || providers.length === 0) return;
+    const defaults = getDefaultProvider(providers);
+    if (defaults && !provider) {
+      didAutoSelect.current = true;
+      onProviderChange(defaults.provider);
+      if (!model) onModelChange(defaults.model);
     }
-  };
+  }, [providers, provider, model, onProviderChange, onModelChange]);
 
-  const selectedProvider = providers.find(p => p.name === provider);
+  const selectedProvider = providers.find((p) => p.name === provider);
   const availableModels = selectedProvider?.models || [];
 
   if (loading) {
@@ -83,10 +50,7 @@ export default function ModelSelector({
     return (
       <div className="p-4 bg-red-50 border border-red-200 rounded-md">
         <p className="text-sm text-red-600">{error}</p>
-        <button
-          onClick={loadProviders}
-          className="mt-2 text-sm text-red-700 underline"
-        >
+        <button onClick={retry} className="mt-2 text-sm text-red-700 underline">
           Retry
         </button>
       </div>
@@ -113,8 +77,7 @@ export default function ModelSelector({
           value={provider}
           onChange={(e) => {
             onProviderChange(e.target.value);
-            // Auto-select first model of new provider
-            const newProvider = providers.find(p => p.name === e.target.value);
+            const newProvider = providers.find((p) => p.name === e.target.value);
             if (newProvider && newProvider.models.length > 0) {
               onModelChange(newProvider.models[0].id);
             }

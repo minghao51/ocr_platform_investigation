@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { listJobs, getJob, deleteJob, listProviders, Job, Provider } from '../lib/api';
+import { listJobs, getJob, deleteJob, listProviders } from '../lib/api';
+import type { Job, Provider } from '../lib/api';
 import ResultsDisplay from '../components/ResultsDisplay';
 import { SkeletonList } from '@/components/LoadingSpinner';
-import type { ExtractionMethod } from '@/components/ExtractionModeSelector';
+import type { ExtractionMethod } from '@/lib/methods';
+import { getMethodMeta } from '@/lib/methods';
+import { getStatusColor } from '../lib/status';
 
 interface HistoryPageProps {
   isAuthenticated: boolean;
@@ -119,19 +122,6 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'success':
-        return 'bg-green-100 text-green-800';
-      case 'error':
-        return 'bg-red-100 text-red-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   return (
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Processing History</h1>
@@ -222,14 +212,8 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
                       <span className="text-sm font-medium truncate">{job.file_name}</span>
                       <div className="flex items-center gap-2">
                         {job.processing_method && (
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            job.processing_method === 'text'
-                              ? 'bg-green-100 text-green-800'
-                              : job.processing_method === 'hybrid'
-                                ? 'bg-orange-100 text-orange-800'
-                                : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {job.processing_method}
+                          <span className={`px-2 py-1 rounded-full text-xs ${getMethodMeta(job.processing_method as ExtractionMethod).badgeClass}`}>
+                            {getMethodMeta(job.processing_method as ExtractionMethod).label}
                           </span>
                         )}
                         {job.correction_status === 'corrected' && (
