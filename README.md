@@ -1,11 +1,11 @@
 # OCR Platform
 
-OCR Platform is a FastAPI + React application for extracting structured data from documents with vision-language models. It supports authenticated uploads, schema-based extraction, job history, and real-time status updates over WebSocket.
+OCR Platform is a FastAPI + React application for extracting structured data from documents with vision-language models. It supports authenticated and guest uploads, schema-based extraction, job history, and real-time status updates over WebSocket.
 
 ## What It Does
 
-- Upload documents: PDF, images, DOCX, PPTX, TXT, MD, HTML (up to 15MB)
-- Run OCR/data extraction with Nebius, OpenRouter, or Gemini
+- Upload documents: PDF, images, DOCX, PPTX, TXT, MD, HTML (up to 10MB by default)
+- Run OCR/data extraction with Docling-local, OpenRouter, Gemini, or LiteLLM
 - Use built-in templates or provide your own JSON Schema
 - Smart document routing: Docling for digital docs, vision for scans
 - Automatic chunking for documents exceeding context window
@@ -43,6 +43,8 @@ OCR Platform is a FastAPI + React application for extracting structured data fro
 - Backend: FastAPI, SQLite, Pydantic, jsonschema
 - Frontend: React, TypeScript, Vite
 - Runtime: Docker Compose or local backend/frontend processes
+
+Backend dependencies are managed via `backend/pyproject.toml` and `backend/uv.lock` (`uv sync`).
 
 ## Quick Start
 

@@ -2,7 +2,7 @@
 
 Base path: `/api`
 
-The API is JWT-protected for file upload, processing, job access, and token verification.
+The API mixes JWT-protected and guest-capable routes. Job listing and admin analytics are JWT-protected; upload and processing support guest access via `X-Guest-Token`.
 
 ## Authentication
 
@@ -37,6 +37,12 @@ Requires `Authorization: Bearer <token>`.
 
 Returns the authenticated user payload.
 
+### POST `/api/auth/logout`
+
+Requires `Authorization: Bearer <token>`.
+
+Revokes active JWT sessions for the current user by rotating token version.
+
 ## Health
 
 ### GET `/health`
@@ -53,7 +59,9 @@ Response:
 
 ### POST `/api/upload/`
 
-Requires authentication. Accepts multipart form data with a `file` field.
+Accepts multipart form data with a `file` field. Works with either:
+- `Authorization: Bearer <token>` for authenticated users
+- no JWT (guest flow), where `X-Guest-Token` is accepted/returned
 
 Response:
 
@@ -111,7 +119,7 @@ Returns a single saved schema.
 
 ### POST `/api/process/`
 
-Requires authentication.
+Works with either authenticated or guest sessions. For guest sessions, include the same `X-Guest-Token` used at upload.
 
 Request fields:
 
@@ -257,9 +265,13 @@ Deletes one job if the user has access.
 
 ## WebSocket
 
-### GET/WS `/api/ws/job/{job_id}?token=<jwt>`
+### POST `/api/ws/ticket`
 
-Authenticated WebSocket channel for live job status updates.
+Requires `Authorization: Bearer <token>`. Returns a short-lived single-use ticket.
+
+### GET/WS `/api/ws/job/{job_id}?ticket=<ticket>`
+
+Authenticated WebSocket channel for live job status updates using the ticket from `POST /api/ws/ticket`.
 
 Message shape:
 
