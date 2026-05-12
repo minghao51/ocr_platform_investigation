@@ -1,4 +1,4 @@
-name: Lint & Format
+name: CI
 
 on:
   push:
@@ -6,172 +6,93 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  ruff-check:
-    runs-on: ubuntu-latest
+  lint:
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
         with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install ruff
-        working-directory: backend
-        run: uv add --dev ruff
-
-      - name: Run ruff check
-        working-directory: backend
-        run: uv run ruff check . --output-format=github
-
-      - name: Run ruff format check
-        working-directory: backend
-        run: uv run ruff format . --check --output-format=github
-
-  pip-audit:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Run pip-audit
-        working-directory: backend
-        run: |
-          uvx pip-audit --desc --format=json --output=audit.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          path = Path("audit.json")
-          if not path.exists():
-            raise SystemExit("pip-audit did not produce audit.json")
-
-          data = json.loads(path.read_text() or "[]")
-          vuln_count = sum(len(dep.get("vulns", [])) for dep in data)
-          if vuln_count > 0:
-            print(f"::error::Detected {vuln_count} Python dependency vulnerabilities")
-            print(path.read_text())
-            raise SystemExit(1)
-          print("No Python dependency vulnerabilities detected")
-          PY
-
-  frontend-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - uses: pre-commit/action@v3.0.1
+      - uses: actions/setup-node@v4
         with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
+      - run: npm ci
         working-directory: frontend
-        run: npm ci
-
-      - name: Run ESLint
+      - name: eslint
         working-directory: frontend
         run: npm run lint
 
-  auto-fix:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    needs: [ruff-check, frontend-lint]
-    permissions:
-      contents: write
-      pull-requests: write
+  typecheck:
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
         with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install ruff
-        working-directory: backend
-        run: uv add --dev ruff
-
-      - name: Run ruff check --fix
-        id: ruff-check-fix
-        working-directory: backend
-        run: |
-          uv run ruff check . --fix --output-format=github
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "fixed=true" >> $GITHUB_OUTPUT
-          else
-            echo "fixed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run ruff format
-        id: ruff-format-fix
-        working-directory: backend
-        run: |
-          uv run ruff format .
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "fixed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Setup Node.js
-        if: steps.ruff-check-fix.outputs.fixed == 'true' || steps.ruff-format-fix.outputs.fixed == 'true'
-        uses: actions/setup-node@v4
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - name: mypy
+        run: uv run --directory backend mypy .
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        if: steps.ruff-check-fix.outputs.fixed == 'true' || steps.ruff-format-fix.outputs.fixed == 'true'
+      - run: npm ci
         working-directory: frontend
-        run: npm ci
-
-      - name: Run ESLint --fix
-        id: eslint-fix
+      - name: tsc
         working-directory: frontend
-        run: |
-          npx eslint . --ext ts,tsx --fix
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "fixed=true" >> $GITHUB_OUTPUT
-          else
-            echo "fixed=false" >> $GITHUB_OUTPUT
-          fi
+        run: npx tsc --noEmit
 
-      - name: Create commit for auto-fixes
-        if: steps.ruff-check-fix.outputs.fixed == 'true' || steps.ruff-format-fix.outputs.fixed == 'true' || steps.eslint-fix.outputs.fixed == 'true'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add -A
-          git commit -m "style: auto-fix lint and format issues
-
-          Auto-generated by GitHub Actions"
-
-      - name: Push changes
-        if: steps.ruff-check-fix.outputs.fixed == 'true' || steps.ruff-format-fix.outputs.fixed == 'true' || steps.eslint-fix.outputs.fixed == 'true'
-        run: git push
-
-      - name: Comment on PR
-        if: steps.ruff-check-fix.outputs.fixed == 'true' || steps.ruff-format-fix.outputs.fixed == 'true' || steps.eslint-fix.outputs.fixed == 'true'
-        uses: actions/github-script@v7
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
         with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '✅ Lint and format auto-fixes have been committed.'
-            })
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - name: pytest
+        run: uv run pytest backend/tests/ -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: vitest
+        working-directory: frontend
+        run: npm run test:unit
+
+  security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - name: pip-audit
+        run: uv run pip-audit --skip-editable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
