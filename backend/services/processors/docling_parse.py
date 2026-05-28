@@ -19,16 +19,6 @@ class DoclingParseProcessor(Processor):
         self.docling_service = DoclingService()
         self.docling_parse_timeout_seconds = max(1, int(docling_parse_timeout_seconds))
 
-    def _validate_file_size(self, file_path: str) -> None:
-        from config import get_settings
-
-        max_size = get_settings().max_file_size
-        size = Path(file_path).stat().st_size
-        if size > max_size:
-            raise ValueError(
-                f"File too large ({size / 1024 / 1024:.1f}MB). Max: {max_size / 1024 / 1024}MB"
-            )
-
     def _extract_markdown_with_pymupdf(self, file_path: str) -> str:
         import fitz
 
@@ -134,11 +124,11 @@ class DoclingParseProcessor(Processor):
                         **chunk_kwargs,
                     )
 
-                    if "error" in result:
-                        errors.append(f"Chunk {i + 1}: {result['error']}")
+                    if result.error is not None:
+                        errors.append(f"Chunk {i + 1}: {result.error}")
                         continue
 
-                    content = result.get("content") or "{}"
+                    content = result.content or "{}"
                     validation_result = parse_and_validate_response(
                         content, schema_definition
                     )
@@ -292,17 +282,15 @@ class DoclingParseProcessor(Processor):
                 **kwargs,
             )
 
-            if "error" in result:
+            if result.error is not None:
                 return {
                     "success": False,
-                    "error": f"Provider error: {result['error']}",
+                    "error": f"Provider error: {result.error}",
                     "raw_response": result,
                 }
 
-            content = result.get("content") or "{}"
-            validation_result = parse_and_validate_response(
-                content, schema_definition
-            )
+            content = result.content or "{}"
+            validation_result = parse_and_validate_response(content, schema_definition)
 
             if validation_result["success"]:
                 return {
@@ -350,9 +338,7 @@ class DoclingParseProcessor(Processor):
         **kwargs,
     ) -> Dict[str, Any]:
         from services.provider_utils import resolve_provider_api_key
-        from services.openrouter import OpenRouterProvider
-        from services.gemini import GeminiProvider
-        from services.litellm_provider import LiteLLMProvider
+        from services.provider_catalog import get_provider
 
         is_transcription = kwargs.pop("is_transcription", False)
 
@@ -360,16 +346,9 @@ class DoclingParseProcessor(Processor):
         if not api_key:
             raise ValueError(f"No API key configured for {provider_name}")
 
-        providers = {
-            "openrouter": OpenRouterProvider,
-            "gemini": GeminiProvider,
-            "litellm": LiteLLMProvider,
-        }
-        provider_class = providers.get(provider_name)
-        if not provider_class:
-            raise ValueError(f"Unknown provider: {provider_name}")
+        provider = await get_provider(provider_name, api_key)
 
-        async with provider_class(api_key) as provider:
+        async with provider:
             return await self._run(
                 file_path,
                 provider,

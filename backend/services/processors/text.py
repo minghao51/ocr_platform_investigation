@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -21,13 +22,13 @@ class TextProcessor(Processor):
     ) -> Dict[str, Any]:
         from services.text_extraction import TextExtractionService
         from services.provider_utils import resolve_provider_api_key
-        from services.openrouter import OpenRouterProvider
-        from services.gemini import GeminiProvider
-        from services.litellm_provider import LiteLLMProvider
+        from services.provider_catalog import get_provider
         from services.schema_service import SchemaService
 
         text_service = TextExtractionService()
-        extracted_text = text_service.extract_text_from_pdf(file_path)
+        extracted_text = await asyncio.to_thread(
+            text_service.extract_text_from_pdf, file_path
+        )
 
         if not extracted_text:
             return {
@@ -39,20 +40,13 @@ class TextProcessor(Processor):
         if not api_key:
             raise ValueError(f"No API key configured for {provider_name}")
 
-        providers = {
-            "openrouter": OpenRouterProvider,
-            "gemini": GeminiProvider,
-            "litellm": LiteLLMProvider,
-        }
-        provider_class = providers.get(provider_name)
-        if not provider_class:
-            raise ValueError(f"Unknown provider: {provider_name}")
-
         temperature = kwargs.get("temperature", 0.1)
         max_tokens = kwargs.get("max_tokens", 8192)
         system_prompt = kwargs.pop("system_prompt", None)
 
-        async with provider_class(api_key) as provider:
+        provider = await get_provider(provider_name, api_key)
+
+        async with provider:
             provider_kwargs: dict = {
                 "temperature": temperature,
                 "max_tokens": max_tokens,
@@ -68,14 +62,14 @@ class TextProcessor(Processor):
                 **provider_kwargs,
             )
 
-        if "error" in result:
+        if result.error is not None:
             return {
                 "success": False,
-                "error": f"Provider error: {result['error']}",
+                "error": f"Provider error: {result.error}",
                 "raw_response": result,
             }
 
-        content = result.get("content") or "{}"
+        content = result.content or "{}"
         if schema_definition is None:
             return {
                 "success": True,

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -111,17 +112,17 @@ class VisionProcessor(Processor):
             image, prompt, schema_definition, model, **provider_kwargs
         )
 
-        if "error" in result:
+        if result.error is not None:
             return {
                 "success": False,
-                "error": f"Provider error: {result['error']}",
+                "error": f"Provider error: {result.error}",
                 "raw_response": result,
                 "quality_report": self.quality_gate.to_dict(quality_report)
                 if quality_report
                 else None,
             }
 
-        content = result.get("content") or "{}"
+        content = result.content or "{}"
 
         validation_result = parse_and_validate_response(
             content, schema_definition, self._get_schema_service()
@@ -157,66 +158,98 @@ class VisionProcessor(Processor):
         **kwargs,
     ) -> Dict[str, Any]:
         images = self.image_service.pdf_to_images(pdf_path)
+        semaphore = asyncio.Semaphore(3)
+
+        async def _process_page(page_idx: int, image) -> Dict[str, Any]:
+            async with semaphore:
+                quality_report = None
+                if not self.skip_quality:
+                    quality_report = self.quality_gate.assess(image)
+
+                    if (
+                        not quality_report.passed
+                        and self.auto_preprocess
+                        and quality_report.auto_fixable_issues
+                    ):
+                        preprocess_result = self.preprocessor.fix(
+                            image, quality_report=quality_report
+                        )
+                        image = preprocess_result.processed
+                        quality_report = self.quality_gate.assess(image)
+
+                        if job_id is not None:
+                            prev = await crud.get_job(job_id)
+                            existing_preproc = []
+                            if prev and prev.get("preprocessing_applied"):
+                                try:
+                                    existing_preproc = json.loads(
+                                        prev["preprocessing_applied"]
+                                    )
+                                except Exception:
+                                    pass
+                            merged = list(
+                                set(existing_preproc + preprocess_result.applied)
+                            )
+                            await crud.update_quality_info(
+                                job_id=job_id,
+                                quality_checks=self.quality_gate.to_dict(
+                                    quality_report
+                                ),
+                                preprocessing_applied=merged,
+                            )
+
+                target_size = provider.get_default_image_size()
+                resized = self.image_service.resize_image(image, target_size)
+
+                result = await provider.process_image(
+                    resized, prompt, schema_definition, model, **kwargs
+                )
+
+                if result.error is not None:
+                    return {
+                        "page": page_idx,
+                        "result": None,
+                        "error": f"Page {page_idx + 1}: {result.error}",
+                        "quality_report": quality_report,
+                    }
+
+                content = result.content or "{}"
+                validation_result = parse_and_validate_response(
+                    content, schema_definition, self._get_schema_service()
+                )
+
+                if validation_result["success"]:
+                    return {
+                        "page": page_idx,
+                        "result": validation_result["data"],
+                        "error": None,
+                        "quality_report": quality_report,
+                    }
+                else:
+                    return {
+                        "page": page_idx,
+                        "result": None,
+                        "error": f"Page {page_idx + 1}: {validation_result['error']}",
+                        "quality_report": quality_report,
+                    }
+
+        tasks = [_process_page(i, img) for i, img in enumerate(images)]
+        page_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results = []
         errors = []
         page_quality_reports = []
 
-        for i, image in enumerate(images):
-            if not self.skip_quality:
-                quality_report = self.quality_gate.assess(image)
-                page_quality_reports.append(quality_report)
-
-                if (
-                    not quality_report.passed
-                    and self.auto_preprocess
-                    and quality_report.auto_fixable_issues
-                ):
-                    preprocess_result = self.preprocessor.fix(
-                        image, quality_report=quality_report
-                    )
-                    image = preprocess_result.processed
-                    quality_report = self.quality_gate.assess(image)
-
-                    if job_id is not None:
-                        prev = await crud.get_job(job_id)
-                        existing_preproc = []
-                        if prev and prev.get("preprocessing_applied"):
-                            try:
-                                existing_preproc = json.loads(
-                                    prev["preprocessing_applied"]
-                                )
-                            except Exception:
-                                pass
-                        merged = list(
-                            set(existing_preproc + preprocess_result.applied)
-                        )
-                        await crud.update_quality_info(
-                            job_id=job_id,
-                            quality_checks=self.quality_gate.to_dict(quality_report),
-                            preprocessing_applied=merged,
-                        )
-
-            target_size = provider.get_default_image_size()
-            resized = self.image_service.resize_image(image, target_size)
-
-            result = await provider.process_image(
-                resized, prompt, schema_definition, model, **kwargs
-            )
-
-            if "error" in result:
-                errors.append(f"Page {i + 1}: {result['error']}")
+        for i, pr in enumerate(page_results):
+            if isinstance(pr, Exception):
+                errors.append(f"Page {i + 1}: {pr}")
                 continue
-
-            content = result.get("content") or "{}"
-            validation_result = parse_and_validate_response(
-                content, schema_definition, self._get_schema_service()
-            )
-
-            if validation_result["success"]:
-                results.append(validation_result["data"])
+            if pr["error"]:
+                errors.append(pr["error"])
             else:
-                errors.append(f"Page {i + 1}: {validation_result['error']}")
+                results.append(pr["result"])
+            if pr.get("quality_report"):
+                page_quality_reports.append(pr["quality_report"])
 
         if job_id is not None and page_quality_reports:
             avg_score = sum(r.overall_score for r in page_quality_reports) / len(
@@ -251,24 +284,15 @@ class VisionProcessor(Processor):
         **kwargs,
     ) -> Dict[str, Any]:
         from services.provider_utils import resolve_provider_api_key
-        from services.openrouter import OpenRouterProvider
-        from services.gemini import GeminiProvider
-        from services.litellm_provider import LiteLLMProvider
+        from services.provider_catalog import get_provider
 
         api_key = resolve_provider_api_key(provider_name)
         if not api_key:
             raise ValueError(f"No API key configured for {provider_name}")
 
-        providers = {
-            "openrouter": OpenRouterProvider,
-            "gemini": GeminiProvider,
-            "litellm": LiteLLMProvider,
-        }
-        provider_class = providers.get(provider_name)
-        if not provider_class:
-            raise ValueError(f"Unknown provider: {provider_name}")
+        provider = await get_provider(provider_name, api_key)
 
-        async with provider_class(api_key) as provider:
+        async with provider:
             if file_type == "image":
                 return await self._process_single_image(
                     file_path,

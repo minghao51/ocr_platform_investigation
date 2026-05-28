@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -9,30 +10,22 @@ from services.processors.base import Processor
 logger = logging.getLogger(__name__)
 
 _docling_extractors: dict[frozenset, Any] = {}
+_extractors_lock = asyncio.Lock()
 
 
-def _get_docling_extractor(allowed_formats: list) -> Any:
-    key = frozenset(allowed_formats)
-    extractor = _docling_extractors.get(key)
-    if extractor is None:
-        from docling.document_extractor import DocumentExtractor
+async def _get_docling_extractor(allowed_formats: list) -> Any:
+    async with _extractors_lock:
+        key = frozenset(allowed_formats)
+        extractor = _docling_extractors.get(key)
+        if extractor is None:
+            from docling.document_extractor import DocumentExtractor
 
-        extractor = DocumentExtractor(allowed_formats=list(key))
-        _docling_extractors[key] = extractor
-    return extractor
+            extractor = DocumentExtractor(allowed_formats=list(key))
+            _docling_extractors[key] = extractor
+        return extractor
 
 
 class DoclingExtractProcessor(Processor):
-    def _validate_file_size(self, file_path: str) -> None:
-        from config import get_settings
-
-        max_size = get_settings().max_file_size
-        size = Path(file_path).stat().st_size
-        if size > max_size:
-            raise ValueError(
-                f"File too large ({size / 1024 / 1024:.1f}MB). Max: {max_size / 1024 / 1024}MB"
-            )
-
     async def process(
         self,
         job_id: Optional[int],
@@ -60,9 +53,11 @@ class DoclingExtractProcessor(Processor):
             else:
                 allowed_formats = [InputFormat.IMAGE, InputFormat.PDF]
 
-            extractor = _get_docling_extractor(allowed_formats)
+            extractor = await _get_docling_extractor(allowed_formats)
 
-            result = extractor.extract(source=file_path, template=schema_definition)
+            result = await asyncio.to_thread(
+                extractor.extract, source=file_path, template=schema_definition
+            )
 
             processing_time = time.time() - start_time
 
