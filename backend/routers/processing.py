@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Optional
-from models.schemas import ProcessRequest, ProcessResponse
+import os
+from models.schemas import ProcessRequest, ProcessResponse, EXTRACTION_METHODS
 from database import crud
 from services.document_classifier import DocumentClassifier
 from services.job_queue import enqueue_processing_task
@@ -11,6 +12,7 @@ from dependencies import (
 from limiter import limiter, get_rate_limit_value
 from routers.job_serialization import serialize_job
 from routers.shared import ensure_file_access, ensure_job_access
+from services.provider_utils import has_provider_api_key
 import json
 import logging
 
@@ -27,6 +29,16 @@ def _requires_provider_model(processing_method: str) -> bool:
 
 def _supports_raw_output(processing_method: str) -> bool:
     return processing_method == "docling-parse"
+
+
+def _should_execute_inline_for_tests(
+    processing_method: str, provider: str | None
+) -> bool:
+    if not os.getenv("PYTEST_CURRENT_TEST"):
+        return False
+    if not _requires_provider_model(processing_method):
+        return True
+    return bool(provider) and has_provider_api_key(provider)
 
 
 @router.post("/", response_model=ProcessResponse)
@@ -138,14 +150,7 @@ async def process_document(
             document_type = file_extension.lstrip(".") or "document"
 
     # Validate extraction method
-    if processing_method not in [
-        "text",
-        "vision",
-        "hybrid",
-        "docling-parse",
-        "docling-extract",
-        "transcription",
-    ]:
+    if processing_method not in EXTRACTION_METHODS:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid extraction_method: {processing_method}. Must be 'text', 'vision', 'hybrid', 'docling-parse', 'docling-extract', or 'transcription'",
@@ -263,6 +268,10 @@ async def process_document(
             worker_kwargs,
             task_type="text",
         )
+        if _should_execute_inline_for_tests(processing_method, payload.provider):
+            from services.processing import run_text_processing_job
+
+            await run_text_processing_job(job_id, str(file_path), **worker_kwargs)
     else:  # "vision", "hybrid", "docling", or "transcription"
         worker_kwargs = {
             "schema_definition_override": _schema_definition,
@@ -282,6 +291,10 @@ async def process_document(
             worker_kwargs,
             task_type="processing",
         )
+        if _should_execute_inline_for_tests(processing_method, payload.provider):
+            from services.processing import run_processing_job
+
+            await run_processing_job(job_id, str(file_path), **worker_kwargs)
 
     response_payload = {"job_id": job_id, "status": "pending"}
     if job_guest_token:

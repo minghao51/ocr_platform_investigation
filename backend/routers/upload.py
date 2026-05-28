@@ -18,6 +18,25 @@ DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".pptx", ".txt", ".md", ".html"}
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
 ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS | AUDIO_EXTENSIONS
 
+CONTENT_TYPE_MAP = {
+    ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".html": "text/html",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+}
+
 
 @router.post("/")
 @limiter.limit(get_rate_limit_value)
@@ -31,6 +50,9 @@ async def upload_file(
     guest_token = request.headers.get("X-Guest-Token")
     if current_user is None:
         guest_token = guest_token or secrets.token_urlsafe(32)
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
 
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
@@ -59,8 +81,8 @@ async def upload_file(
                         detail=f"File too large. Max size is {max_size_mb:.0f}MB",
                     )
                 f.write(chunk)
-    except HTTPException:
-        # Clean up partial file if size limit was exceeded
+    except Exception:
+        # Avoid leaving partial files behind when validation or disk writes fail.
         if file_path.exists():
             file_path.unlink()
         raise
@@ -74,37 +96,24 @@ async def upload_file(
         file_type = "audio"
     else:
         file_type = "document"
-    content_type_map = {
-        ".pdf": "application/pdf",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ".txt": "text/plain",
-        ".md": "text/markdown",
-        ".html": "text/html",
-        ".mp3": "audio/mpeg",
-        ".wav": "audio/wav",
-        ".m4a": "audio/mp4",
-        ".ogg": "audio/ogg",
-        ".flac": "audio/flac",
-    }
-    content_type = content_type_map.get(file_ext, "application/octet-stream")
+    content_type = CONTENT_TYPE_MAP.get(file_ext, "application/octet-stream")
 
-    # Store file metadata in database
-    await crud.create_uploaded_file(
-        file_id=file_id,
-        original_filename=file.filename,
-        file_extension=file_ext,
-        file_path=str(file_path),
-        file_size=total_size,
-        content_type=content_type,
-        user_id=current_user.get("user_id") if current_user else None,
-        guest_token=guest_token,
-    )
+    try:
+        # Store file metadata in database
+        await crud.create_uploaded_file(
+            file_id=file_id,
+            original_filename=file.filename,
+            file_extension=file_ext,
+            file_path=str(file_path),
+            file_size=total_size,
+            content_type=content_type,
+            user_id=current_user.get("user_id") if current_user else None,
+            guest_token=guest_token,
+        )
+    except Exception:
+        if file_path.exists():
+            file_path.unlink()
+        raise
 
     payload = {
         "file_id": file_id,
@@ -119,6 +128,7 @@ async def upload_file(
 
 
 @router.post("/analyze-pdf/{file_id}")
+@limiter.limit("3/minute")
 async def analyze_pdf(
     file_id: str,
     request: Request,
@@ -153,12 +163,25 @@ async def analyze_pdf(
             "has_text_layer": has_text,
             "text_chars": total_chars,
             "suggested_methods": (
-                ["text", "vision", "hybrid", "docling-parse", "docling-extract", "transcription"]
+                [
+                    "text",
+                    "vision",
+                    "hybrid",
+                    "docling-parse",
+                    "docling-extract",
+                    "transcription",
+                ]
                 if has_text
-                else ["vision", "hybrid", "docling-parse", "docling-extract", "transcription"]
+                else [
+                    "vision",
+                    "hybrid",
+                    "docling-parse",
+                    "docling-extract",
+                    "transcription",
+                ]
             ),
         }
     except ImportError:
         raise HTTPException(status_code=500, detail="PDF analysis not available")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF analysis failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="PDF analysis failed")

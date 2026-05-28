@@ -14,7 +14,11 @@ from dependencies import get_optional_user, get_current_user
 from routers.shared import ensure_file_access
 from models.schemas import SchemaSuggestRequest
 from config import get_settings
+from limiter import limiter
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/schemas", tags=["schemas"])
 
@@ -74,7 +78,10 @@ class SchemaResponse(BaseModel):
 
 
 @router.get("/")
-async def list_schemas(is_template: Optional[bool] = None):
+async def list_schemas(
+    is_template: Optional[bool] = None,
+    current_user: dict = Depends(get_current_user),
+):
     """List all schemas"""
     schemas = await crud.list_schemas(is_template=is_template)
     return [
@@ -92,7 +99,10 @@ async def list_schemas(is_template: Optional[bool] = None):
 
 
 @router.post("/")
-async def create_schema(schema: SchemaCreate):
+async def create_schema(
+    schema: SchemaCreate,
+    current_user: dict = Depends(get_current_user),
+):
     """Create a new schema"""
     try:
         schema_id = await crud.create_schema(
@@ -118,7 +128,9 @@ async def create_schema(schema: SchemaCreate):
 
 
 @router.get("/templates")
-async def get_templates():
+async def get_templates(
+    current_user: dict = Depends(get_current_user),
+):
     """Get built-in schema templates"""
     templates = SchemaService.get_builtin_templates()
     return [
@@ -133,6 +145,7 @@ async def get_templates():
 
 
 @router.post("/suggestions")
+@limiter.limit("3/minute")
 async def suggest_schema(
     payload: SchemaSuggestRequest,
     request: Request,
@@ -160,8 +173,9 @@ async def suggest_schema(
             api_key=api_key,
         )
     except Exception as exc:
+        logger.error("Schema suggestion failed: %s", exc)
         raise HTTPException(
-            status_code=400, detail=f"Failed to generate schema suggestion: {exc}"
+            status_code=400, detail="Failed to generate schema suggestion"
         ) from exc
 
     created_by_user_id = current_user.get("user_id") if current_user else None
@@ -185,12 +199,17 @@ async def suggest_schema(
 async def list_schema_suggestion_history(
     current_user: dict = Depends(get_current_user),
 ):
-    user_id = None if current_user.get("is_admin", False) else current_user.get("user_id")
+    user_id = (
+        None if current_user.get("is_admin", False) else current_user.get("user_id")
+    )
     return await crud.list_schema_suggestions(created_by_user_id=user_id)
 
 
 @router.get("/{schema_id}")
-async def get_schema(schema_id: int):
+async def get_schema(
+    schema_id: int,
+    current_user: dict = Depends(get_current_user),
+):
     """Get schema by ID"""
     schema = await crud.get_schema(schema_id)
     if not schema:

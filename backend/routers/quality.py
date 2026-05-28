@@ -15,6 +15,7 @@ from database import crud
 from dependencies import get_optional_user
 from config import get_settings
 from routers.shared import ensure_file_access
+from limiter import limiter
 import uuid
 import logging
 
@@ -44,6 +45,7 @@ class QualityCheckResponse(BaseModel):
 
 
 @router.post("/check", response_model=QualityCheckResponse)
+@limiter.limit("5/minute")
 async def check_file_quality(
     payload: QualityCheckRequest,
     request: Request,
@@ -81,8 +83,8 @@ async def check_file_quality(
         image = image_service.load_image(str(file_path))
         report = gate.assess(image, estimated_dpi=payload.estimated_dpi)
     except Exception as e:
-        logger.error(f"Quality check failed for file {payload.file_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Quality check error: {str(e)}")
+        logger.error("Quality check failed for file %s: %s", payload.file_id, e)
+        raise HTTPException(status_code=500, detail="Quality check error")
 
     return QualityCheckResponse(**gate.to_dict(report))
 
@@ -108,7 +110,6 @@ async def check_uploaded_file_quality(
             detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}",
         )
 
-    _ = current_user
     settings = get_settings()
     # Save temporarily
     temp_id = str(uuid.uuid4())
@@ -139,8 +140,8 @@ async def check_uploaded_file_quality(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Quality check failed for uploaded file: {e}")
-        raise HTTPException(status_code=500, detail=f"Quality check error: {str(e)}")
+        logger.error("Quality check failed for uploaded file: %s", e)
+        raise HTTPException(status_code=500, detail="Quality check error")
     finally:
         # Cleanup temp file
         if temp_path.exists():

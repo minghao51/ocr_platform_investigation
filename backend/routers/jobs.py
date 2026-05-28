@@ -103,10 +103,16 @@ async def list_jobs(
     user_id = (
         None if current_user.get("is_admin", False) else current_user.get("user_id")
     )
+    total = await crud.count_jobs(status=status, provider=provider, user_id=user_id)
     jobs = await crud.list_jobs(
         status=status, provider=provider, user_id=user_id, limit=limit, offset=offset
     )
-    return [serialize_job(j) for j in jobs]
+    return {
+        "jobs": [serialize_job(j) for j in jobs],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{job_id}")
