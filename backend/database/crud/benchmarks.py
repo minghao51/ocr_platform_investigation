@@ -45,7 +45,7 @@ async def update_benchmark_run(
             """UPDATE benchmark_runs
                SET overall_accuracy = ?, avg_latency = ?, total_cost = ?,
                    total_prompt_tokens = ?, total_completion_tokens = ?,
-                   completed_at = CURRENT_TIMESTAMP
+                   completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
                WHERE id = ?""",
             (
                 overall_accuracy,
@@ -103,6 +103,7 @@ async def add_benchmark_result(
 
 async def list_benchmark_runs(
     limit: int = 50,
+    offset: int = 0,
     dataset: Optional[str] = None,
     provider: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -123,6 +124,7 @@ async def list_benchmark_runs(
             where_sql = "WHERE " + " AND ".join(where_clauses)
 
         params.append(limit)
+        params.append(offset)
         cursor = await db.execute(
             f"""
             SELECT br.*, stats.success_rate AS success_rate
@@ -130,7 +132,7 @@ async def list_benchmark_runs(
             {_SUCCESS_RATE_SQL}
             {where_sql}
             ORDER BY br.started_at DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
             """,
             params,
         )
@@ -165,6 +167,72 @@ async def get_benchmark_results(run_id: int) -> List[Dict[str, Any]]:
                       field_scores, error_message, peak_memory_mb
                FROM benchmark_results WHERE run_id = ? ORDER BY sample_index""",
             (run_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def get_model_comparison(
+    dataset: Optional[str] = None,
+    limit: int = 20,
+) -> List[Dict[str, Any]]:
+    async with connect() as db:
+        db.row_factory = aiosqlite.Row
+        where_clauses = ["br.overall_accuracy IS NOT NULL"]
+        params: List[Any] = []
+
+        if dataset:
+            where_clauses.append("br.dataset = ?")
+            params.append(dataset)
+
+        where_sql = " AND ".join(where_clauses)
+        params.append(limit)
+
+        cursor = await db.execute(
+            f"""
+            SELECT
+                br.provider,
+                br.model,
+                br.processing_method,
+                AVG(br.overall_accuracy) AS avg_accuracy,
+                COUNT(*) AS run_count
+            FROM benchmark_runs br
+            WHERE {where_sql}
+            GROUP BY br.provider, br.model
+            ORDER BY avg_accuracy DESC
+            LIMIT ?
+            """,
+            params,
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def get_benchmarked_models_summary() -> List[Dict[str, Any]]:
+    async with connect() as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """
+            SELECT
+                br.provider,
+                br.model,
+                MAX(br.id) AS run_id,
+                AVG(br.overall_accuracy) AS accuracy,
+                AVG(br.avg_latency) AS avg_latency,
+                SUM(br.total_cost) AS total_cost,
+                SUM(br.sample_count) AS sample_count,
+                AVG(stats.success_rate) AS success_rate
+            FROM benchmark_runs br
+            LEFT JOIN (
+                SELECT
+                    run_id,
+                    CAST(SUM(CASE WHEN accuracy_score >= 0.5 THEN 1 ELSE 0 END) AS REAL)
+                        / NULLIF(COUNT(*), 0) AS success_rate
+                FROM benchmark_results
+                GROUP BY run_id
+            ) stats ON stats.run_id = br.id
+            GROUP BY br.provider, br.model
+            """
         )
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
@@ -292,7 +360,9 @@ async def get_job_analytics(
             LIMIT 10
             """
         )
-        correction_patterns = [dict(row) for row in await correction_patterns_cursor.fetchall()]
+        correction_patterns = [
+            dict(row) for row in await correction_patterns_cursor.fetchall()
+        ]
 
         benchmark_cursor = await db.execute(
             """
@@ -316,20 +386,36 @@ async def get_job_analytics(
             successful_jobs = row["successful_jobs"] or 0
             corrected_jobs = row["corrected_jobs"] or 0
             total_cost = row["total_cost"] or 0
-            row["success_rate"] = round(successful_jobs / total_jobs, 4) if total_jobs else 0.0
-            row["correction_rate"] = round(corrected_jobs / total_jobs, 4) if total_jobs else 0.0
-            row["cost_per_successful_job"] = round(total_cost / successful_jobs, 6) if successful_jobs else 0.0
-            row["cost_per_corrected_job"] = round(total_cost / corrected_jobs, 6) if corrected_jobs else 0.0
+            row["success_rate"] = (
+                round(successful_jobs / total_jobs, 4) if total_jobs else 0.0
+            )
+            row["correction_rate"] = (
+                round(corrected_jobs / total_jobs, 4) if total_jobs else 0.0
+            )
+            row["cost_per_successful_job"] = (
+                round(total_cost / successful_jobs, 6) if successful_jobs else 0.0
+            )
+            row["cost_per_corrected_job"] = (
+                round(total_cost / corrected_jobs, 6) if corrected_jobs else 0.0
+            )
 
         total_jobs = overview.get("total_jobs") or 0
         corrected_jobs = overview.get("corrected_jobs") or 0
         successful_jobs = overview.get("successful_jobs") or 0
         total_cost = overview.get("total_cost") or 0
 
-        overview["success_rate"] = round(successful_jobs / total_jobs, 4) if total_jobs else 0.0
-        overview["production_correction_rate"] = round(corrected_jobs / total_jobs, 4) if total_jobs else 0.0
-        overview["cost_per_successful_job"] = round(total_cost / successful_jobs, 6) if successful_jobs else 0.0
-        overview["cost_per_corrected_job"] = round(total_cost / corrected_jobs, 6) if corrected_jobs else 0.0
+        overview["success_rate"] = (
+            round(successful_jobs / total_jobs, 4) if total_jobs else 0.0
+        )
+        overview["production_correction_rate"] = (
+            round(corrected_jobs / total_jobs, 4) if total_jobs else 0.0
+        )
+        overview["cost_per_successful_job"] = (
+            round(total_cost / successful_jobs, 6) if successful_jobs else 0.0
+        )
+        overview["cost_per_corrected_job"] = (
+            round(total_cost / corrected_jobs, 6) if corrected_jobs else 0.0
+        )
 
         return {
             "overview": overview,

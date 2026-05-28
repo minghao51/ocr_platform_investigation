@@ -4,7 +4,10 @@ from database.pool import connect
 
 
 async def create_user(
-    username: str, hashed_password: str, is_admin: bool = False, is_limited: bool = False
+    username: str,
+    hashed_password: str,
+    is_admin: bool = False,
+    is_limited: bool = False,
 ) -> int:
     async with connect() as db:
         cursor = await db.execute(
@@ -50,13 +53,15 @@ async def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def list_users() -> List[Dict[str, Any]]:
+async def list_users(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             """SELECT id, username, is_admin, is_limited, daily_requests, last_request_date, created_at
                FROM users
-               ORDER BY created_at DESC"""
+               ORDER BY created_at DESC
+               LIMIT ? OFFSET ?""",
+            (limit, offset),
         )
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]

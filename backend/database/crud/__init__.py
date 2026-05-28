@@ -23,6 +23,7 @@ from database.crud.jobs import (
     update_job_status,
     get_job,
     list_jobs,
+    count_jobs,
     delete_job,
     update_job_metadata,
     update_quality_info,
@@ -49,6 +50,8 @@ from database.crud.benchmarks import (
     list_benchmark_runs,
     get_benchmark_run,
     get_benchmark_results,
+    get_model_comparison,
+    get_benchmarked_models_summary,
     get_job_analytics,
 )
 from database.crud.queue import (
@@ -69,6 +72,7 @@ __all__ = [
     "update_job_status",
     "get_job",
     "list_jobs",
+    "count_jobs",
     "delete_job",
     "update_job_metadata",
     "update_quality_info",
@@ -91,6 +95,8 @@ __all__ = [
     "list_benchmark_runs",
     "get_benchmark_run",
     "get_benchmark_results",
+    "get_model_comparison",
+    "get_benchmarked_models_summary",
     "get_job_analytics",
     "enqueue_job",
     "claim_next_queued_job",

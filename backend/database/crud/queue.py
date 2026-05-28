@@ -104,33 +104,39 @@ async def mark_queue_job_failed(job_id: int, error_message: str) -> None:
 
 async def recover_inflight_queue_jobs() -> int:
     async with connect() as db:
-        cursor = await db.execute(
-            "SELECT job_id FROM job_queue WHERE status = 'processing'"
-        )
-        stuck_ids = [row[0] for row in await cursor.fetchall()]
-        if not stuck_ids:
-            return 0
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                "SELECT job_id FROM job_queue WHERE status = 'processing'"
+            )
+            stuck_ids = [row[0] for row in await cursor.fetchall()]
+            if not stuck_ids:
+                await db.commit()
+                return 0
 
-        placeholders = ",".join("?" for _ in stuck_ids)
-        await db.execute(
-            f"""
-            UPDATE processing_jobs
-            SET status = 'pending',
-                error_message = NULL
-            WHERE id IN ({placeholders}) AND status = 'processing'
-            """,
-            stuck_ids,
-        )
-        await db.execute(
-            """
-            UPDATE job_queue
-            SET status = 'pending',
-                worker_id = NULL,
-                locked_at = NULL,
-                last_error = NULL,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE status = 'processing'
-            """
-        )
-        await db.commit()
-        return len(stuck_ids)
+            placeholders = ",".join("?" for _ in stuck_ids)
+            await db.execute(
+                f"""
+                UPDATE processing_jobs
+                SET status = 'pending',
+                    error_message = NULL
+                WHERE id IN ({placeholders}) AND status = 'processing'
+                """,
+                stuck_ids,
+            )
+            await db.execute(
+                """
+                UPDATE job_queue
+                SET status = 'pending',
+                    worker_id = NULL,
+                    locked_at = NULL,
+                    last_error = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE status = 'processing'
+                """
+            )
+            await db.commit()
+            return len(stuck_ids)
+        except Exception:
+            await db.rollback()
+            raise

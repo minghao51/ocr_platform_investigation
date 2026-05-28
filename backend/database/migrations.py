@@ -10,6 +10,11 @@ logger = logging.getLogger(__name__)
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
 
+def _get_db_path() -> Path:
+    """Backward-compatible alias used by legacy tests."""
+    return get_db_path()
+
+
 @dataclass
 class Migration:
     name: str
@@ -59,6 +64,26 @@ async def _add_columns(
 ) -> None:
     for col_name, col_type in columns:
         await _add_column(db, table, col_name, col_type, create_indexes)
+
+
+async def _ensure_migrations_table(db: aiosqlite.Connection) -> None:
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS _migrations (
+            name TEXT PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+    await db.commit()
+
+
+async def _is_migration_applied(db: aiosqlite.Connection, name: str) -> bool:
+    cursor = await db.execute("SELECT 1 FROM _migrations WHERE name = ?", (name,))
+    return await cursor.fetchone() is not None
+
+
+async def _record_migration(db: aiosqlite.Connection, name: str) -> None:
+    await db.execute("INSERT OR IGNORE INTO _migrations (name) VALUES (?)", (name,))
+    await db.commit()
 
 
 async def _init_database(db: aiosqlite.Connection) -> None:
@@ -252,64 +277,157 @@ async def _migrate_job_queue(db: aiosqlite.Connection) -> None:
     await db.commit()
 
 
+async def _add_composite_indexes(db: aiosqlite.Connection) -> None:
+    indexes = [
+        (
+            "idx_jobs_status_created",
+            "CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON processing_jobs(status, created_at DESC)",
+        ),
+        (
+            "idx_jobs_user_status",
+            "CREATE INDEX IF NOT EXISTS idx_jobs_user_status ON processing_jobs(user_id, status)",
+        ),
+        (
+            "idx_queue_status_run_after",
+            "CREATE INDEX IF NOT EXISTS idx_queue_status_run_after ON job_queue(status, run_after)",
+        ),
+        (
+            "idx_corrections_reviewer",
+            "CREATE INDEX IF NOT EXISTS idx_corrections_reviewer ON job_corrections(reviewer_user_id)",
+        ),
+        (
+            "idx_prompt_learning_unique",
+            """CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_learning_unique
+            ON prompt_learning_entries(
+                COALESCE(schema_name, ''),
+                COALESCE(provider, ''),
+                COALESCE(model, ''),
+                COALESCE(processing_method, ''),
+                entry_type
+            )""",
+        ),
+    ]
+    for idx_name, sql in indexes:
+        try:
+            await db.execute(sql)
+        except Exception:
+            logging.getLogger(__name__).warning(
+                "Index %s creation skipped (may already exist)", idx_name
+            )
+    await db.commit()
+
+
 MIGRATIONS: list[Migration] = [
     Migration("init_database", _init_database),
     Migration("users_table", _migrate_users_table),
-    Migration("processing_method_column",
-              lambda db: _add_column(db, "processing_jobs", "processing_method", "TEXT DEFAULT 'vision'", True)),
-    Migration("user_id_to_jobs",
-              lambda db: _add_column(db, "processing_jobs", "user_id", "INTEGER", True)),
-    Migration("user_usage_tracking",
-              lambda db: _add_columns(db, "users", [
-                  ("daily_requests", "INTEGER DEFAULT 0"),
-                  ("last_request_date", "TEXT"),
-                  ("is_limited", "BOOLEAN DEFAULT 0"),
-              ])),
-    Migration("user_token_version",
-              lambda db: _add_column(db, "users", "token_version", "INTEGER DEFAULT 0")),
-    Migration("user_id_to_uploaded_files",
-              lambda db: _add_column(db, "uploaded_files", "user_id", "INTEGER", True)),
-    Migration("guest_tokens_uploaded_files",
-              lambda db: _add_column(db, "uploaded_files", "guest_token", "TEXT", True)),
-    Migration("guest_tokens_processing_jobs",
-              lambda db: _add_column(db, "processing_jobs", "guest_token", "TEXT", True)),
-    Migration("job_metadata_column",
-              lambda db: _add_column(db, "processing_jobs", "metadata", "TEXT")),
-    Migration("cost_tracking_columns",
-              lambda db: _add_columns(db, "processing_jobs", [
-                  ("prompt_tokens", ""),
-                  ("completion_tokens", ""),
-                  ("total_tokens", ""),
-                  ("estimated_cost", ""),
-              ])),
+    Migration(
+        "processing_method_column",
+        lambda db: _add_column(
+            db, "processing_jobs", "processing_method", "TEXT DEFAULT 'vision'", True
+        ),
+    ),
+    Migration(
+        "user_id_to_jobs",
+        lambda db: _add_column(db, "processing_jobs", "user_id", "INTEGER", True),
+    ),
+    Migration(
+        "user_usage_tracking",
+        lambda db: _add_columns(
+            db,
+            "users",
+            [
+                ("daily_requests", "INTEGER DEFAULT 0"),
+                ("last_request_date", "TEXT"),
+                ("is_limited", "BOOLEAN DEFAULT 0"),
+            ],
+        ),
+    ),
+    Migration(
+        "user_token_version",
+        lambda db: _add_column(db, "users", "token_version", "INTEGER DEFAULT 0"),
+    ),
+    Migration(
+        "user_id_to_uploaded_files",
+        lambda db: _add_column(db, "uploaded_files", "user_id", "INTEGER", True),
+    ),
+    Migration(
+        "guest_tokens_uploaded_files",
+        lambda db: _add_column(db, "uploaded_files", "guest_token", "TEXT", True),
+    ),
+    Migration(
+        "guest_tokens_processing_jobs",
+        lambda db: _add_column(db, "processing_jobs", "guest_token", "TEXT", True),
+    ),
+    Migration(
+        "job_metadata_column",
+        lambda db: _add_column(db, "processing_jobs", "metadata", "TEXT"),
+    ),
+    Migration(
+        "cost_tracking_columns",
+        lambda db: _add_columns(
+            db,
+            "processing_jobs",
+            [
+                ("prompt_tokens", ""),
+                ("completion_tokens", ""),
+                ("total_tokens", ""),
+                ("estimated_cost", ""),
+            ],
+        ),
+    ),
     Migration("benchmark_tables", _migrate_benchmark_tables),
-    Migration("benchmark_results_peak_memory",
-              lambda db: _add_column(db, "benchmark_results", "peak_memory_mb", "REAL")),
-    Migration("quality_gate_columns",
-              lambda db: _add_columns(db, "processing_jobs", [
-                  ("quality_score", ""),
-                  ("quality_checks", ""),
-                  ("preprocessing_applied", ""),
-              ])),
-    Migration("phase23_document_type",
-              lambda db: _add_column(db, "processing_jobs", "document_type", "TEXT", True)),
-    Migration("phase23_correction_status",
-              lambda db: _add_column(db, "processing_jobs", "correction_status", "TEXT DEFAULT 'uncorrected'", True)),
+    Migration(
+        "benchmark_results_peak_memory",
+        lambda db: _add_column(db, "benchmark_results", "peak_memory_mb", "REAL"),
+    ),
+    Migration(
+        "quality_gate_columns",
+        lambda db: _add_columns(
+            db,
+            "processing_jobs",
+            [
+                ("quality_score", ""),
+                ("quality_checks", ""),
+                ("preprocessing_applied", ""),
+            ],
+        ),
+    ),
+    Migration(
+        "phase23_document_type",
+        lambda db: _add_column(db, "processing_jobs", "document_type", "TEXT", True),
+    ),
+    Migration(
+        "phase23_correction_status",
+        lambda db: _add_column(
+            db,
+            "processing_jobs",
+            "correction_status",
+            "TEXT DEFAULT 'uncorrected'",
+            True,
+        ),
+    ),
     Migration("phase23_schema_suggestions", _migrate_schema_suggestions),
     Migration("phase23_job_corrections", _migrate_job_corrections),
     Migration("phase23_prompt_learning", _migrate_prompt_learning),
     Migration("job_queue", _migrate_job_queue),
+    Migration("composite_indexes_and_constraints", _add_composite_indexes),
 ]
 
 
 async def run_migrations() -> None:
-    db_path = get_db_path()
+    db_path = _get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     async with aiosqlite.connect(db_path) as db:
+        await _ensure_migrations_table(db)
         for migration in MIGRATIONS:
+            if await _is_migration_applied(db, migration.name):
+                logger.debug("Migration '%s' already applied, skipping", migration.name)
+                continue
             try:
                 await migration.up(db)
+                await _record_migration(db, migration.name)
+                logger.info("Migration '%s' applied successfully", migration.name)
             except Exception:
                 logger.exception("Migration '%s' failed", migration.name)
                 raise

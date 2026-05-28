@@ -6,7 +6,15 @@ from database.pool import connect
 from database.validators import validate_update_columns
 
 
-def _build_update_sql(table: str, fields: dict, where_col: str = "id") -> tuple[str, tuple]:
+def _json_default(value: Any) -> Any:
+    if hasattr(value, "item"):
+        return value.item()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _build_update_sql(
+    table: str, fields: dict, where_col: str = "id"
+) -> tuple[str, tuple]:
     validate_update_columns(set(fields.keys()))
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     return (
@@ -66,7 +74,9 @@ async def update_job_status(
 
     if usage:
         prompt_tokens = usage.get("prompt_tokens") or usage.get("promptTokenCount")
-        completion_tokens = usage.get("completion_tokens") or usage.get("candidatesTokenCount")
+        completion_tokens = usage.get("completion_tokens") or usage.get(
+            "candidatesTokenCount"
+        )
         total_tokens = usage.get("total_tokens") or usage.get("totalTokenCount")
 
     async with connect() as db:
@@ -80,9 +90,13 @@ async def update_job_status(
             )
             row = await cursor.fetchone()
             if row:
-                estimated_cost = calculate_cost(row["model"], prompt_tokens, completion_tokens)
+                estimated_cost = calculate_cost(
+                    row["model"], prompt_tokens, completion_tokens
+                )
 
-        completed_at = datetime.now().isoformat() if status in ("success", "error") else None
+        completed_at = (
+            datetime.now().isoformat() if status in ("success", "error") else None
+        )
         update_fields = {
             "status": status,
             "processing_time_seconds": processing_time,
@@ -106,7 +120,9 @@ async def update_job_status(
         await db.execute(sql, (*params_tuple, job_id))
         await db.commit()
 
-        cursor = await db.execute("SELECT * FROM processing_jobs WHERE id = ?", (job_id,))
+        cursor = await db.execute(
+            "SELECT * FROM processing_jobs WHERE id = ?", (job_id,)
+        )
         row = await cursor.fetchone()
         if row:
             return dict(row)
@@ -116,7 +132,9 @@ async def update_job_status(
 async def get_job(job_id: int) -> Optional[Dict[str, Any]]:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM processing_jobs WHERE id = ?", (job_id,))
+        cursor = await db.execute(
+            "SELECT * FROM processing_jobs WHERE id = ?", (job_id,)
+        )
         row = await cursor.fetchone()
         if row:
             return dict(row)
@@ -157,32 +175,61 @@ async def list_jobs(
 
 async def delete_job(job_id: int) -> bool:
     async with connect() as db:
-        await db.execute("DELETE FROM processing_jobs WHERE id = ?", (job_id,))
+        cursor = await db.execute("DELETE FROM processing_jobs WHERE id = ?", (job_id,))
         await db.commit()
-        return True
+        return cursor.rowcount > 0
+
+
+async def count_jobs(
+    status: Optional[str] = None,
+    provider: Optional[str] = None,
+    user_id: Optional[int] = None,
+) -> int:
+    async with connect() as db:
+        query = "SELECT COUNT(*) FROM processing_jobs WHERE 1=1"
+        params: List[Any] = []
+
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        if provider:
+            query += " AND provider = ?"
+            params.append(provider)
+        if user_id is not None:
+            query += " AND user_id = ?"
+            params.append(user_id)
+
+        cursor = await db.execute(query, params)
+        row = await cursor.fetchone()
+        return row[0] if row else 0
 
 
 async def update_job_metadata(job_id: int, metadata: Dict[str, Any]) -> None:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT metadata FROM processing_jobs WHERE id = ?", (job_id,)
-        )
-        row = await cursor.fetchone()
-        merged_metadata = metadata
-        if row and row["metadata"]:
-            try:
-                existing = json.loads(row["metadata"])
-                if isinstance(existing, dict):
-                    merged_metadata = {**existing, **metadata}
-            except (json.JSONDecodeError, TypeError):
-                pass
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                "SELECT metadata FROM processing_jobs WHERE id = ?", (job_id,)
+            )
+            row = await cursor.fetchone()
+            merged_metadata = metadata
+            if row and row["metadata"]:
+                try:
+                    existing = json.loads(row["metadata"])
+                    if isinstance(existing, dict):
+                        merged_metadata = {**existing, **metadata}
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
-        await db.execute(
-            "UPDATE processing_jobs SET metadata = ? WHERE id = ?",
-            (json.dumps(merged_metadata), job_id),
-        )
-        await db.commit()
+            await db.execute(
+                "UPDATE processing_jobs SET metadata = ? WHERE id = ?",
+                (json.dumps(merged_metadata), job_id),
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
 
 
 async def update_quality_info(
@@ -196,9 +243,13 @@ async def update_quality_info(
     if quality_score is not None:
         update_fields["quality_score"] = quality_score
     if quality_checks is not None:
-        update_fields["quality_checks"] = json.dumps(quality_checks)
+        update_fields["quality_checks"] = json.dumps(
+            quality_checks, default=_json_default
+        )
     if preprocessing_applied is not None:
-        update_fields["preprocessing_applied"] = json.dumps(preprocessing_applied)
+        update_fields["preprocessing_applied"] = json.dumps(
+            preprocessing_applied, default=_json_default
+        )
 
     if not update_fields:
         return

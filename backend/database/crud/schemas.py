@@ -104,17 +104,20 @@ async def get_schema_suggestion(suggestion_id: int) -> Optional[Dict[str, Any]]:
 
 async def list_schema_suggestions(
     created_by_user_id: Optional[int] = None,
+    limit: int = 100,
+    offset: int = 0,
 ) -> List[Dict[str, Any]]:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
         if created_by_user_id is None:
             cursor = await db.execute(
-                "SELECT * FROM schema_suggestions ORDER BY created_at DESC"
+                "SELECT * FROM schema_suggestions ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
             )
         else:
             cursor = await db.execute(
-                "SELECT * FROM schema_suggestions WHERE created_by_user_id = ? ORDER BY created_at DESC",
-                (created_by_user_id,),
+                "SELECT * FROM schema_suggestions WHERE created_by_user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (created_by_user_id, limit, offset),
             )
         rows = await cursor.fetchall()
         return [_deserialize_suggestion(dict(row)) for row in rows]
@@ -130,29 +133,34 @@ async def create_job_correction(
     notes: Optional[str] = None,
 ) -> int:
     async with connect() as db:
-        cursor = await db.execute(
-            """
-            INSERT INTO job_corrections (
-                job_id, original_result, corrected_result, diff_summary,
-                feedback_tags, notes, reviewer_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                job_id,
-                json.dumps(original_result),
-                json.dumps(corrected_result),
-                json.dumps(diff_summary),
-                json.dumps(feedback_tags),
-                notes,
-                reviewer_user_id,
-            ),
-        )
-        await db.execute(
-            "UPDATE processing_jobs SET correction_status = ? WHERE id = ?",
-            ("corrected", job_id),
-        )
-        await db.commit()
-        return cursor.lastrowid
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                """
+                INSERT INTO job_corrections (
+                    job_id, original_result, corrected_result, diff_summary,
+                    feedback_tags, notes, reviewer_user_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    job_id,
+                    json.dumps(original_result),
+                    json.dumps(corrected_result),
+                    json.dumps(diff_summary),
+                    json.dumps(feedback_tags),
+                    notes,
+                    reviewer_user_id,
+                ),
+            )
+            await db.execute(
+                "UPDATE processing_jobs SET correction_status = ? WHERE id = ?",
+                ("corrected", job_id),
+            )
+            await db.commit()
+            return cursor.lastrowid
+        except Exception:
+            await db.rollback()
+            raise
 
 
 async def list_job_corrections(job_id: int) -> List[Dict[str, Any]]:
@@ -172,7 +180,12 @@ async def list_job_corrections(job_id: int) -> List[Dict[str, Any]]:
         corrections = []
         for row in rows:
             item = dict(row)
-            for key in ("original_result", "corrected_result", "diff_summary", "feedback_tags"):
+            for key in (
+                "original_result",
+                "corrected_result",
+                "diff_summary",
+                "feedback_tags",
+            ):
                 item[key] = _loads_if_json(item.get(key))
             corrections.append(item)
         return corrections
@@ -195,50 +208,55 @@ async def upsert_prompt_learning_entry(
 ) -> int:
     async with connect() as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            """
-            SELECT id FROM prompt_learning_entries
-            WHERE COALESCE(schema_name, '') = COALESCE(?, '')
-              AND COALESCE(provider, '') = COALESCE(?, '')
-              AND COALESCE(model, '') = COALESCE(?, '')
-              AND COALESCE(processing_method, '') = COALESCE(?, '')
-              AND entry_type = ?
-            """,
-            (schema_name, provider, model, processing_method, entry_type),
-        )
-        row = await cursor.fetchone()
-        if row:
-            await db.execute(
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
                 """
-                UPDATE prompt_learning_entries
-                SET content = ?, source_correction_count = ?, last_correction_id = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                SELECT id FROM prompt_learning_entries
+                WHERE COALESCE(schema_name, '') = COALESCE(?, '')
+                  AND COALESCE(provider, '') = COALESCE(?, '')
+                  AND COALESCE(model, '') = COALESCE(?, '')
+                  AND COALESCE(processing_method, '') = COALESCE(?, '')
+                  AND entry_type = ?
                 """,
-                (content, source_correction_count, last_correction_id, row["id"]),
+                (schema_name, provider, model, processing_method, entry_type),
+            )
+            row = await cursor.fetchone()
+            if row:
+                await db.execute(
+                    """
+                    UPDATE prompt_learning_entries
+                    SET content = ?, source_correction_count = ?, last_correction_id = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (content, source_correction_count, last_correction_id, row["id"]),
+                )
+                await db.commit()
+                return row["id"]
+
+            cursor = await db.execute(
+                """
+                INSERT INTO prompt_learning_entries (
+                    schema_name, provider, model, processing_method,
+                    entry_type, content, source_correction_count, last_correction_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    schema_name,
+                    provider,
+                    model,
+                    processing_method,
+                    entry_type,
+                    content,
+                    source_correction_count,
+                    last_correction_id,
+                ),
             )
             await db.commit()
-            return row["id"]
-
-        cursor = await db.execute(
-            """
-            INSERT INTO prompt_learning_entries (
-                schema_name, provider, model, processing_method,
-                entry_type, content, source_correction_count, last_correction_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                schema_name,
-                provider,
-                model,
-                processing_method,
-                entry_type,
-                content,
-                source_correction_count,
-                last_correction_id,
-            ),
-        )
-        await db.commit()
-        return cursor.lastrowid
+            return cursor.lastrowid
+        except Exception:
+            await db.rollback()
+            raise
 
 
 async def list_prompt_learning_entries(
