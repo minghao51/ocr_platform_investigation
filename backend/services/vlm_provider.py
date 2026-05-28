@@ -4,6 +4,23 @@ import httpx
 import base64
 from io import BytesIO
 from PIL import Image
+from pydantic import BaseModel
+
+
+class TokenUsage(BaseModel):
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+class ExtractionResult(BaseModel):
+    content: str | None = None
+    raw_response: str | None = None
+    usage: TokenUsage | None = None
+    model: str | None = None
+    error: str | None = None
+    success: bool = True
+    metadata: dict = {}
 
 
 class VLMProvider(ABC):
@@ -17,7 +34,7 @@ class VLMProvider(ABC):
     @abstractmethod
     async def process_image(
         self, image: Image.Image, prompt: str, schema: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         """Process an image and extract structured data"""
         pass
 
@@ -29,7 +46,7 @@ class VLMProvider(ABC):
         schema_definition: Optional[Dict[str, Any]],
         model: str,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         """
         Process extracted text with text-only LLM
 
@@ -39,13 +56,6 @@ class VLMProvider(ABC):
             schema_definition: JSON schema for validation, or None for plain-text output
             model: Model name
             **kwargs: Additional parameters (temperature, max_tokens, etc.)
-
-        Returns:
-            Dict with keys:
-                - content (str): Extracted JSON content
-                - model (str): Model used
-                - usage (dict): Token usage stats
-                - error (str, optional): Error message if failed
         """
         pass
 
