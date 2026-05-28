@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from services.docling_service import DoclingService
 
 
@@ -9,16 +8,24 @@ def docling_service():
 
 
 @pytest.fixture
-def sample_pdf():
-    """Use an existing PDF from the data/uploads directory."""
-    pdf_path = (
-        Path(__file__).parent.parent.parent
-        / "data/uploads"
-        / "31d89b79-e526-4b7a-aa13-44e09f058e85.pdf"
-    )
-    if not pdf_path.exists():
-        pytest.skip(f"Sample PDF not found at {pdf_path}")
-    return str(pdf_path)
+def sample_pdf(tmp_path):
+    """Create a searchable PDF for testing."""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import SimpleDocTemplate, Paragraph
+    except ImportError:
+        pytest.skip("reportlab not installed")
+
+    file_path = tmp_path / "sample.pdf"
+    doc = SimpleDocTemplate(str(file_path), pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = [
+        Paragraph("Test Document", styles["Heading1"]),
+        Paragraph("This is test content.", styles["Normal"]),
+    ]
+    doc.build(story)
+    return str(file_path)
 
 
 def test_parse_searchable_pdf(docling_service, sample_pdf):

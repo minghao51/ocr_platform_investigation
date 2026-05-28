@@ -30,6 +30,35 @@ def get_auth_header(
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture
+def mock_provider(mocker):
+    from services.vlm_provider import ExtractionResult, TokenUsage
+
+    provider = mocker.AsyncMock()
+    provider.process_image.return_value = ExtractionResult(
+        content='{"key": "value"}',
+        success=True,
+        usage=TokenUsage(prompt_tokens=100, completion_tokens=50),
+    )
+    provider.process_text.return_value = ExtractionResult(
+        content='{"key": "value"}',
+        success=True,
+        usage=TokenUsage(prompt_tokens=100, completion_tokens=50),
+    )
+    provider.get_default_image_size.return_value = (1024, 1024)
+    return provider
+
+
+@pytest.fixture
+def sample_image(tmp_path):
+    from PIL import Image
+
+    img = Image.new("RGB", (100, 100), color="red")
+    path = tmp_path / "test.png"
+    img.save(path)
+    return str(path)
+
+
 def pytest_collection_modifyitems(items):
     for item in items:
         if "integration" in item.nodeid:

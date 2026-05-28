@@ -89,3 +89,20 @@ def test_logout_revokes_token(auth_lifecycle_client):
 
     verify_after = client.post("/api/auth/verify", headers=headers)
     assert verify_after.status_code == 401
+
+
+def test_websocket_ticket_store_evicts_oldest_pending_ticket(monkeypatch):
+    from routers import websocket
+
+    websocket._ticket_store.clear()
+    monkeypatch.setattr(websocket, "TICKET_MAX_PENDING", 2)
+    monkeypatch.setattr(websocket, "TICKET_TTL_SECONDS", 60)
+
+    first = websocket._create_ws_ticket({"user_id": 1, "is_admin": False})
+    second = websocket._create_ws_ticket({"user_id": 2, "is_admin": False})
+    third = websocket._create_ws_ticket({"user_id": 3, "is_admin": False})
+
+    assert websocket._consume_ws_ticket(first) is None
+    assert websocket._consume_ws_ticket(second)["user_id"] == 2
+    assert websocket._consume_ws_ticket(third)["user_id"] == 3
+    assert websocket._ticket_store == {}

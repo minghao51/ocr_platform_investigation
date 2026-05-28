@@ -208,7 +208,10 @@ class TestJobsEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
+        assert "jobs" in data
+        assert "total" in data
+        assert data["jobs"] == []
 
     def test_list_jobs_with_filters(self, client, temp_db_env):
         """Test listing jobs with status filter."""
@@ -216,7 +219,9 @@ class TestJobsEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
+        assert "jobs" in data
+        assert "total" in data
 
     def test_get_nonexistent_job(self, client, temp_db_env):
         """Test getting a job that doesn't exist."""

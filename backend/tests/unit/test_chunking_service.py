@@ -37,10 +37,9 @@ def test_split_preserves_context(splitter):
     markdown = "Line 1\nLine 2\nLine 3" * 100  # Long content without headers
 
     chunks = splitter.split(markdown, max_tokens=50)
-    # Should have overlap between chunks
     if len(chunks) > 1:
-        # Check for overlap (last line of chunk N should appear in chunk N+1)
-        pass  # Implementation dependent
+        overlap_lines = chunks[0].split("\n")[-2:]
+        assert any(any(ol in ch for ol in overlap_lines) for ch in chunks[1:])
 
 
 def test_single_chunk_no_split(splitter):

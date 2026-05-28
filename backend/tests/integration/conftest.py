@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from main import app
 from database.migrations import run_migrations
+from database import crud
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +26,7 @@ def temp_db_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("routers.upload.UPLOAD_DIR", uploads_dir)
 
     asyncio.run(run_migrations())
+    asyncio.run(crud.create_user("test_user", "hashed_pw_not_real", is_admin=True))
     return tmp_path
 
 

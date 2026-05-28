@@ -18,11 +18,12 @@ def temp_guest_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     uploads_dir.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr("database.pool.get_db_path", lambda: db_path)
-    monkeypatch.setattr("database.migrations._get_db_path", lambda: db_path)
+    monkeypatch.setattr("database.migrations.get_db_path", lambda: db_path)
     monkeypatch.setattr("dependencies._get_cached_db_path", lambda: db_path)
     monkeypatch.setattr("routers.upload.UPLOAD_DIR", uploads_dir)
 
     asyncio.run(run_migrations())
+    asyncio.run(crud.create_user("test_user", "hashed_pw_not_real", is_admin=True))
     return uploads_dir
 
 
@@ -62,6 +63,9 @@ def test_guest_can_upload_process_and_read_own_job(
         return None
 
     monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
+    monkeypatch.setattr(
+        "routers.processing._should_execute_inline_for_tests", lambda *_args: False
+    )
 
     upload_response = client.post(
         "/api/upload",
@@ -220,6 +224,25 @@ def test_analyze_pdf_requires_guest_token_for_guest_upload(
     assert forbidden_response.status_code == 403
 
 
+def test_upload_removes_file_when_metadata_insert_fails(
+    client, temp_guest_env: Path, monkeypatch: pytest.MonkeyPatch
+):
+    async def _fail_create_uploaded_file(*_args, **_kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(
+        "routers.upload.crud.create_uploaded_file", _fail_create_uploaded_file
+    )
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        client.post(
+            "/api/upload",
+            files={"file": ("guest-sample.png", _create_test_image(), "image/png")},
+        )
+
+    assert list(temp_guest_env.iterdir()) == []
+
+
 def test_analyze_pdf_rejects_non_owner_user(
     client, temp_guest_env: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -336,14 +359,21 @@ def test_auto_requires_provider_model_when_pdf_routes_to_provider_method(
     ],
 )
 def test_auto_with_provider_model_supports_image_and_audio_paths(
-    client, temp_guest_env: Path, monkeypatch: pytest.MonkeyPatch, filename, mime_type, payload
+    client,
+    temp_guest_env: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename,
+    mime_type,
+    payload,
 ):
     async def _noop_processing(*_args, **_kwargs):
         return None
 
     monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
 
-    file_bytes = _create_test_image() if mime_type.startswith("image/") else _create_test_audio()
+    file_bytes = (
+        _create_test_image() if mime_type.startswith("image/") else _create_test_audio()
+    )
     upload_response = client.post(
         "/api/upload",
         files={"file": (filename, file_bytes, mime_type)},

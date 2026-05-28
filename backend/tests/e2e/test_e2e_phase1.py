@@ -111,14 +111,10 @@ class TestDoclingDocumentParsing:
         # Create images and convert to PDF
         img = Image.new("RGB", (800, 600), color="white")
 
-        # Add some text to the image (requires PIL)
         from PIL import ImageDraw, ImageFont
 
         draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 40)
-        except Exception:
-            font = ImageFont.load_default()
+        font = ImageFont.load_default()
 
         draw.text((50, 50), "Image-Only PDF", fill="black", font=font)
         draw.text(
@@ -267,16 +263,18 @@ class TestLargeDocumentChunking:
 
     def test_should_chunk_detection(self):
         """Test chunking threshold detection."""
-        service = ProcessingService()
+        from services.processors.docling_parse import DoclingParseProcessor
+
+        processor = DoclingParseProcessor()
 
         # Small text - should not chunk
         small_text = "This is a small document."
-        should_chunk = service._should_chunk(small_text, "gpt-4o")
+        should_chunk = processor._should_chunk(small_text, "gpt-4o")
         assert should_chunk is False
 
         # Very large text - should chunk (use chars that will produce enough tokens)
         large_text = "word " * 200000  # 200000 words should exceed threshold
-        should_chunk = service._should_chunk(large_text, "gpt-4o")
+        should_chunk = processor._should_chunk(large_text, "gpt-4o")
         assert should_chunk is True
 
     def test_chunking_splits_document(self, chunking_service, large_markdown_text):
@@ -437,33 +435,10 @@ class TestFullPipelineIntegration:
         except ValueError:
             pytest.fail("File size validation failed for small file")
 
-    def test_exposure_to_docling_method(
-        self, processing_service, tmp_path, sample_schema
-    ):
-        """Test that _process_via_docling_parse method exists and is callable."""
-        # Create a simple text file
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("Test content")
-
-        # Verify the method exists (renamed from _process_via_docling)
-        assert hasattr(processing_service, "_process_via_docling_parse")
-
-        # Note: We can't fully test this without a provider and API key
-        # but we can verify the method signature
-        import inspect
-
-        sig = inspect.signature(processing_service._process_via_docling_parse)
-        params = list(sig.parameters.keys())
-
-        required_params = [
-            "file_path",
-            "provider",
-            "model",
-            "schema_definition",
-            "prompt",
-        ]
-        for param in required_params:
-            assert param in params
+    def test_orchestrator_has_run_job(self, processing_service):
+        """Test that ProcessingOrchestrator has run_job method."""
+        assert hasattr(processing_service, "run_job")
+        assert callable(processing_service.run_job)
 
 
 class TestMarkdownOutput:

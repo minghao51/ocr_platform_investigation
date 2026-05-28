@@ -2,7 +2,6 @@
 Integration tests for benchmark CRUD operations.
 """
 
-
 import pytest
 import pytest_asyncio
 
@@ -15,7 +14,7 @@ from database.migrations import run_migrations
 async def clean_db(tmp_path, monkeypatch):
     db_path = tmp_path / "bench_crud.db"
     monkeypatch.setattr("database.pool.get_db_path", lambda: db_path)
-    monkeypatch.setattr("database.migrations._get_db_path", lambda: db_path)
+    monkeypatch.setattr("database.migrations.get_db_path", lambda: db_path)
     monkeypatch.setattr("dependencies._get_cached_db_path", lambda: db_path)
 
     await run_migrations()

@@ -7,7 +7,9 @@ from services import processing
 
 
 @pytest.mark.asyncio
-async def test_optimizer_fetches_hints_with_processing_method(monkeypatch: pytest.MonkeyPatch):
+async def test_optimizer_fetches_hints_with_processing_method(
+    monkeypatch: pytest.MonkeyPatch,
+):
     captured = {}
 
     async def _fake_list_prompt_learning_entries(**kwargs):
@@ -22,7 +24,10 @@ async def test_optimizer_fetches_hints_with_processing_method(monkeypatch: pytes
     optimizer = PromptOptimizer()
     await optimizer.optimize_prompt(
         prompt="Extract data",
-        schema_definition={"type": "object", "properties": {"text": {"type": "string"}}},
+        schema_definition={
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+        },
         schema_name="Generic",
         provider="gemini",
         model="gemini-2.5-flash",
@@ -56,19 +61,26 @@ async def test_run_processing_job_uses_optimized_prompt_and_records_failures(
     async def _fake_update_job_metadata(job_id, metadata):
         metadata_updates.append((job_id, metadata))
 
-    monkeypatch.setattr(processing.crud, "update_job_metadata", _fake_update_job_metadata)
+    monkeypatch.setattr(
+        processing.crud, "update_job_metadata", _fake_update_job_metadata
+    )
 
     def _fail_load_image(_path):
         raise RuntimeError("image load failed")
 
-    monkeypatch.setattr(processing.ImageService, "load_image", staticmethod(_fail_load_image))
+    monkeypatch.setattr(
+        processing.ImageService, "load_image", staticmethod(_fail_load_image)
+    )
 
     class _FakeOptimizer:
         async def optimize_prompt(self, **kwargs):
             return PromptResult(
                 system_prompt="SYSTEM",
                 user_prompt="USER",
-                enriched_schema={"type": "object", "properties": {"name": {"type": "string"}}},
+                enriched_schema={
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                },
                 doc_type_used="generic",
                 cot_enabled=False,
                 hints_injected=False,
@@ -78,15 +90,38 @@ async def test_run_processing_job_uses_optimized_prompt_and_records_failures(
 
     captured = {}
 
-    class _FakeProcessingService:
+    class _FakeOrchestrator:
         def __init__(self, **_kwargs):
             pass
 
-        async def process_file(self, **kwargs):
-            captured.update(kwargs)
-            return {"success": True, "data": {"name": "ok"}, "raw_response": {"usage": {}}}
+        async def run_job(
+            self,
+            job,
+            file_path,
+            file_type,
+            extraction_method,
+            schema_definition,
+            prompt,
+            system_prompt=None,
+            temperature=0.1,
+            max_tokens=8192,
+            is_transcription=False,
+            **kwargs,
+        ):
+            captured.update(
+                {
+                    "prompt": prompt,
+                    "schema_definition": schema_definition,
+                    "system_prompt": system_prompt,
+                }
+            )
+            return {
+                "success": True,
+                "data": {"name": "ok"},
+                "raw_response": {"usage": {}},
+            }
 
-    monkeypatch.setattr(processing, "ProcessingService", _FakeProcessingService)
+    monkeypatch.setattr(processing, "ProcessingOrchestrator", _FakeOrchestrator)
 
     await processing.run_processing_job(job_id=1, file_path="/tmp/fake.png")
 
@@ -100,7 +135,9 @@ async def test_run_processing_job_uses_optimized_prompt_and_records_failures(
 
 
 @pytest.mark.asyncio
-async def test_run_text_processing_job_passes_system_prompt(monkeypatch: pytest.MonkeyPatch):
+async def test_run_text_processing_job_passes_system_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+):
     job = {
         "id": 2,
         "file_type": "pdf",
@@ -112,26 +149,54 @@ async def test_run_text_processing_job_passes_system_prompt(monkeypatch: pytest.
 
     monkeypatch.setattr(processing.crud, "get_job", AsyncMock(return_value=job))
     monkeypatch.setattr(processing, "update_job_status_with_broadcast", AsyncMock())
-    monkeypatch.setattr(processing, "resolve_provider_api_key", lambda _provider: "test-key")
 
     class _FakeOptimizer:
         async def optimize_prompt(self, **kwargs):
             return PromptResult(
                 system_prompt="TEXT_SYSTEM",
                 user_prompt="TEXT_USER",
-                enriched_schema={"type": "object", "properties": {"value": {"type": "string"}}},
+                enriched_schema={
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                },
             )
 
     monkeypatch.setattr(processing, "PromptOptimizer", _FakeOptimizer)
 
     captured = {}
 
-    class _FakeTextProcessor:
-        async def process(self, **kwargs):
-            captured.update(kwargs)
-            return {"success": True, "data": {"value": "ok"}, "raw_response": {"usage": {}}}
+    class _FakeOrchestrator:
+        def __init__(self, **_kwargs):
+            pass
 
-    monkeypatch.setattr("services.processors.text.TextProcessor", _FakeTextProcessor)
+        async def run_job(
+            self,
+            job,
+            file_path,
+            file_type,
+            extraction_method,
+            schema_definition,
+            prompt,
+            system_prompt=None,
+            temperature=0.1,
+            max_tokens=8192,
+            is_transcription=False,
+            **kwargs,
+        ):
+            captured.update(
+                {
+                    "prompt": prompt,
+                    "schema_definition": schema_definition,
+                    "system_prompt": system_prompt,
+                }
+            )
+            return {
+                "success": True,
+                "data": {"value": "ok"},
+                "raw_response": {"usage": {}},
+            }
+
+    monkeypatch.setattr(processing, "ProcessingOrchestrator", _FakeOrchestrator)
 
     await processing.run_text_processing_job(job_id=2, file_path="/tmp/fake.pdf")
 

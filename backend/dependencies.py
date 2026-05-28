@@ -5,7 +5,7 @@ FastAPI dependencies for authentication.
 from functools import lru_cache
 from pathlib import Path
 from fastapi import Header, HTTPException, Depends, status
-from typing import Optional, Tuple
+from typing import Optional
 from auth import verify_token
 from config import get_settings
 import aiosqlite

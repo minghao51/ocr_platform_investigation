@@ -55,27 +55,67 @@ INVOICE_SCHEMA = {
     "required": ["invoice_number", "date", "vendor", "total"],
 }
 
-MOCK_INVOICE_JSON = json.dumps({
-    "invoice_number": "INV-2024-0042",
-    "date": "November 15, 2024",
-    "vendor": "CloudSync Solutions",
-    "items": [
-        {"description": "Enterprise License - Annual", "quantity": 1, "unit_price": 5000.0, "total": 5000.0},
-        {"description": "Premium Support Package", "quantity": 1, "unit_price": 1200.0, "total": 1200.0},
-        {"description": "Data Migration Service", "quantity": 3, "unit_price": 400.0, "total": 1200.0},
-        {"description": "Training Sessions (8hrs)", "quantity": 2, "unit_price": 350.0, "total": 700.0},
-    ],
-    "subtotal": 8100.0,
-    "tax": 668.25,
-    "total": 8768.25,
-})
+MOCK_INVOICE_JSON = json.dumps(
+    {
+        "invoice_number": "INV-2024-0042",
+        "date": "November 15, 2024",
+        "vendor": "CloudSync Solutions",
+        "items": [
+            {
+                "description": "Enterprise License - Annual",
+                "quantity": 1,
+                "unit_price": 5000.0,
+                "total": 5000.0,
+            },
+            {
+                "description": "Premium Support Package",
+                "quantity": 1,
+                "unit_price": 1200.0,
+                "total": 1200.0,
+            },
+            {
+                "description": "Data Migration Service",
+                "quantity": 3,
+                "unit_price": 400.0,
+                "total": 1200.0,
+            },
+            {
+                "description": "Training Sessions (8hrs)",
+                "quantity": 2,
+                "unit_price": 350.0,
+                "total": 700.0,
+            },
+        ],
+        "subtotal": 8100.0,
+        "tax": 668.25,
+        "total": 8768.25,
+    }
+)
 
-MOCK_GENERIC_JSON = json.dumps({
-    "title": "Extracted Document",
-    "content": "Sample extracted content from document.",
-})
+MOCK_GENERIC_JSON = json.dumps(
+    {
+        "title": "Extracted Document",
+        "content": "Sample extracted content from document.",
+    }
+)
 
-MOCK_TRANSCRIPTION_TEXT = "# Transcription Result\n\nThis is a mock transcription output in Markdown format."
+MOCK_TRANSCRIPTION_TEXT = (
+    "# Transcription Result\n\nThis is a mock transcription output in Markdown format."
+)
+
+
+def _make_extraction_result(
+    content: str, model: str = "gemini-2.5-flash", error: str | None = None
+):
+    from services.vlm_provider import ExtractionResult, TokenUsage
+
+    return ExtractionResult(
+        content=content,
+        model=model,
+        usage=TokenUsage(prompt_tokens=100, completion_tokens=200, total_tokens=300),
+        error=error,
+        success=error is None,
+    )
 
 
 def auth_header():
@@ -141,23 +181,17 @@ def process_and_wait(client, file_id, headers, payload_overrides=None):
 
 @pytest.fixture(autouse=True)
 def _mock_api_key():
-    with patch("services.processing.resolve_provider_api_key", return_value="test-api-key"):
+    with patch(
+        "services.provider_utils.resolve_provider_api_key", return_value="test-api-key"
+    ):
         yield
 
 
 def _mock_process_text(response_json):
-    return AsyncMock(return_value={
-        "content": response_json,
-        "model": "gemini-2.5-flash",
-        "usage": {"prompt_tokens": 100, "completion_tokens": 200, "total_tokens": 300},
-    })
+    return AsyncMock(return_value=_make_extraction_result(response_json))
 
 
-_mock_process_image = AsyncMock(return_value={
-    "content": MOCK_GENERIC_JSON,
-    "model": "gemini-2.5-flash",
-    "usage": {"prompt_tokens": 150, "completion_tokens": 100, "total_tokens": 250},
-})
+_mock_process_image = AsyncMock(return_value=_make_extraction_result(MOCK_GENERIC_JSON))
 
 
 # ============================================================================
@@ -169,51 +203,86 @@ class TestDoclingParse:
     """Test docling-parse (PyMuPDF + LLM) extraction method."""
 
     def test_pdf_invoice_extraction(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text(MOCK_INVOICE_JSON)):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text(MOCK_INVOICE_JSON),
+        ):
             file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {
-                "extraction_method": "docling-parse",
-                "schema_definition": INVOICE_SCHEMA,
-            })
+            job = process_and_wait(
+                client,
+                file_id,
+                auth_header(),
+                {
+                    "extraction_method": "docling-parse",
+                    "schema_definition": INVOICE_SCHEMA,
+                },
+            )
         assert job["status"] == "success"
         assert job["result"]["invoice_number"] == "INV-2024-0042"
         assert job["result"]["total"] == 8768.25
         assert len(job["result"]["items"]) == 4
 
     def test_searchable_pdf(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text(MOCK_GENERIC_JSON)):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text(MOCK_GENERIC_JSON),
+        ):
             file_id = upload_file(client, fixture_path("searchable.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {"extraction_method": "docling-parse"})
+            job = process_and_wait(
+                client, file_id, auth_header(), {"extraction_method": "docling-parse"}
+            )
         assert job["status"] == "success"
 
     def test_multi_page_pdf(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text(MOCK_GENERIC_JSON)):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text(MOCK_GENERIC_JSON),
+        ):
             file_id = upload_file(client, fixture_path("multi_page.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {"extraction_method": "docling-parse"})
+            job = process_and_wait(
+                client, file_id, auth_header(), {"extraction_method": "docling-parse"}
+            )
         assert job["status"] == "success"
 
     def test_docx(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text(MOCK_GENERIC_JSON)):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text(MOCK_GENERIC_JSON),
+        ):
             file_id = upload_file(client, fixture_path("sample.docx"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {"extraction_method": "docling-parse"})
+            job = process_and_wait(
+                client, file_id, auth_header(), {"extraction_method": "docling-parse"}
+            )
         assert job["status"] == "success"
 
     def test_pptx(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text(MOCK_GENERIC_JSON)):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text(MOCK_GENERIC_JSON),
+        ):
             file_id = upload_file(client, fixture_path("sample.pptx"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {"extraction_method": "docling-parse"})
+            job = process_and_wait(
+                client, file_id, auth_header(), {"extraction_method": "docling-parse"}
+            )
         assert job["status"] == "success"
 
     def test_raw_output_mode(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text("# Raw Markdown\n\nSome content.")):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text("# Raw Markdown\n\nSome content."),
+        ):
             file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-            resp = client.post("/api/process/", json={
-                "file_id": file_id,
-                "provider": "gemini",
-                "model": "gemini-2.5-flash",
-                "extraction_method": "docling-parse",
-                "schema_mode": "raw",
-            }, headers=auth_header())
+            resp = client.post(
+                "/api/process/",
+                json={
+                    "file_id": file_id,
+                    "provider": "gemini",
+                    "model": "gemini-2.5-flash",
+                    "extraction_method": "docling-parse",
+                    "schema_mode": "raw",
+                },
+                headers=auth_header(),
+            )
         assert resp.status_code == 200
         job_id = resp.json()["job_id"]
         job = None
@@ -235,18 +304,31 @@ class TestTextExtraction:
     """Test text extraction (pdfplumber + LLM)."""
 
     def test_searchable_pdf(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text(MOCK_GENERIC_JSON)):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text(MOCK_GENERIC_JSON),
+        ):
             file_id = upload_file(client, fixture_path("searchable.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {"extraction_method": "text"})
+            job = process_and_wait(
+                client, file_id, auth_header(), {"extraction_method": "text"}
+            )
         assert job["status"] == "success"
 
     def test_invoice_pdf(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", _mock_process_text(MOCK_INVOICE_JSON)):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            _mock_process_text(MOCK_INVOICE_JSON),
+        ):
             file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {
-                "extraction_method": "text",
-                "schema_definition": INVOICE_SCHEMA,
-            })
+            job = process_and_wait(
+                client,
+                file_id,
+                auth_header(),
+                {
+                    "extraction_method": "text",
+                    "schema_definition": INVOICE_SCHEMA,
+                },
+            )
         assert job["status"] == "success"
         assert job["result"]["invoice_number"] == "INV-2024-0042"
 
@@ -262,18 +344,23 @@ class TestVisionExtraction:
     def test_image_vision(self, client, temp_db_env):
         with patch("services.gemini.GeminiProvider.process_image", _mock_process_image):
             file_id = upload_file(client, fixture_path("receipt.jpg"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {
-                "extraction_method": "vision",
-                "schema_definition": {
-                    "type": "object",
-                    "properties": {
-                        "store_name": {"type": "string"},
-                        "total": {"type": "number"},
-                        "date": {"type": "string"},
-                        "items": {"type": "array"},
+            job = process_and_wait(
+                client,
+                file_id,
+                auth_header(),
+                {
+                    "extraction_method": "vision",
+                    "schema_definition": {
+                        "type": "object",
+                        "properties": {
+                            "store_name": {"type": "string"},
+                            "total": {"type": "number"},
+                            "date": {"type": "string"},
+                            "items": {"type": "array"},
+                        },
                     },
                 },
-            })
+            )
         assert job["status"] == "success"
 
 
@@ -286,19 +373,19 @@ class TestTranscription:
     """Test transcription extraction."""
 
     def test_docx_transcription(self, client, temp_db_env):
-        mock = AsyncMock(return_value={
-            "content": MOCK_TRANSCRIPTION_TEXT,
-            "model": "gemini-2.5-flash",
-            "usage": {"prompt_tokens": 50, "completion_tokens": 100, "total_tokens": 150},
-        })
+        mock = AsyncMock(return_value=_make_extraction_result(MOCK_TRANSCRIPTION_TEXT))
         with patch("services.gemini.GeminiProvider.process_text", mock):
             file_id = upload_file(client, fixture_path("sample.docx"), auth_header())
-            resp = client.post("/api/process/", json={
-                "file_id": file_id,
-                "provider": "gemini",
-                "model": "gemini-2.5-flash",
-                "extraction_method": "transcription",
-            }, headers=auth_header())
+            resp = client.post(
+                "/api/process/",
+                json={
+                    "file_id": file_id,
+                    "provider": "gemini",
+                    "model": "gemini-2.5-flash",
+                    "extraction_method": "transcription",
+                },
+                headers=auth_header(),
+            )
         assert resp.status_code == 200
         job_id = resp.json()["job_id"]
         job = None
@@ -323,84 +410,130 @@ class TestExtractionErrors:
 
     def test_missing_provider_for_provider_method(self, client, temp_db_env):
         file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-        resp = client.post("/api/process/", json={
-            "file_id": file_id,
-            "extraction_method": "docling-parse",
-        }, headers=auth_header())
+        resp = client.post(
+            "/api/process/",
+            json={
+                "file_id": file_id,
+                "extraction_method": "docling-parse",
+            },
+            headers=auth_header(),
+        )
         assert resp.status_code == 400
         assert "provider" in resp.json()["detail"].lower()
 
     def test_invalid_extraction_method(self, client, temp_db_env):
         file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-        resp = client.post("/api/process/", json={
-            "file_id": file_id,
-            "provider": "gemini",
-            "model": "gemini-2.5-flash",
-            "extraction_method": "nonexistent-method",
-            "schema_definition": INVOICE_SCHEMA,
-        }, headers=auth_header())
+        resp = client.post(
+            "/api/process/",
+            json={
+                "file_id": file_id,
+                "provider": "gemini",
+                "model": "gemini-2.5-flash",
+                "extraction_method": "nonexistent-method",
+                "schema_definition": INVOICE_SCHEMA,
+            },
+            headers=auth_header(),
+        )
         assert resp.status_code in (400, 422)
 
     def test_truncated_json(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", AsyncMock(return_value={
-            "content": '{"invoice_number": "INV-2024-0042", "date": "2024-11-15", "items": [{"desc',
-            "model": "gemini-2.5-flash",
-            "usage": {"prompt_tokens": 100, "completion_tokens": 200, "total_tokens": 300},
-        })):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            AsyncMock(
+                return_value=_make_extraction_result(
+                    '{"invoice_number": "INV-2024-0042", "date": "2024-11-15", "items": [{"desc'
+                )
+            ),
+        ):
             file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {
-                "extraction_method": "docling-parse",
-                "schema_definition": INVOICE_SCHEMA,
-            })
+            job = process_and_wait(
+                client,
+                file_id,
+                auth_header(),
+                {
+                    "extraction_method": "docling-parse",
+                    "schema_definition": INVOICE_SCHEMA,
+                },
+            )
         assert job["status"] == "error"
-        assert "Invalid JSON" in (job.get("error") or "") or "json" in (job.get("error") or "").lower()
+        assert (
+            "Invalid JSON" in (job.get("error") or "")
+            or "json" in (job.get("error") or "").lower()
+        )
 
     def test_empty_response(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", AsyncMock(return_value={
-            "content": "", "model": "gemini-2.5-flash",
-            "usage": {"prompt_tokens": 100, "completion_tokens": 0, "total_tokens": 100},
-        })):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            AsyncMock(return_value=_make_extraction_result("")),
+        ):
             file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {
-                "extraction_method": "docling-parse",
-                "schema_definition": INVOICE_SCHEMA,
-            })
+            job = process_and_wait(
+                client,
+                file_id,
+                auth_header(),
+                {
+                    "extraction_method": "docling-parse",
+                    "schema_definition": INVOICE_SCHEMA,
+                },
+            )
         assert job["status"] == "error"
 
     def test_provider_returns_error(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", AsyncMock(return_value={
-            "error": "Rate limit exceeded", "content": None, "model": "gemini-2.5-flash",
-        })):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            AsyncMock(
+                return_value=_make_extraction_result("", error="Rate limit exceeded")
+            ),
+        ):
             file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {
-                "extraction_method": "docling-parse",
-                "schema_definition": INVOICE_SCHEMA,
-            })
+            job = process_and_wait(
+                client,
+                file_id,
+                auth_header(),
+                {
+                    "extraction_method": "docling-parse",
+                    "schema_definition": INVOICE_SCHEMA,
+                },
+            )
         assert job["status"] == "error"
         assert "Rate limit" in (job.get("error") or "")
 
     def test_safety_blocked_response(self, client, temp_db_env):
-        with patch("services.gemini.GeminiProvider.process_text", AsyncMock(return_value={
-            "error": "Response blocked by safety filters. Categories: ['unknown']",
-            "content": None, "model": "gemini-2.5-flash",
-        })):
+        with patch(
+            "services.gemini.GeminiProvider.process_text",
+            AsyncMock(
+                return_value=_make_extraction_result(
+                    "",
+                    error="Response blocked by safety filters. Categories: ['unknown']",
+                )
+            ),
+        ):
             file_id = upload_file(client, fixture_path("invoice.pdf"), auth_header())
-            job = process_and_wait(client, file_id, auth_header(), {
-                "extraction_method": "docling-parse",
-                "schema_definition": INVOICE_SCHEMA,
-            })
+            job = process_and_wait(
+                client,
+                file_id,
+                auth_header(),
+                {
+                    "extraction_method": "docling-parse",
+                    "schema_definition": INVOICE_SCHEMA,
+                },
+            )
         assert job["status"] == "error"
         assert "safety" in (job.get("error") or "").lower()
 
     def test_docx_rejects_vision_method(self, client, temp_db_env):
         file_id = upload_file(client, fixture_path("sample.docx"), auth_header())
-        resp = client.post("/api/process/", json={
-            "file_id": file_id,
-            "provider": "gemini",
-            "model": "gemini-2.5-flash",
-            "extraction_method": "vision",
-            "schema_definition": INVOICE_SCHEMA,
-        }, headers=auth_header())
+        resp = client.post(
+            "/api/process/",
+            json={
+                "file_id": file_id,
+                "provider": "gemini",
+                "model": "gemini-2.5-flash",
+                "extraction_method": "vision",
+                "schema_definition": INVOICE_SCHEMA,
+            },
+            headers=auth_header(),
+        )
         assert resp.status_code == 400
 
 
@@ -417,13 +550,17 @@ class TestFileTypeRouting:
 
     def test_image_forces_vision(self, client, temp_db_env):
         file_id = upload_file(client, fixture_path("receipt.jpg"), auth_header())
-        resp = client.post("/api/process/", json={
-            "file_id": file_id,
-            "provider": "gemini",
-            "model": "gemini-2.5-flash",
-            "extraction_method": "text",
-            "schema_definition": INVOICE_SCHEMA,
-        }, headers=auth_header())
+        resp = client.post(
+            "/api/process/",
+            json={
+                "file_id": file_id,
+                "provider": "gemini",
+                "model": "gemini-2.5-flash",
+                "extraction_method": "text",
+                "schema_definition": INVOICE_SCHEMA,
+            },
+            headers=auth_header(),
+        )
         assert resp.status_code in (200, 400)
 
 
@@ -450,7 +587,15 @@ class TestExtractSettingsEndpoint:
         resp = client.get("/api/extract/settings", headers=auth_header())
         data = resp.json()
         ids = [m["id"] for m in data["extraction_methods"]]
-        for expected in ("auto", "text", "vision", "hybrid", "docling-parse", "docling-extract", "transcription"):
+        for expected in (
+            "auto",
+            "text",
+            "vision",
+            "hybrid",
+            "docling-parse",
+            "docling-extract",
+            "transcription",
+        ):
             assert expected in ids
 
     def test_schema_modes(self, client):
