@@ -24,7 +24,9 @@ def list_provider_catalog() -> list[dict]:
     config = load_providers_config()
 
     api_key_map = {
-        "openrouter": bool(settings.openrouter_api_key and settings.openrouter_api_key.strip()),
+        "openrouter": bool(
+            settings.openrouter_api_key and settings.openrouter_api_key.strip()
+        ),
         "gemini": bool(settings.gemini_api_key and settings.gemini_api_key.strip()),
         "litellm": bool(resolve_provider_api_key("litellm").strip()),
     }
@@ -47,3 +49,31 @@ def list_provider_catalog() -> list[dict]:
         )
 
     return providers
+
+
+from services.openrouter import OpenRouterProvider
+from services.gemini import GeminiProvider
+from services.litellm_provider import LiteLLMProvider
+
+PROVIDER_CLASSES = {
+    "openrouter": OpenRouterProvider,
+    "gemini": GeminiProvider,
+    "litellm": LiteLLMProvider,
+}
+
+
+async def get_provider(provider_name: str, api_key: str):
+    cls = PROVIDER_CLASSES.get(provider_name)
+    if not cls:
+        raise ValueError(f"Unknown provider: {provider_name}")
+    return cls(api_key=api_key)
+
+
+def _default_model(provider_name: str) -> str:
+    config = load_providers_config()
+    for prov in config.get("providers", []):
+        if prov["name"] == provider_name:
+            models = prov.get("models", [])
+            if models:
+                return models[0]["id"]
+    return ""
