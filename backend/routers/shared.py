@@ -1,3 +1,5 @@
+import hmac
+
 from fastapi import HTTPException
 
 
@@ -15,7 +17,11 @@ def ensure_file_access(
         if file_record.get("user_id") != current_user.get("user_id"):
             raise HTTPException(status_code=403, detail="Access denied")
         return
-    if guest_token and file_record.get("guest_token") == guest_token:
+    if (
+        guest_token
+        and file_record.get("guest_token")
+        and hmac.compare_digest(file_record["guest_token"], guest_token)
+    ):
         return
     raise HTTPException(status_code=403, detail="Access denied")
 
@@ -30,6 +36,10 @@ def ensure_job_access(
         if job.get("user_id") != current_user.get("user_id"):
             raise HTTPException(status_code=403, detail="Access denied")
         return
-    if guest_token and job.get("guest_token") == guest_token:
+    if (
+        guest_token
+        and job.get("guest_token")
+        and hmac.compare_digest(job["guest_token"], guest_token)
+    ):
         return
     raise HTTPException(status_code=403, detail="Access denied")

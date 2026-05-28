@@ -19,6 +19,26 @@ def _get_cached_db_path() -> Path:
     return get_db_path()
 
 
+async def _validate_token_version(token_data: dict) -> None:
+    token_version = token_data.get("token_version")
+    user_id = token_data.get("user_id")
+    if token_version is not None and user_id is not None:
+        user_record = await get_user_by_id(user_id)
+        if not user_record:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        current_token_version = int(user_record.get("token_version") or 0)
+        if current_token_version != int(token_version):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     """
     Verify JWT token and return current user.
@@ -49,23 +69,7 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token_version = payload.get("token_version")
-    user_id = payload.get("user_id")
-    if token_version is not None and user_id is not None:
-        user_record = await get_user_by_id(user_id)
-        if not user_record:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        current_token_version = int(user_record.get("token_version") or 0)
-        if current_token_version != int(token_version):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    await _validate_token_version(payload)
 
     return payload
 
@@ -94,23 +98,7 @@ async def get_optional_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token_version = payload.get("token_version")
-    user_id = payload.get("user_id")
-    if token_version is not None and user_id is not None:
-        user_record = await get_user_by_id(user_id)
-        if not user_record:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        current_token_version = int(user_record.get("token_version") or 0)
-        if current_token_version != int(token_version):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    await _validate_token_version(payload)
 
     return payload
 

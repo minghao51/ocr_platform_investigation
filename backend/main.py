@@ -11,7 +11,6 @@ from routers import (
     schemas,
     jobs,
     providers,
-    text_processing,
     auth,
     websocket,
     benchmarks,
@@ -41,6 +40,13 @@ async def lifespan(_app: FastAPI):
     if recovered_jobs:
         logger.info("Recovered %s in-flight queued jobs", recovered_jobs)
     await start_job_worker()
+
+    from services.processing import ProcessingOrchestrator
+    from services.document_classifier import DocumentClassifier
+
+    _app.state.processing_services = ProcessingOrchestrator()
+    _app.state.classifier = DocumentClassifier()
+
     try:
         yield
     finally:
@@ -76,7 +82,12 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Guest-Token",
+        "X-Login-Username",
+    ],
 )
 
 
@@ -92,6 +103,15 @@ async def add_security_headers(request: Request, call_next):
         "max-age=31536000; includeSubDomains"
     )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'"
+    )
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
     # Keep demo sessions fresh while still allowing hashed frontend assets to cache.
     if not path.startswith("/assets/"):
@@ -114,7 +134,6 @@ app.include_router(processing.router)
 app.include_router(schemas.router)
 app.include_router(jobs.router)
 app.include_router(providers.router)
-app.include_router(text_processing.router)
 app.include_router(benchmarks.router)
 app.include_router(quality.router)
 app.include_router(analytics.router)

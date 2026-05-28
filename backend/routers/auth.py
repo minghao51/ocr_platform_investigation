@@ -3,7 +3,7 @@ Authentication router - handles login and token management.
 """
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from database import crud
 from auth import verify_password, create_access_token
 from dependencies import get_current_user
@@ -13,8 +13,8 @@ router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=256)
 
 
 class LoginResponse(BaseModel):

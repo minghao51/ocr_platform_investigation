@@ -1,11 +1,13 @@
 import logging
-from pydantic import AliasChoices, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, model_validator, field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List
 from paths import DB_PATH
 
 _DEFAULT_JWT_SECRET = "change-me-in-production-use-openssl-rand-hex-32"
+
+ALLOWED_JWT_ALGORITHMS = {"HS256", "HS384", "HS512"}
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,14 @@ class Settings(BaseSettings):
 
     jwt_secret_key: str = _DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
+
+    @field_validator("jwt_algorithm")
+    @classmethod
+    def validate_jwt_algorithm(cls, v):
+        if v not in ALLOWED_JWT_ALGORITHMS:
+            raise ValueError(f"jwt_algorithm must be one of {ALLOWED_JWT_ALGORITHMS}")
+        return v
+
     jwt_expiration_hours: int = 24
     environment: str = Field(
         default="development",
@@ -67,6 +77,7 @@ class Settings(BaseSettings):
                 continue
             sanitized[key] = value
         return sanitized
+
 
 @lru_cache
 def get_settings():

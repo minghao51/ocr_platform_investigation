@@ -20,11 +20,34 @@ router = APIRouter(prefix="/api")
 # This prevents JWTs from leaking into server logs via WebSocket URL query params.
 
 TICKET_TTL_SECONDS = 60
+TICKET_MAX_PENDING = 1000
 
 _ticket_store: Dict[str, dict] = {}
 
 
+def _cleanup_expired_tickets():
+    now = time.time()
+    expired = [k for k, v in _ticket_store.items() if now > v["expires_at"]]
+    for k in expired:
+        _ticket_store.pop(k, None)
+
+
+def _trim_ticket_store() -> None:
+    overflow = len(_ticket_store) - TICKET_MAX_PENDING + 1
+    if overflow <= 0:
+        return
+
+    oldest_tickets = sorted(
+        _ticket_store,
+        key=lambda ticket: _ticket_store[ticket]["expires_at"],
+    )[:overflow]
+    for ticket in oldest_tickets:
+        _ticket_store.pop(ticket, None)
+
+
 def _create_ws_ticket(user_payload: dict) -> str:
+    _cleanup_expired_tickets()
+    _trim_ticket_store()
     ticket = secrets.token_urlsafe(32)
     _ticket_store[ticket] = {
         "user_id": user_payload.get("user_id"),
@@ -155,7 +178,9 @@ async def job_status_websocket(
     # Verify ticket
     payload = _consume_ws_ticket(ticket)
     if payload is None:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired ticket")
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired ticket"
+        )
         return
 
     # Verify user has access to this job
