@@ -1,5 +1,5 @@
 import { API_BASE, getAccessHeaders, getAuthHeaders, setGuestToken, parseApiError } from './client';
-import type { ProcessRequest, ProcessResponse, Job, JobCorrection, RateLimitError } from './types';
+import type { ProcessRequest, ProcessResponse, Job, JobCorrection } from './types';
 
 export async function uploadFile(file: File): Promise<{ file_id: string; file_name: string; file_type: string; file_size: number; guest_token?: string }> {
   const formData = new FormData();
@@ -12,8 +12,7 @@ export async function uploadFile(file: File): Promise<{ file_id: string; file_na
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Upload failed');
+    throw await parseApiError(response, 'Upload failed');
   }
 
   const data = await response.json() as { file_id: string; file_name: string; file_type: string; file_size: number; guest_token?: string };
@@ -34,12 +33,7 @@ export async function processDocument(request: ProcessRequest): Promise<ProcessR
   });
 
   if (!response.ok) {
-    if (response.status === 429) {
-      const error = await response.json() as RateLimitError;
-      throw new Error(error.detail || 'Rate limit exceeded');
-    }
-    const error = await response.json();
-    throw new Error(error.detail || 'Processing failed');
+    throw await parseApiError(response, response.status === 429 ? 'Rate limit exceeded' : 'Processing failed');
   }
 
   const data = await response.json() as ProcessResponse;
@@ -59,7 +53,7 @@ export async function getJobStatus(jobId: number): Promise<Job> {
   return response.json();
 }
 
-export async function listJobs(status?: string, provider?: string, limit = 50, offset?: number): Promise<Job[]> {
+export async function listJobs(status?: string, provider?: string, limit = 50, offset?: number): Promise<{ jobs: Job[]; total: number; limit: number; offset: number }> {
   const params = new URLSearchParams();
   if (status) params.append('status', status);
   if (provider) params.append('provider', provider);
@@ -80,7 +74,7 @@ export async function getJob(jobId: number): Promise<Job> {
     headers: getAuthHeaders()
   });
   if (!response.ok) {
-    throw new Error('Job not found');
+    throw await parseApiError(response, 'Job not found');
   }
   return response.json();
 }
@@ -91,7 +85,7 @@ export async function deleteJob(jobId: number): Promise<void> {
     headers: getAuthHeaders()
   });
   if (!response.ok) {
-    throw new Error('Failed to delete job');
+    throw await parseApiError(response, 'Failed to delete job');
   }
 }
 

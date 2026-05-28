@@ -73,8 +73,12 @@ export function getAccessHeaders(): Record<string, string> {
 export async function parseApiError(response: Response, fallbackMessage: string): Promise<Error> {
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
-    const payload = await response.json() as { detail?: string; message?: string };
-    return new Error(payload.detail || payload.message || fallbackMessage);
+    try {
+      const payload = await response.json() as { detail?: string; message?: string };
+      return new Error(payload.detail || payload.message || fallbackMessage);
+    } catch {
+      return new Error(fallbackMessage);
+    }
   }
   const text = await response.text();
   return new Error(text || fallbackMessage);

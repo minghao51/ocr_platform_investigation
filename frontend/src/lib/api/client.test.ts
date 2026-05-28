@@ -6,6 +6,7 @@ import {
   setAuthToken,
   setGuestToken,
   getAccessHeaders,
+  parseApiError,
 } from './client';
 
 describe('api client auth storage', () => {
@@ -48,5 +49,16 @@ describe('api client auth storage', () => {
       Authorization: 'Bearer token-123',
       'X-Guest-Token': 'guest-abc',
     });
+  });
+
+  it('falls back when a json error response cannot be parsed', async () => {
+    const response = new Response('{invalid json', {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    });
+
+    await expect(parseApiError(response, 'Fallback error')).resolves.toEqual(
+      new Error('Fallback error'),
+    );
   });
 });

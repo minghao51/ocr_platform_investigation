@@ -67,8 +67,9 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
         PAGE_SIZE + 1,
         nextOffset
       );
-      const pageItems = data.slice(0, PAGE_SIZE);
-      setHasMore(data.length > PAGE_SIZE);
+      const allItems = data.jobs;
+      const pageItems = allItems.slice(0, PAGE_SIZE);
+      setHasMore(allItems.length > PAGE_SIZE);
       setOffset(nextOffset + pageItems.length);
       if (append) {
         setJobs((prev) => {

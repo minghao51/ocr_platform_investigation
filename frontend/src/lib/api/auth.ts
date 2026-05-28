@@ -1,4 +1,4 @@
-import { API_BASE, setAuthToken, clearAuthToken, getAuthHeaders } from './client';
+import { API_BASE, setAuthToken, clearAuthToken, getAuthHeaders, parseApiError } from './client';
 import type { LoginRequest, LoginResponse } from './types';
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
@@ -12,8 +12,7 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Login failed');
+    throw await parseApiError(response, 'Login failed');
   }
 
   const data = await response.json() as LoginResponse;

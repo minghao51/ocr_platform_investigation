@@ -1,4 +1,10 @@
-import { API_BASE, getAuthHeaders, getAccessHeaders, parseApiError } from './client';
+import {
+  API_BASE,
+  AUTH_CHANGE_EVENT,
+  getAuthHeaders,
+  getAccessHeaders,
+  parseApiError,
+} from './client';
 import type { Provider, ExtractSettings, PdfAnalysis, QualityReport } from './types';
 
 export async function listProviders(): Promise<Provider[]> {
@@ -43,6 +49,10 @@ export async function getExtractSettings(): Promise<ExtractSettings> {
 export function clearExtractSettingsCache(): void {
   _settingsCache = null;
   _settingsPromise = null;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener(AUTH_CHANGE_EVENT, clearExtractSettingsCache);
 }
 
 export async function analyzePdf(fileId: string): Promise<PdfAnalysis> {
