@@ -77,11 +77,10 @@ class DocumentClassifier:
 
             # Open PDF with PyMuPDF
             doc = fitz.open(file_path)
-
-            # Analyze document characteristics
-            analysis = self._perform_analysis(doc)
-
-            doc.close()
+            try:
+                analysis = self._perform_analysis(doc)
+            finally:
+                doc.close()
 
             logger.info(
                 f"Document analysis completed: {analysis.recommended_pipeline} pipeline recommended"
@@ -274,15 +273,14 @@ class DocumentClassifier:
         """
         try:
             doc = fitz.open(file_path)
-
-            for page in doc:
-                text = page.get_text("text")
-                if text.strip():
-                    doc.close()
-                    return "text"
-
-            doc.close()
-            return "vision"
+            try:
+                for page in doc:
+                    text = page.get_text("text")
+                    if text.strip():
+                        return "text"
+                return "vision"
+            finally:
+                doc.close()
 
         except Exception as e:
             logger.error(f"Quick check failed: {str(e)}")

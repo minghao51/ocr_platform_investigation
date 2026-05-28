@@ -12,6 +12,15 @@ with support for:
 from typing import List, Dict, Any, Optional
 import tiktoken
 
+_encoding = None
+
+
+def _get_encoding(encoding_name: str = "cl100k_base"):
+    global _encoding
+    if _encoding is None:
+        _encoding = tiktoken.get_encoding(encoding_name)
+    return _encoding
+
 
 class MarkdownSplitter:
     """
@@ -40,7 +49,7 @@ class MarkdownSplitter:
             default_max_tokens: Default maximum tokens per chunk
             overlap_tokens: Number of tokens to overlap between chunks
         """
-        self.encoding = tiktoken.get_encoding(encoding_name)
+        self.encoding = _get_encoding(encoding_name)
         self.default_max_tokens = default_max_tokens
         self.overlap_tokens = overlap_tokens
 
@@ -221,8 +230,8 @@ class MarkdownSplitter:
                     if isinstance(value, dict):
                         merged[key] = {**merged[key], **value}
                     else:
-                        # Keep existing value
-                        pass
+                        # Keep existing dict value when a non-dict conflict is encountered.
+                        continue
                 elif merged[key] != value:
                     # Values differ, keep both as list
                     if not isinstance(merged[key], list):

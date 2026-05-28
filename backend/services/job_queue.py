@@ -11,7 +11,7 @@ from services.processing import run_processing_job, run_text_processing_job
 logger = logging.getLogger(__name__)
 
 _poll_interval_seconds = 1.0
-_worker_task: asyncio.Task | None = None
+_worker_tasks: list[asyncio.Task] = []
 _worker_stop_event: asyncio.Event | None = None
 _worker_id = f"{socket.gethostname()}:{os.getpid()}"
 
@@ -71,35 +71,36 @@ async def _worker_loop(stop_event: asyncio.Event) -> None:
 
 
 async def start_job_worker() -> bool:
-    """Start queue worker if enabled. Returns True when started."""
-    global _worker_task, _worker_stop_event
+    """Start queue workers if enabled. Returns True when started."""
+    global _worker_tasks, _worker_stop_event
 
     if not _should_start_worker():
         logger.info("Job queue worker disabled")
         return False
 
-    if _worker_task and not _worker_task.done():
+    if _worker_tasks and not all(t.done() for t in _worker_tasks):
         return True
 
     _worker_stop_event = asyncio.Event()
-    _worker_task = asyncio.create_task(_worker_loop(_worker_stop_event))
+    _worker_tasks = [
+        asyncio.create_task(_worker_loop(_worker_stop_event)) for _ in range(3)
+    ]
     return True
 
 
 async def stop_job_worker() -> None:
-    global _worker_task, _worker_stop_event
+    global _worker_tasks, _worker_stop_event
 
     if _worker_stop_event:
         _worker_stop_event.set()
 
-    if _worker_task and not _worker_task.done():
-        _worker_task.cancel()
-        try:
-            await _worker_task
-        except asyncio.CancelledError:
-            pass
+    for task in _worker_tasks:
+        if not task.done():
+            task.cancel()
 
-    _worker_task = None
+    await asyncio.gather(*_worker_tasks, return_exceptions=True)
+
+    _worker_tasks = []
     _worker_stop_event = None
 
 

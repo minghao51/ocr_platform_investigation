@@ -9,8 +9,13 @@ class ImageService:
 
     @staticmethod
     def load_image(file_path: str) -> Image.Image:
-        """Load an image file"""
-        return Image.open(file_path)
+        img = Image.open(file_path)
+        try:
+            img.load()
+            return img
+        except:
+            img.close()
+            raise
 
     @staticmethod
     def resize_image(

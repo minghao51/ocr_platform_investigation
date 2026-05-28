@@ -151,26 +151,51 @@ class DoclingService:
             Exception: If document parsing fails
         """
         try:
-            # Determine if OCR is needed
-            is_searchable = self._is_text_searchable(file_path)
+            ext = Path(file_path).suffix.lower()
+            is_searchable = (
+                self._is_text_searchable(file_path) if ext == ".pdf" else False
+            )
             do_ocr = (force_ocr or not is_searchable) and not self.disable_ocr
 
             logger.info(f"Parsing document: {file_path} (OCR: {do_ocr})")
 
-            # Configure pipeline options based on OCR detection
-            if hasattr(self.converter, "format_options"):
-                pdf_options = self.converter.format_options.get(InputFormat.PDF)
-                if pdf_options and hasattr(pdf_options, "pipeline_options"):
-                    pdf_options.pipeline_options.do_ocr = do_ocr
+            pipeline_options = ThreadedPdfPipelineOptions()
+            pipeline_options.ocr_batch_size = 16
+            pipeline_options.layout_batch_size = 16
+            pipeline_options.table_batch_size = 2
+            pipeline_options.images_scale = 1.0
+            pipeline_options.table_structure_options = TableStructureOptions(
+                do_cell_matching=True,
+                mode=TableFormerMode.FAST,
+            )
+            if not self.disable_ocr:
+                pipeline_options.ocr_options = EasyOcrOptions(
+                    lang=["en"],
+                    use_gpu=False,
+                    confidence_threshold=0.5,
+                )
+            pipeline_options.do_ocr = do_ocr
 
-            # Parse document with optional page range
+            converter = DocumentConverter(
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(
+                        backend=PyPdfiumDocumentBackend,
+                        pipeline_cls=StandardPdfPipeline,
+                        pipeline_options=pipeline_options,
+                    ),
+                    InputFormat.DOCX: WordFormatOption(pipeline_cls=SimplePipeline),
+                    InputFormat.PPTX: PowerpointFormatOption(
+                        pipeline_cls=SimplePipeline
+                    ),
+                }
+            )
+
             if page_range:
                 start, end = page_range
-                doc = self.converter.convert(file_path, page_range=(start, end))
+                doc = converter.convert(file_path, page_range=(start, end))
             else:
-                doc = self.converter.convert(file_path)
+                doc = converter.convert(file_path)
 
-            # Export to markdown
             markdown_content = doc.document.export_to_markdown()
 
             logger.info(f"Successfully parsed document: {file_path}")

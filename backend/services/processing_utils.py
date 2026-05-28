@@ -22,7 +22,9 @@ def parse_and_validate_response(
             try:
                 data = json.loads(data)
             except json.JSONDecodeError:
-                pass
+                logger.debug(
+                    "Nested JSON payload is not decodable; validating as plain string"
+                )
 
         is_valid, validated_data, error = schema_service.validate_data(
             data, schema_definition

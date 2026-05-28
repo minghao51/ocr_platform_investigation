@@ -3,9 +3,12 @@ Pricing module for VLM providers.
 Reads per-token pricing rates from providers.yaml registry.
 """
 
+import logging
 from pathlib import Path
 import yaml
 from typing import Dict
+
+logger = logging.getLogger(__name__)
 
 PRICING_YAML = Path(__file__).parent.parent / "config" / "providers.yaml"
 
@@ -57,6 +60,7 @@ def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
     """
     pricing = _load_pricing().get(model)
     if not pricing:
+        logger.warning("No pricing data for model=%s, returning 0.0", model)
         return 0.0
 
     input_cost = (prompt_tokens / 1_000_000) * pricing["input_per_1m"]
