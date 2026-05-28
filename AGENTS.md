@@ -2,12 +2,21 @@
 - **Analyze First:** Read relevant files before proposing solutions. Never hallucinate.
 - **Approve Changes:** Present a plan for approval before modifying code.
 - **Minimal Scope:** Change as little code as possible. No new abstractions.
+- **Check Skills:** Before any task, check if a relevant skill exists and follow it.
+- **Verify:** After changes, run lint and type-check if applicable. Ask user for the command if unsure.
+- **No Commits:** Never commit unless explicitly asked.
 
 ## 2. Output Style
-- High-level summaries only.
-- No speculation about code you haven't read.
+- Concise. Bulletpoints over paragraphs.
+- Reference file paths with line numbers when relevant.
+- No preamble or postamble. Answer directly.
 
-## 3. Technical Stack
+## 3. File Operations
+- **Read before edit** — Always read a file before editing it.
+- **Prefer Edit tool** over Write for surgical changes.
+- **Prefer editing existing files** over creating new ones.
+
+## 4. Technical Stack
 - **Python:**
   - Package manager: `uv`.
   - Execution: Always `uv run <command>`. Never `python`.
@@ -18,7 +27,7 @@
 - **Files:** Markdown files must follow `YYYYMMDD-filename.md` format.
 - **Docker:** `dotenvx run -- docker-compose up` for runs requiring api keys etc.
 
-## 4. Project Structure
+## 5. Project Structure
 ```
 ocr_platform_testdrive/
 ├── backend/                    # FastAPI backend
@@ -44,7 +53,7 @@ ocr_platform_testdrive/
 └── docker-compose.yml         # Container orchestration
 ```
 
-## 5. Key Conventions
+## 6. Key Conventions
 - **Database:** SQLite at `data/database.sqlite`. Migrations in `backend/database/migrations.py`
 - **Auth:** JWT tokens stored in localStorage. Guest tokens for unauthenticated uploads.
 - **Processing Methods:** `text`, `vision`, `hybrid`, `docling-parse`, `docling-extract`, `transcription`
@@ -52,7 +61,7 @@ ocr_platform_testdrive/
 - **VLM Providers:** OpenRouter, Gemini. Configured via env vars.
 - **Rate Limiting:** 10 req/min general, 5 uploads/min, 3 jobs/min per user
 
-## 6. Important Files
+## 7. Important Files
 - `backend/main.py` - FastAPI app, CORS, middleware, router registration
 - `backend/config.py` - Settings, env var parsing (pydantic-settings)
 - `backend/database/crud.py` - Database operations
@@ -60,7 +69,14 @@ ocr_platform_testdrive/
 - `frontend/src/lib/api.ts` - Frontend API client (DO NOT duplicate types)
 - `docker-compose.yml` - Port 8001:8000 (avoids local dev conflict)
 
-## 7. Testing
+## 8. Testing
 - Backend: `uv run pytest backend/tests/`
 - Frontend: `npm test` (unit), `npm run test:e2e` (Playwright)
 - Quality: Check `backend/tests/conftest.py` for fixtures
+
+## 9. Project Context References
+
+After running codemap analysis, add these references:
+- Project overview (architecture, stack, integrations): `.planning/OVERVIEW.md`
+- Code style & conventions: `.planning/STYLE.md`
+- Current state (bugs, risks, maintenance): `.planning/STATE.md`

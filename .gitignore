@@ -28,6 +28,7 @@ backend/database.sqlite
 # Environment
 .env
 .env.local
+backend/.env
 
 # IDE
 .vscode/
@@ -68,9 +69,6 @@ htmlcov/
 
 # Claude Code - personal session data
 .claude/
-
-# Planning - personal planning notes
-.planning/
 
 # Playwright CLI - test artifacts
 .playwright-cli/

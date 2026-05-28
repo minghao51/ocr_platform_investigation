@@ -43,6 +43,10 @@ dependencies = [
     "pyyaml>=6.0.3",
     "psutil>=7.2.2",
     "datasets>=4.8.4",
+    "jupyter>=1.1.1",
+    "nbconvert>=7.17.1",
+    "nbclient>=0.10.4",
+    "matplotlib>=3.10.9",
 ]
 
 [project.optional-dependencies]
@@ -76,6 +80,8 @@ dev-dependencies = [
     "python-pptx>=1.0.2",
     "reportlab>=4.4.10",
     "pillow>=11.0.0",
+    "pytest-cov>=7.1.0",
+    "nbformat>=5.10.4",
 ]
 
 [tool.pytest.ini_options]
@@ -83,7 +89,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--strict-markers -ra --durations=10 --import-mode=importlib"
+addopts = "--strict-markers -ra --durations=10 --import-mode=importlib --cov=. --cov-report=term-missing"
 asyncio_mode = "auto"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -93,3 +99,10 @@ markers = [
     "network: marks tests requiring network access",
     "db: marks tests requiring a real database",
 ]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", ".venv/*"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
