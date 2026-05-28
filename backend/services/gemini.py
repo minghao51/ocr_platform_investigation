@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Any, Optional
 from PIL import Image
 import json
-from .vlm_provider import VLMProvider
+from .vlm_provider import VLMProvider, ExtractionResult, TokenUsage
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class GeminiProvider(VLMProvider):
         schema: Dict[str, Any],
         model: str = "gemini-3-flash-preview",
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         """Process image with Gemini"""
 
         system_instruction = kwargs.pop("system_prompt", None)
@@ -49,8 +49,11 @@ class GeminiProvider(VLMProvider):
 
         # Make API call
         response = await self.client.post(
-            f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
-            headers={"Content-Type": "application/json"},
+            f"{self.BASE_URL}/models/{model}:generateContent",
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.api_key,
+            },
             json=content,
         )
 
@@ -61,69 +64,121 @@ class GeminiProvider(VLMProvider):
         try:
             # Check if candidates exist
             if "candidates" not in result or len(result["candidates"]) == 0:
-                return {
-                    "raw_response": result,
-                    "content": "{}",
-                    "usage": result.get("usageMetadata", {}),
-                    "error": "No candidates in response",
-                }
+                return ExtractionResult(
+                    raw_response=json.dumps(result),
+                    content="{}",
+                    usage=TokenUsage(
+                        prompt_tokens=result.get("usageMetadata", {}).get(
+                            "promptTokenCount", 0
+                        ),
+                        completion_tokens=result.get("usageMetadata", {}).get(
+                            "candidatesTokenCount", 0
+                        ),
+                        total_tokens=result.get("usageMetadata", {}).get(
+                            "totalTokenCount", 0
+                        ),
+                    ),
+                    error="No candidates in response",
+                    success=False,
+                    model=model,
+                )
 
             candidate = result["candidates"][0]
 
             # Check if content exists
             if "content" not in candidate:
-                return {
-                    "raw_response": result,
-                    "content": "{}",
-                    "usage": result.get("usageMetadata", {}),
-                    "error": "No content in candidate",
-                }
+                return ExtractionResult(
+                    raw_response=json.dumps(result),
+                    content="{}",
+                    usage=TokenUsage(
+                        prompt_tokens=result.get("usageMetadata", {}).get(
+                            "promptTokenCount", 0
+                        ),
+                        completion_tokens=result.get("usageMetadata", {}).get(
+                            "candidatesTokenCount", 0
+                        ),
+                        total_tokens=result.get("usageMetadata", {}).get(
+                            "totalTokenCount", 0
+                        ),
+                    ),
+                    error="No content in candidate",
+                    success=False,
+                    model=model,
+                )
 
             content = candidate["content"]
 
             # Check if parts exist
             if "parts" not in content or len(content["parts"]) == 0:
-                return {
-                    "raw_response": result,
-                    "content": "{}",
-                    "usage": result.get("usageMetadata", {}),
-                    "error": "No parts in content",
-                }
+                return ExtractionResult(
+                    raw_response=json.dumps(result),
+                    content="{}",
+                    usage=TokenUsage(
+                        prompt_tokens=result.get("usageMetadata", {}).get(
+                            "promptTokenCount", 0
+                        ),
+                        completion_tokens=result.get("usageMetadata", {}).get(
+                            "candidatesTokenCount", 0
+                        ),
+                        total_tokens=result.get("usageMetadata", {}).get(
+                            "totalTokenCount", 0
+                        ),
+                    ),
+                    error="No parts in content",
+                    success=False,
+                    model=model,
+                )
 
             part = content["parts"][0]
 
             # Check if text exists
             if "text" not in part:
-                return {
-                    "raw_response": result,
-                    "content": "{}",
-                    "usage": result.get("usageMetadata", {}),
-                    "error": f"No text in part. Available keys: {list(part.keys())}",
-                }
+                return ExtractionResult(
+                    raw_response=json.dumps(result),
+                    content="{}",
+                    usage=TokenUsage(
+                        prompt_tokens=result.get("usageMetadata", {}).get(
+                            "promptTokenCount", 0
+                        ),
+                        completion_tokens=result.get("usageMetadata", {}).get(
+                            "candidatesTokenCount", 0
+                        ),
+                        total_tokens=result.get("usageMetadata", {}).get(
+                            "totalTokenCount", 0
+                        ),
+                    ),
+                    error="No text in part",
+                    success=False,
+                    model=model,
+                )
 
             content_text = part["text"]
 
             # Return empty JSON if content is empty
             if not content_text or content_text.strip() == "":
-                logger.warning(
-                    "Empty content received from Gemini model %s", model
-                )
+                logger.warning("Empty content received from Gemini model %s", model)
                 logger.debug("Raw response: %s", result)
                 content_text = "{}"
 
-        except (KeyError, IndexError) as e:
-            return {
-                "raw_response": result,
-                "content": "{}",
-                "usage": result.get("usageMetadata", {}),
-                "error": f"Failed to extract content: {str(e)}",
-            }
+        except (KeyError, IndexError):
+            return ExtractionResult(
+                error="Provider request failed", success=False, model=model
+            )
 
-        return {
-            "raw_response": result,
-            "content": content_text,
-            "usage": result.get("usageMetadata", {}),
-        }
+        return ExtractionResult(
+            content=content_text,
+            raw_response=json.dumps(result),
+            usage=TokenUsage(
+                prompt_tokens=result.get("usageMetadata", {}).get(
+                    "promptTokenCount", 0
+                ),
+                completion_tokens=result.get("usageMetadata", {}).get(
+                    "candidatesTokenCount", 0
+                ),
+                total_tokens=result.get("usageMetadata", {}).get("totalTokenCount", 0),
+            ),
+            model=model,
+        )
 
     def _convert_json_schema_to_gemini(self, schema: Dict[str, Any]) -> Dict[str, Any]:
         """Convert JSON Schema to Gemini's responseSchema format."""
@@ -170,7 +225,7 @@ class GeminiProvider(VLMProvider):
         temperature: float = 0.1,
         max_tokens: int = 4096,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         """Process text with Gemini text-only model"""
         system_instruction = kwargs.pop("system_prompt", None)
 
@@ -187,9 +242,7 @@ class GeminiProvider(VLMProvider):
             )
             generation_config["responseMimeType"] = "text/plain"
         else:
-            prompt_text = (
-                f"{prompt}\n\nDocument text:\n{text}"
-            )
+            prompt_text = f"{prompt}\n\nDocument text:\n{text}"
             generation_config["responseMimeType"] = "application/json"
             generation_config["responseSchema"] = self._convert_json_schema_to_gemini(
                 schema_definition
@@ -206,8 +259,11 @@ class GeminiProvider(VLMProvider):
         try:
             # Make API call
             response = await self.client.post(
-                f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
-                headers={"Content-Type": "application/json"},
+                f"{self.BASE_URL}/models/{model}:generateContent",
+                headers={
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": self.api_key,
+                },
                 json=content,
             )
 
@@ -216,35 +272,28 @@ class GeminiProvider(VLMProvider):
 
             # Extract content with error handling
             if "candidates" not in result or len(result["candidates"]) == 0:
-                return {
-                    "error": "No candidates in response",
-                    "content": None,
-                    "model": model,
-                }
+                return ExtractionResult(
+                    error="No candidates in response",
+                    success=False,
+                    model=model,
+                )
 
             candidate = result["candidates"][0]
             finish_reason = candidate.get("finishReason", "")
 
             if finish_reason == "SAFETY":
-                safety_ratings = candidate.get("safetyRatings", [])
-                blocked_categories = [
-                    r.get("category", "unknown")
-                    for r in safety_ratings
-                    if r.get("probability", "") in ("HIGH", "NEGLIGIBLE")
-                    and r.get("blocked", False)
-                ]
-                return {
-                    "error": f"Response blocked by safety filters. Categories: {blocked_categories or 'unknown'}",
-                    "content": None,
-                    "model": model,
-                }
+                return ExtractionResult(
+                    error="Response blocked by safety filters",
+                    success=False,
+                    model=model,
+                )
 
             if finish_reason == "RECITATION":
-                return {
-                    "error": "Response blocked due to recitation policy",
-                    "content": None,
-                    "model": model,
-                }
+                return ExtractionResult(
+                    error="Response blocked due to recitation policy",
+                    success=False,
+                    model=model,
+                )
 
             if finish_reason == "MAX_TOKENS":
                 if "content" in candidate and "parts" in candidate["content"]:
@@ -260,10 +309,15 @@ class GeminiProvider(VLMProvider):
                             "generationConfig": generation_config,
                         }
                         if system_instruction:
-                            retry_payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+                            retry_payload["systemInstruction"] = {
+                                "parts": [{"text": system_instruction}]
+                            }
                         retry_response = await self.client.post(
-                            f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}",
-                            headers={"Content-Type": "application/json"},
+                            f"{self.BASE_URL}/models/{model}:generateContent",
+                            headers={
+                                "Content-Type": "application/json",
+                                "x-goog-api-key": self.api_key,
+                            },
                             json=retry_payload,
                         )
                         retry_response.raise_for_status()
@@ -284,75 +338,81 @@ class GeminiProvider(VLMProvider):
                                     "text"
                                 ]
                                 if retry_finish != "MAX_TOKENS" and retry_text.strip():
-                                    return {
-                                        "content": retry_text,
-                                        "model": model,
-                                        "usage": {
-                                            "prompt_tokens": retry_result.get(
+                                    return ExtractionResult(
+                                        content=retry_text,
+                                        model=model,
+                                        usage=TokenUsage(
+                                            prompt_tokens=retry_result.get(
                                                 "usageMetadata", {}
                                             ).get("promptTokenCount", 0),
-                                            "completion_tokens": retry_result.get(
+                                            completion_tokens=retry_result.get(
                                                 "usageMetadata", {}
                                             ).get("candidatesTokenCount", 0),
-                                            "total_tokens": retry_result.get(
+                                            total_tokens=retry_result.get(
                                                 "usageMetadata", {}
                                             ).get("totalTokenCount", 0),
-                                        },
-                                    }
-                return {
-                    "error": f"Response truncated (hit max_tokens={max_tokens}). Try reducing schema complexity or increasing max_tokens.",
-                    "content": content_text if content_text else None,
-                    "model": model,
-                }
+                                        ),
+                                    )
+                return ExtractionResult(
+                    error=f"Response truncated (hit max_tokens={max_tokens})",
+                    success=False,
+                    model=model,
+                )
 
             if "content" not in candidate:
-                return {
-                    "error": "No content in candidate",
-                    "content": None,
-                    "model": model,
-                }
+                return ExtractionResult(
+                    error="No content in candidate",
+                    success=False,
+                    model=model,
+                )
 
             content_obj = candidate["content"]
 
             if "parts" not in content_obj or len(content_obj["parts"]) == 0:
-                return {"error": "No parts in content", "content": None, "model": model}
+                return ExtractionResult(
+                    error="No parts in content",
+                    success=False,
+                    model=model,
+                )
 
             part = content_obj["parts"][0]
 
             if "text" not in part:
-                return {
-                    "error": f"No text in part. Available keys: {list(part.keys())}",
-                    "content": None,
-                    "model": model,
-                }
+                return ExtractionResult(
+                    error="No text in part",
+                    success=False,
+                    model=model,
+                )
 
             content_text = part["text"]
 
             if not content_text or content_text.strip() == "":
-                return {
-                    "error": "Empty content received",
-                    "content": None,
-                    "model": model,
-                }
+                return ExtractionResult(
+                    error="Empty content received",
+                    success=False,
+                    model=model,
+                )
 
-            return {
-                "content": content_text,
-                "model": model,
-                "usage": {
-                    "prompt_tokens": result.get("usageMetadata", {}).get(
+            return ExtractionResult(
+                content=content_text,
+                model=model,
+                usage=TokenUsage(
+                    prompt_tokens=result.get("usageMetadata", {}).get(
                         "promptTokenCount", 0
                     ),
-                    "completion_tokens": result.get("usageMetadata", {}).get(
+                    completion_tokens=result.get("usageMetadata", {}).get(
                         "candidatesTokenCount", 0
                     ),
-                    "total_tokens": result.get("usageMetadata", {}).get(
+                    total_tokens=result.get("usageMetadata", {}).get(
                         "totalTokenCount", 0
                     ),
-                },
-            }
+                ),
+            )
 
-        except Exception as e:
-            return {"error": str(e), "content": None, "model": model}
+        except Exception:
+            return ExtractionResult(
+                error="Provider request failed", success=False, model=model
+            )
 
     def get_default_image_size(self) -> tuple[int, int]:
         return (1024, 1024)

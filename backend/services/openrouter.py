@@ -1,7 +1,8 @@
 from typing import Dict, Any, Optional
 from PIL import Image
 import json
-from .vlm_provider import VLMProvider
+import asyncio
+from .vlm_provider import VLMProvider, ExtractionResult, TokenUsage
 
 
 class OpenRouterProvider(VLMProvider):
@@ -16,7 +17,7 @@ class OpenRouterProvider(VLMProvider):
         schema: Dict[str, Any],
         model: str = "qwen/qwen3.5-flash-02-23",
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         """Process image with OpenRouter"""
 
         system_prompt = kwargs.pop("system_prompt", None)
@@ -59,28 +60,57 @@ class OpenRouterProvider(VLMProvider):
             "max_tokens": kwargs.get("max_tokens", 4096),
         }
 
-        response = await self._call_with_fallback(payload)
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
+        try:
+            response = await self._call_with_fallback(payload)
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
 
-        return {
-            "raw_response": result,
-            "content": content,
-            "usage": result.get("usage", {}),
-        }
+            return ExtractionResult(
+                content=content,
+                raw_response=json.dumps(result),
+                usage=TokenUsage(
+                    prompt_tokens=result.get("usage", {}).get("prompt_tokens", 0),
+                    completion_tokens=result.get("usage", {}).get(
+                        "completion_tokens", 0
+                    ),
+                    total_tokens=result.get("usage", {}).get("total_tokens", 0),
+                ),
+                model=model,
+            )
+        except Exception:
+            return ExtractionResult(
+                error="Provider request failed", success=False, model=model
+            )
+
+    async def _call_with_retry(self, url, payload, headers, max_retries=3):
+        for attempt in range(max_retries):
+            response = await self.client.post(url, json=payload, headers=headers)
+            if response.status_code == 200:
+                return response
+            elif response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", 2**attempt))
+                await asyncio.sleep(min(retry_after, 30))
+            elif response.status_code in (500, 502, 503, 504):
+                await asyncio.sleep(2**attempt)
+            elif response.status_code in (400, 422):
+                break
+            else:
+                break
+        return response
 
     async def _call_with_fallback(self, payload: dict) -> Any:
         """
         Try json_schema mode first, fall back to json_object, then plain prompt.
+        Uses retry with backoff for transient failures.
         """
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
         # Attempt 1: Full JSON Schema
-        response = await self.client.post(
-            f"{self.BASE_URL}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
+        response = await self._call_with_retry(
+            f"{self.BASE_URL}/chat/completions", payload, headers
         )
 
         if response.status_code == 200:
@@ -95,13 +125,8 @@ class OpenRouterProvider(VLMProvider):
                 "temperature": payload.get("temperature", 0.1),
                 "max_tokens": payload.get("max_tokens", 4096),
             }
-            response = await self.client.post(
-                f"{self.BASE_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=fallback_payload,
+            response = await self._call_with_retry(
+                f"{self.BASE_URL}/chat/completions", fallback_payload, headers
             )
             if response.status_code == 200:
                 return response
@@ -113,13 +138,8 @@ class OpenRouterProvider(VLMProvider):
             "temperature": payload.get("temperature", 0.1),
             "max_tokens": payload.get("max_tokens", 4096),
         }
-        response = await self.client.post(
-            f"{self.BASE_URL}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json=plain_payload,
+        response = await self._call_with_retry(
+            f"{self.BASE_URL}/chat/completions", plain_payload, headers
         )
         response.raise_for_status()
         return response
@@ -133,7 +153,7 @@ class OpenRouterProvider(VLMProvider):
         temperature: float = 0.1,
         max_tokens: int = 4096,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         """Process text with OpenRouter text-only model"""
         system_prompt_override = kwargs.pop("system_prompt", None)
 
@@ -180,18 +200,20 @@ class OpenRouterProvider(VLMProvider):
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
-            return {
-                "content": content,
-                "model": model,
-                "usage": {
-                    "prompt_tokens": result["usage"]["prompt_tokens"],
-                    "completion_tokens": result["usage"]["completion_tokens"],
-                    "total_tokens": result["usage"]["total_tokens"],
-                },
-            }
+            return ExtractionResult(
+                content=content,
+                model=model,
+                usage=TokenUsage(
+                    prompt_tokens=result["usage"]["prompt_tokens"],
+                    completion_tokens=result["usage"]["completion_tokens"],
+                    total_tokens=result["usage"]["total_tokens"],
+                ),
+            )
 
-        except Exception as e:
-            return {"error": str(e), "content": None, "model": model}
+        except Exception:
+            return ExtractionResult(
+                error="Provider request failed", success=False, model=model
+            )
 
     def get_default_image_size(self) -> tuple[int, int]:
         return (1024, 1024)

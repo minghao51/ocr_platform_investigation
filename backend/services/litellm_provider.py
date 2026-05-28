@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional
 from PIL import Image
 import json
 import litellm
-from .vlm_provider import VLMProvider
+from .vlm_provider import VLMProvider, ExtractionResult, TokenUsage
 
 
 class LiteLLMProvider(VLMProvider):
@@ -23,7 +23,7 @@ class LiteLLMProvider(VLMProvider):
         schema: Dict[str, Any],
         model: str = "openrouter/google/gemma-4-31b-it",
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         litellm_model = self._resolve_model(model)
 
         messages = [
@@ -58,17 +58,22 @@ class LiteLLMProvider(VLMProvider):
 
             content = response.choices[0].message.content
 
-            return {
-                "raw_response": response.model_dump(),
-                "content": content,
-                "usage": {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                },
-            }
-        except Exception as e:
-            return {"error": str(e), "content": None, "model": model}
+            return ExtractionResult(
+                raw_response=response.model_dump()
+                if hasattr(response, "model_dump")
+                else None,
+                content=content,
+                usage=TokenUsage(
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens,
+                ),
+                model=model,
+            )
+        except Exception:
+            return ExtractionResult(
+                error="Provider request failed", success=False, model=model
+            )
 
     async def process_text(
         self,
@@ -79,7 +84,7 @@ class LiteLLMProvider(VLMProvider):
         temperature: float = 0.1,
         max_tokens: int = 4096,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult:
         litellm_model = self._resolve_model(model)
 
         system_prompt_override = kwargs.pop("system_prompt", None)
@@ -104,8 +109,7 @@ class LiteLLMProvider(VLMProvider):
         user_content = f"{prompt}\n\nDocument text:\n{text}"
         if schema_definition is not None:
             user_content += (
-                "\n\nTarget JSON schema:\n"
-                f"{json.dumps(schema_definition, indent=2)}"
+                f"\n\nTarget JSON schema:\n{json.dumps(schema_definition, indent=2)}"
             )
         messages[1]["content"] = user_content
 
@@ -124,18 +128,20 @@ class LiteLLMProvider(VLMProvider):
 
             content = response.choices[0].message.content
 
-            return {
-                "content": content,
-                "model": model,
-                "usage": {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                },
-            }
+            return ExtractionResult(
+                content=content,
+                model=model,
+                usage=TokenUsage(
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens,
+                ),
+            )
 
-        except Exception as e:
-            return {"error": str(e), "content": None, "model": model}
+        except Exception:
+            return ExtractionResult(
+                error="Provider request failed", success=False, model=model
+            )
 
     async def _call_litellm(
         self,
@@ -181,7 +187,9 @@ class LiteLLMProvider(VLMProvider):
 
     @staticmethod
     def _resolve_model(model: str) -> str:
-        if "/" in model and not model.startswith(("openrouter/", "gemini/", "openai/", "anthropic/")):
+        if "/" in model and not model.startswith(
+            ("openrouter/", "gemini/", "openai/", "anthropic/")
+        ):
             return f"openrouter/{model}"
         return model
 

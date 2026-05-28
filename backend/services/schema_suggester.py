@@ -104,10 +104,10 @@ class SchemaSuggestionService:
                 model=model,
             )
 
-        if "error" in result:
-            raise ValueError(result["error"])
+        if result.error:
+            raise ValueError(result.error)
 
-        payload = json.loads(result["content"])
+        payload = json.loads(result.content)
         schema_definition = payload.get("schema_definition") or {}
         if schema_definition.get("type") != "object":
             schema_definition["type"] = "object"
