@@ -1,6 +1,6 @@
 # OCR Platform — Overview
 
-Document processing platform that uploads files (PDFs, images, audio), routes them through intelligent pipelines (local docling, VLM providers, text extraction), and returns structured JSON. Supports human-in-the-loop corrections and automated benchmarking to compare provider accuracy/cost.
+Document processing platform that uploads files (PDFs, images, and text-based office documents), routes them through intelligent pipelines (local docling, VLM providers, text extraction), and returns structured JSON. Supports human-in-the-loop corrections and automated benchmarking to compare provider accuracy/cost.
 
 ## Architecture
 
@@ -67,7 +67,7 @@ User → React SPA (Vite) → FastAPI (uvicorn) → SQLite
 | VLM clients | httpx | 0.28.0 | Custom provider wrappers |
 | LiteLLM | litellm | >=1.81.0 | Unified provider interface |
 | Image processing | Pillow, opencv-python-headless | >=11.0.0 / >=4.9.0 | Quality gate, preprocessing |
-| Audio transcription | — | — | Via VLM providers |
+| Audio transcription | Unsupported | — | Audio uploads are not currently exposed in the product surface |
 | Testing (backend) | pytest | >=7.4.0 | pytest-asyncio, pytest-mock |
 | Testing (frontend) | Vitest + Playwright | ^2.1.9, ^1.55.0 | Unit + E2E |
 | Linting | ruff, ESLint, prettier | — | pre-commit hooks |

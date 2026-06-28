@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from database import crud
 from services.image_service import ImageService
 from services.image_preprocessor import ImagePreprocessor
+from services.provider_catalog import create_provider
 from services.quality_gate import QualityGate
 from services.schema_service import SchemaService
 from services.processing_utils import parse_and_validate_response
@@ -283,14 +284,7 @@ class VisionProcessor(Processor):
         prompt: str,
         **kwargs,
     ) -> Dict[str, Any]:
-        from services.provider_utils import resolve_provider_api_key
-        from services.provider_catalog import get_provider
-
-        api_key = resolve_provider_api_key(provider_name)
-        if not api_key:
-            raise ValueError(f"No API key configured for {provider_name}")
-
-        provider = await get_provider(provider_name, api_key)
+        provider = create_provider(provider_name)
 
         async with provider:
             if file_type == "image":

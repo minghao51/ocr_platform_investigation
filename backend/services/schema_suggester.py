@@ -2,9 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from services.gemini import GeminiProvider
-from services.openrouter import OpenRouterProvider
-from services.litellm_provider import LiteLLMProvider
+from services.provider_catalog import create_provider
 from services.provider_utils import choose_default_provider_model
 from services.text_extraction import TextExtractionService
 
@@ -12,11 +10,6 @@ from services.text_extraction import TextExtractionService
 class SchemaSuggestionService:
     def __init__(self) -> None:
         self.text_extraction = TextExtractionService()
-        self.providers = {
-            "gemini": GeminiProvider,
-            "openrouter": OpenRouterProvider,
-            "litellm": LiteLLMProvider,
-        }
 
     def _build_response_schema(self) -> Dict[str, Any]:
         return {
@@ -89,11 +82,10 @@ class SchemaSuggestionService:
         if not provider_name or not model:
             provider_name, model = choose_default_provider_model()
 
-        provider_class = self.providers[provider_name]
         response_schema = self._build_response_schema()
         prompt = self._build_prompt(self._collect_file_descriptions(file_records))
 
-        async with provider_class(api_key) as provider:
+        async with create_provider(provider_name, api_key=api_key) as provider:
             result = await provider.process_text(
                 text=prompt,
                 prompt=(

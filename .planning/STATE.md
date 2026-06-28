@@ -41,7 +41,7 @@ Last updated: 2026-05-12
 | Guest tokens for unauthenticated upload | Full | Full | `routers/upload.py:33`, `components/LoginPanel.tsx` |
 | Demo daily request limits | Full | N/A | `dependencies.py:118` |
 | Rate limiting (slowapi) | Full | Partial | `limiter.py` — frontend shows alert but no per-endpoint throttling UI |
-| Admin-only routes (analytics, benchmarks) | Full | Partial | Endpoints exist, frontend shows them to all users (empty data for non-admin) |
+| Admin-only routes (analytics, benchmarks) | Full | Full | Endpoints are admin-gated and the frontend now redirects non-admin users away from benchmark surfaces |
 | **WebSocket** | | | |
 | Ticket-based WebSocket auth | Full | Full | `routers/websocket.py:27` exchanges JWT for short-lived ticket |
 | Real-time job status broadcast | Full | Full | `routers/websocket.py:109`, `lib/websocket.ts` |

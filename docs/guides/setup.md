@@ -20,7 +20,7 @@ cp .env.example .env
 
 Important variables:
 
-- `NEBIUS_API_KEY`, `OPENROUTER_API_KEY`, or `GEMINI_API_KEY`
+- `OPENROUTER_API_KEY` or `GEMINI_API_KEY`
 - `JWT_SECRET_KEY`
 - `CORS_ORIGINS` or `CORS_ORIGINS_STR`
 - `DATABASE_URL` if you want to override the default SQLite path
@@ -30,7 +30,7 @@ Important variables:
 Generate a JWT secret with:
 
 ```bash
-python -c "import secrets; print(secrets.token_hex(32))"
+uv run python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
 ## 2. Create an Admin User
@@ -38,14 +38,14 @@ python -c "import secrets; print(secrets.token_hex(32))"
 The app requires login for uploads and history access.
 
 ```bash
-uv run python -m backend.cli create-admin admin your-password
+uv run -m backend.cli create-admin admin your-password
 ```
 
 Optional:
 
 ```bash
-uv run python -m backend.cli create-demo testuser testpass
-uv run python -m backend.cli list-users
+uv run -m backend.cli create-demo testuser testpass
+uv run -m backend.cli list-users
 ```
 
 ## 3. Run with Docker
@@ -58,9 +58,9 @@ docker compose up --build
 
 Open:
 
-- App: `http://localhost:8000`
-- Health check: `http://localhost:8000/health`
-- OpenAPI docs: `http://localhost:8000/docs`
+- App: `http://localhost:8001`
+- Health check: `http://localhost:8001/health`
+- OpenAPI docs: `http://localhost:8001/docs`
 
 ## 4. Run Locally
 
@@ -68,7 +68,7 @@ Backend:
 
 ```bash
 cd backend
-uv run uvicorn main:app --reload --port 8000
+uv run uvicorn main:app --reload --port 8001
 ```
 
 Frontend:
@@ -82,7 +82,7 @@ npm run dev
 Open:
 
 - Frontend dev server: `http://localhost:5173`
-- Backend API: `http://localhost:8000`
+- Backend API: `http://localhost:8001`
 
 ## 5. Verify the App
 

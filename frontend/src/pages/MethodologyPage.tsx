@@ -544,7 +544,7 @@ export default function MethodologyPage() {
                             <div>
                                 <h4 className="font-medium text-blue-900 mb-1">Hybrid Pipeline</h4>
                                 <ul className="text-blue-700 space-y-1">
-                                    <li>• <strong>Tool:</strong> PaddleOCR + VLM</li>
+                                    <li>• <strong>Tool:</strong> PyMuPDF layout context + VLM</li>
                                     <li>• <strong>Speed:</strong> 1-3s</li>
                                     <li>• <strong>Accuracy:</strong> 96-98%</li>
                                     <li>• <strong>Best:</strong> Mixed content</li>

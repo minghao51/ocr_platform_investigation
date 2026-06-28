@@ -65,13 +65,13 @@ The following test fixtures have been created for testing:
 
 ### 2. Transcription Mode
 
-#### Audio File Processing
-- [ ] Upload an audio file (MP3/WAV)
+#### Document Transcription
+- [ ] Upload a document file (DOCX/PPTX/TXT/MD/HTML)
 - [ ] Select "Transcription" mode
 - [ ] Verify transcription process starts
 - [ ] Check that transcription produces Markdown output (not JSON)
 - [ ] Verify Markdown viewer displays transcription correctly
-- [ ] Test with different audio lengths (short, medium, long)
+- [ ] Test with documents of different lengths (short, medium, long)
 - [ ] Verify transcription accuracy is acceptable
 
 #### Transcription Output Format

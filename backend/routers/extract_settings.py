@@ -1,61 +1,45 @@
 from fastapi import APIRouter
 from typing import Any, Dict, List
+from extraction_methods import (
+    AVAILABLE_METHODS_BY_FILE_TYPE,
+    DEFAULT_METHOD_BY_FILE_TYPE,
+    PROVIDER_REQUIRED_METHODS,
+    list_extraction_methods,
+)
+from models.schemas import (
+    MAX_PROMPT_LENGTH,
+    MAX_TOKENS_LIMIT,
+    PROCESSING_DEFAULT_MAX_TOKENS,
+    PROCESSING_DEFAULT_QUALITY_THRESHOLD,
+    PROCESSING_DEFAULT_TEMPERATURE,
+)
 from services.schema_service import SchemaService
 from services.provider_catalog import list_provider_catalog
 
 router = APIRouter(prefix="/api/extract", tags=["extract-settings"])
 
-EXTRACTION_METHODS: List[Dict[str, Any]] = [
-    {
-        "id": "auto",
-        "name": "Auto",
-        "description": "Automatically selects the best extraction method.",
-    },
-    {
-        "id": "text",
-        "name": "Text",
-        "description": "Fast text extraction from digital PDFs.",
-    },
-    {
-        "id": "vision",
-        "name": "Vision",
-        "description": "Uses AI vision models for scanned documents and images.",
-    },
-    {
-        "id": "hybrid",
-        "name": "Hybrid",
-        "description": "Combines text extraction and vision processing.",
-    },
-    {
-        "id": "docling-parse",
-        "name": "PyMuPDF Parse",
-        "description": "PyMuPDF parsing then LLM structuring. Cost-sensitive.",
-    },
-    {
-        "id": "docling-extract",
-        "name": "Docling Extract",
-        "description": "Best accuracy (86%). Local VLM, free, private.",
-    },
-    {
-        "id": "transcription",
-        "name": "Transcription",
-        "description": "Full document transcription to Markdown.",
-    },
-]
-
 PROCESSING_DEFAULTS: Dict[str, Any] = {
-    "temperature": {"default": 0.1, "min": 0.0, "max": 2.0, "step": 0.1},
-    "max_tokens": {"default": 8192, "min": 256, "max": 65536, "step": 1},
-    "quality_threshold": {"default": 40, "min": 0, "max": 80, "step": 5},
+    "temperature": {
+        "default": PROCESSING_DEFAULT_TEMPERATURE,
+        "min": 0.0,
+        "max": 2.0,
+        "step": 0.1,
+    },
+    "max_tokens": {
+        "default": PROCESSING_DEFAULT_MAX_TOKENS,
+        "min": 256,
+        "max": MAX_TOKENS_LIMIT,
+        "step": 1,
+    },
+    "quality_threshold": {
+        "default": PROCESSING_DEFAULT_QUALITY_THRESHOLD,
+        "min": 0,
+        "max": 80,
+        "step": 5,
+    },
     "auto_preprocess": {"default": True},
     "skip_quality": {"default": False},
-    "prompt_max_length": 2000,
-}
-
-FILE_TYPE_METHODS: Dict[str, str] = {
-    "application/pdf": "docling-extract",
-    "image/*": "docling-extract",
-    "audio/*": "transcription",
+    "prompt_max_length": MAX_PROMPT_LENGTH,
 }
 
 SCHEMA_MODES: List[Dict[str, Any]] = [
@@ -72,9 +56,11 @@ async def get_extract_settings():
 
     return {
         "providers": providers,
-        "extraction_methods": EXTRACTION_METHODS,
+        "extraction_methods": list_extraction_methods(),
+        "provider_required_methods": list(PROVIDER_REQUIRED_METHODS),
         "schema_modes": SCHEMA_MODES,
         "schema_templates": {name: tpl for name, tpl in templates.items()},
         "defaults": PROCESSING_DEFAULTS,
-        "file_type_methods": FILE_TYPE_METHODS,
+        "file_type_methods": DEFAULT_METHOD_BY_FILE_TYPE,
+        "available_methods_by_file_type": AVAILABLE_METHODS_BY_FILE_TYPE,
     }

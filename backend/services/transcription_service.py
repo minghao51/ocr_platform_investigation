@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,10 @@ Return ONLY the Markdown, no additional commentary."""
         markdown: str,
         provider,
         model: str,
+        prompt: Optional[str] = None,
         temperature: float = 0.1,
         max_tokens: int = 16384,
+        system_prompt: Optional[str] = None,
     ) -> str:
         """
         Transcribe document to clean Markdown.
@@ -51,19 +53,28 @@ Return ONLY the Markdown, no additional commentary."""
             Exception: If provider call fails
         """
         try:
-            result = await provider.process_text(
-                text=markdown,
-                prompt=self.prompt,
-                schema_definition=None,  # No schema for transcription
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+            request_kwargs: dict[str, Any] = {
+                "text": markdown,
+                "prompt": prompt or self.prompt,
+                "schema_definition": None,
+                "model": model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+            if system_prompt:
+                request_kwargs["system_prompt"] = system_prompt
 
-            if "error" in result:
-                raise Exception(f"Provider error: {result['error']}")
+            result = await provider.process_text(**request_kwargs)
 
-            content = result.get("content", "")
+            if isinstance(result, dict):
+                error = result.get("error")
+                content = result.get("content", "")
+            else:
+                error = getattr(result, "error", None)
+                content = getattr(result, "content", "")
+
+            if error:
+                raise Exception(f"Provider error: {error}")
 
             if not content:
                 raise Exception("Empty transcription result")

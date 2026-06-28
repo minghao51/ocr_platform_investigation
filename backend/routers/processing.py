@@ -1,7 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Optional
 import os
-from models.schemas import ProcessRequest, ProcessResponse, EXTRACTION_METHODS
+from extraction_methods import (
+    EXTRACTION_METHODS,
+    requires_provider_model,
+    supports_raw_output,
+)
+from models.schemas import ProcessRequest, ProcessResponse
 from database import crud
 from services.document_classifier import DocumentClassifier
 from services.job_queue import enqueue_processing_task
@@ -11,7 +16,7 @@ from dependencies import (
 )
 from limiter import limiter, get_rate_limit_value
 from routers.job_serialization import serialize_job
-from routers.shared import ensure_file_access, ensure_job_access
+from routers.shared import ensure_file_access, get_accessible_job
 from services.provider_utils import has_provider_api_key
 import json
 import logging
@@ -23,20 +28,12 @@ router = APIRouter(prefix="/api/process", tags=["processing"])
 LOCAL_PROVIDER = "docling-local"
 
 
-def _requires_provider_model(processing_method: str) -> bool:
-    return processing_method != "docling-extract"
-
-
-def _supports_raw_output(processing_method: str) -> bool:
-    return processing_method == "docling-parse"
-
-
 def _should_execute_inline_for_tests(
     processing_method: str, provider: str | None
 ) -> bool:
     if not os.getenv("PYTEST_CURRENT_TEST"):
         return False
-    if not _requires_provider_model(processing_method):
+    if not requires_provider_model(processing_method):
         return True
     return bool(provider) and has_provider_api_key(provider)
 
@@ -66,7 +63,7 @@ async def process_document(
       * Direct schema extraction, no cloud API needed
       * Best accuracy (86%), free, private
       * Use for: Accuracy-critical, privacy-sensitive, high-volume
-    - "transcription": Force audio transcription mode (schema optional)
+    - "transcription": Force document transcription to Markdown (schema optional)
     """
     if current_user is not None:
         current_user = await check_and_increment_daily_limit(current_user)
@@ -91,8 +88,6 @@ async def process_document(
         file_type = "image"
     elif file_extension == ".pdf":
         file_type = "pdf"
-    elif file_extension in {".mp3", ".wav", ".m4a", ".ogg", ".flac"}:
-        file_type = "audio"
     else:
         file_type = "document"
 
@@ -138,10 +133,6 @@ async def process_document(
             processing_method = "vision"
             classification_info = {"reasoning": "Image file, using vision processing"}
             document_type = "image"
-        elif file_type == "audio":
-            processing_method = "transcription"
-            classification_info = {"reasoning": "Audio file, using transcription"}
-            document_type = "audio"
         else:
             processing_method = "docling-parse"
             classification_info = {
@@ -161,11 +152,6 @@ async def process_document(
         logger.info("Overriding extraction_method to 'docling-extract' for image file")
         processing_method = "docling-extract"
 
-    # For audio, force transcription
-    if file_type == "audio" and processing_method != "transcription":
-        logger.info("Overriding extraction_method to 'transcription' for audio file")
-        processing_method = "transcription"
-
     if file_type == "document" and processing_method in {"text", "vision", "hybrid"}:
         raise HTTPException(
             status_code=400,
@@ -181,7 +167,7 @@ async def process_document(
         )
 
     schema_mode = payload.schema_mode or "auto-detect"
-    if schema_mode == "raw" and not _supports_raw_output(processing_method):
+    if schema_mode == "raw" and not supports_raw_output(processing_method):
         raise HTTPException(
             status_code=400,
             detail=(
@@ -190,8 +176,8 @@ async def process_document(
             ),
         )
 
-    requires_provider_model = _requires_provider_model(processing_method)
-    if requires_provider_model and (not payload.provider or not payload.model):
+    provider_required = requires_provider_model(processing_method)
+    if provider_required and (not payload.provider or not payload.model):
         raise HTTPException(
             status_code=400,
             detail=(
@@ -227,8 +213,8 @@ async def process_document(
     # Create job
     user_id = current_user.get("user_id") if current_user else None
     job_guest_token = guest_token if user_id is None else None
-    job_provider = payload.provider if requires_provider_model else LOCAL_PROVIDER
-    job_model = payload.model if requires_provider_model else processing_method
+    job_provider = payload.provider if provider_required else LOCAL_PROVIDER
+    job_model = payload.model if provider_required else processing_method
     job_id = await crud.create_job(
         file_name=file_record["original_filename"],
         file_type=file_type,
@@ -304,15 +290,6 @@ async def process_document(
 
 @router.get("/status/{job_id}")
 async def get_job_status(
-    job_id: int,
-    request: Request,
-    current_user: dict | None = Depends(get_optional_user),
+    job: dict = Depends(get_accessible_job),
 ):
-    """Get processing job status"""
-
-    job = await crud.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    ensure_job_access(job, current_user, request.headers.get("X-Guest-Token"))
-
     return serialize_job(job)

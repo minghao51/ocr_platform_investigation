@@ -55,7 +55,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Open `http://localhost:8000`.
+Open `http://localhost:8001`.
 
 This Compose file is now tuned for demo/staging use: it runs the built app in one container and persists only `./data`.
 
@@ -66,7 +66,7 @@ Terminal 1:
 ```bash
 cp .env.example .env
 cd backend
-uv run uvicorn main:app --reload --port 8000
+uv run uvicorn main:app --reload --port 8001
 ```
 
 Terminal 2:
@@ -83,7 +83,6 @@ Open `http://localhost:5173`.
 
 At least one provider key is required:
 
-- `NEBIUS_API_KEY`
 - `OPENROUTER_API_KEY`
 - `GEMINI_API_KEY`
 
@@ -110,9 +109,9 @@ Administrative commands live in [backend/cli.py](/Users/minghao/Desktop/personal
 Examples:
 
 ```bash
-uv run python -m backend.cli create-admin admin strong-password
-uv run python -m backend.cli create-demo guest1 guest-password
-uv run python -m backend.cli list-users
+uv run -m backend.cli create-admin admin strong-password
+uv run -m backend.cli create-demo guest1 guest-password
+uv run -m backend.cli list-users
 ```
 
 ## Documentation

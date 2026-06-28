@@ -2,7 +2,7 @@ import aiosqlite
 import json
 from typing import Optional, Dict, Any
 from database.pool import connect
-from database.crud import _loads_if_json
+from database.crud._shared import loads_if_json
 
 
 async def enqueue_job(
@@ -65,7 +65,7 @@ async def claim_next_queued_job(worker_id: str) -> Optional[Dict[str, Any]]:
             return None
 
         item = dict(row)
-        item["payload"] = _loads_if_json(item.get("payload")) or {}
+        item["payload"] = loads_if_json(item.get("payload")) or {}
         return item
 
 

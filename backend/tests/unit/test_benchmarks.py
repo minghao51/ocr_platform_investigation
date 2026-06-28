@@ -34,18 +34,32 @@ def test_list_benchmark_runs_passes_filters_to_crud():
 def test_compare_models_returns_latest_run_per_model_and_respects_limit():
     mock_comparison = [
         {
+            "run_id": 4,
             "provider": "openrouter",
             "model": "qwen/qwen3.5-flash-02-23",
             "processing_method": "vision",
-            "avg_accuracy": 0.7,
-            "run_count": 1,
+            "sample_count": 25,
+            "overall_accuracy": 0.7,
+            "avg_latency": 1.2,
+            "total_cost": 0.42,
+            "total_prompt_tokens": 1000,
+            "total_completion_tokens": 500,
+            "success_rate": 1.0,
+            "started_at": "2026-06-01T00:00:00",
         },
         {
+            "run_id": 3,
             "provider": "gemini",
             "model": "gemini-2.5-flash-lite",
-            "processing_method": "vision",
-            "avg_accuracy": 0.61,
-            "run_count": 2,
+            "processing_method": "docling-parse",
+            "sample_count": 20,
+            "overall_accuracy": 0.61,
+            "avg_latency": 0.9,
+            "total_cost": 0.31,
+            "total_prompt_tokens": 800,
+            "total_completion_tokens": 450,
+            "success_rate": 0.95,
+            "started_at": "2026-05-31T00:00:00",
         },
     ]
 
@@ -63,4 +77,6 @@ def test_compare_models_returns_latest_run_per_model_and_respects_limit():
         data = response.json()
         assert len(data["runs"]) == 1
         assert data["runs"][0]["provider"] == "openrouter"
+        assert data["runs"][0]["run_id"] == 4
+        assert data["runs"][0]["processing_method"] == "vision"
         mock_compare.assert_awaited_once_with(dataset="cord", limit=1)

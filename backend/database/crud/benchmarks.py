@@ -190,16 +190,44 @@ async def get_model_comparison(
 
         cursor = await db.execute(
             f"""
+            WITH ranked_runs AS (
+                SELECT
+                    br.id AS run_id,
+                    br.provider,
+                    br.model,
+                    br.processing_method,
+                    br.sample_count,
+                    br.overall_accuracy,
+                    br.avg_latency,
+                    br.total_cost,
+                    br.total_prompt_tokens,
+                    br.total_completion_tokens,
+                    br.started_at,
+                    stats.success_rate,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY br.provider, br.model, COALESCE(br.processing_method, '')
+                        ORDER BY COALESCE(br.completed_at, br.started_at) DESC, br.id DESC
+                    ) AS row_num
+                FROM benchmark_runs br
+                {_SUCCESS_RATE_SQL}
+                WHERE {where_sql}
+            )
             SELECT
-                br.provider,
-                br.model,
-                br.processing_method,
-                AVG(br.overall_accuracy) AS avg_accuracy,
-                COUNT(*) AS run_count
-            FROM benchmark_runs br
-            WHERE {where_sql}
-            GROUP BY br.provider, br.model
-            ORDER BY avg_accuracy DESC
+                run_id,
+                provider,
+                model,
+                processing_method,
+                sample_count,
+                overall_accuracy,
+                avg_latency,
+                total_cost,
+                total_prompt_tokens,
+                total_completion_tokens,
+                success_rate,
+                started_at
+            FROM ranked_runs
+            WHERE row_num = 1
+            ORDER BY overall_accuracy DESC
             LIMIT ?
             """,
             params,

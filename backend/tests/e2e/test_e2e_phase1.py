@@ -315,64 +315,17 @@ class TestLargeDocumentChunking:
 
 
 class TestTranscriptionMode:
-    """Test transcription mode produces Markdown, not JSON."""
+    """Test current document transcription behavior."""
 
     @pytest.fixture
     def transcription_service(self):
         """Provide TranscriptionService instance."""
         return TranscriptionService()
 
-    @pytest.fixture
-    def sample_audio(self, tmp_path):
-        """Create a sample audio file for testing."""
-        try:
-            import wave
-            import struct
-
-            file_path = tmp_path / "sample_audio.wav"
-
-            # Create a simple WAV file
-            with wave.open(str(file_path), "w") as wav_file:
-                wav_file.setnchannels(1)  # Mono
-                wav_file.setsampwidth(2)  # 2 bytes per sample
-                wav_file.setframerate(44100)  # 44.1kHz
-
-                # Write 1 second of silence
-                num_frames = 44100
-                data = struct.pack("<" + "h" * num_frames, *[0] * num_frames)
-                wav_file.writeframes(data)
-
-            return str(file_path)
-        except ImportError:
-            pytest.skip("wave module not available")
-
     def test_transcription_service_exists(self, transcription_service):
         """Test that TranscriptionService can be instantiated."""
         assert transcription_service is not None
         assert hasattr(transcription_service, "transcribe")
-
-    def test_transcription_returns_markdown(self, transcription_service, sample_audio):
-        """Test that transcription returns Markdown text, not JSON."""
-        # Note: This test may fail if transcription service is not fully configured
-        try:
-            result = transcription_service.transcribe(sample_audio)
-
-            # Should return a dict with success and text
-            assert isinstance(result, dict)
-            assert "success" in result
-
-            if result["success"]:
-                # Text should be markdown/string, not JSON
-                assert "text" in result
-                assert isinstance(result["text"], str)
-
-                # Verify it's not JSON format
-                text = result["text"]
-                assert not text.startswith("{")
-                assert not text.startswith("[")
-        except Exception as e:
-            # Transcription might not be configured
-            pytest.skip(f"Transcription not configured: {e}")
 
     def test_transcription_not_json_schema(self):
         """Test that transcription mode doesn't require JSON schema."""
@@ -383,6 +336,12 @@ class TestTranscriptionMode:
         # Check that processing service can handle transcription mode
         assert hasattr(processing_service, "transcription_service")
         assert processing_service.transcription_service is not None
+
+    @pytest.mark.asyncio
+    async def test_transcription_service_requires_provider_and_model(self):
+        """Test the live service contract after provider-backed transcription changes."""
+        with pytest.raises(TypeError):
+            await TranscriptionService().transcribe("raw markdown")
 
 
 class TestFullPipelineIntegration:
@@ -508,7 +467,7 @@ Document Upload & Processing:
 - [ ] Upload image-only PDF via frontend
 
 Transcription Mode:
-- [ ] Test transcription mode with audio file
+- [ ] Test transcription mode with a document file (DOCX/PPTX/TXT/MD/HTML)
 - [ ] Verify transcription produces Markdown output (not JSON)
 - [ ] Verify Markdown viewer displays transcription correctly
 

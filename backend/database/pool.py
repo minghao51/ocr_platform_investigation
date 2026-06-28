@@ -1,9 +1,4 @@
-"""
-Simple database connection wrapper for SQLite.
-
-This provides a drop-in replacement for aiosqlite.connect() with
-connection pooling for future migration to PostgreSQL/MySQL.
-"""
+"""SQLite connection helper for consistent repo-wide pragmas."""
 
 import aiosqlite
 import logging
@@ -14,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectionWrapper:
-    """Wrapper for aiosqlite connection that works with async context manager."""
+    """Thin async context manager around a single aiosqlite connection."""
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
@@ -40,7 +35,7 @@ class ConnectionWrapper:
 
 def connect(db_path: Path | None = None) -> ConnectionWrapper:
     """
-    Get a connection wrapper that works with async context manager.
+    Open a single SQLite connection with the repo's standard pragmas applied.
 
     Usage:
         async with connect() as db:
@@ -50,5 +45,5 @@ def connect(db_path: Path | None = None) -> ConnectionWrapper:
 
 
 async def close_pool():
-    """No-op for compatibility - included for future pool implementation."""
-    logger.info("Close pool called (no-op for direct connection mode)")
+    """Compatibility no-op for callers that expect shutdown cleanup."""
+    logger.info("SQLite helper shutdown called (no persistent pool to close)")

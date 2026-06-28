@@ -2,6 +2,7 @@ import pytest
 import yaml
 from pathlib import Path
 import time
+from unittest.mock import AsyncMock, MagicMock
 
 from config import Settings, get_settings
 from services.processors.docling_parse import DoclingParseProcessor
@@ -58,10 +59,14 @@ async def test_docling_parse_transcription_returns_markdown_payload(
         "parse_document",
         lambda _file_path: "# Invoice\n\nTotal: 10.00",
     )
+    mock_provider = MagicMock()
+    mock_provider.process_text = AsyncMock(
+        return_value={"content": "# Invoice\n\nTotal: 10.00"}
+    )
 
     result = await processor._run(
         file_path=str(sample_file),
-        provider=None,
+        provider=mock_provider,
         model="gemini-2.5-flash",
         schema_definition={},
         prompt="ignored",
@@ -84,10 +89,12 @@ async def test_docling_parse_returns_timeout_error_for_slow_parse(tmp_path):
         return "# Slow"
 
     processor.docling_service.parse_document = _slow_parse
+    mock_provider = MagicMock()
+    mock_provider.process_text = AsyncMock(return_value={"content": "# Slow"})
 
     result = await processor._run(
         file_path=str(sample_file),
-        provider=None,
+        provider=mock_provider,
         model="gemini-2.5-flash",
         schema_definition={},
         prompt="ignored",
@@ -105,11 +112,19 @@ def test_provider_yaml_models_have_required_fields():
     for provider in config.get("providers", []):
         for model in provider.get("models", []):
             assert "id" in model, f"Missing 'id' in {provider['name']}"
-            assert "name" in model, f"Missing 'name' in {provider['name']}/{model.get('id')}"
-            assert "tier" in model, f"Missing 'tier' in {provider['name']}/{model.get('id')}"
+            assert "name" in model, (
+                f"Missing 'name' in {provider['name']}/{model.get('id')}"
+            )
+            assert "tier" in model, (
+                f"Missing 'tier' in {provider['name']}/{model.get('id')}"
+            )
             if model.get("pricing") is not None:
-                assert "input_per_1m" in model["pricing"], f"Missing pricing.input_per_1m in {model['id']}"
-                assert "output_per_1m" in model["pricing"], f"Missing pricing.output_per_1m in {model['id']}"
+                assert "input_per_1m" in model["pricing"], (
+                    f"Missing pricing.input_per_1m in {model['id']}"
+                )
+                assert "output_per_1m" in model["pricing"], (
+                    f"Missing pricing.output_per_1m in {model['id']}"
+                )
 
 
 def test_pymupdf_extractor_reads_pdf_text(tmp_path):

@@ -56,9 +56,9 @@ async def lifespan(_app: FastAPI):
             from database.pool import close_pool
 
             await close_pool()
-            logger.info("Database pool closed")
+            logger.info("Database connection helper closed")
         except Exception as e:
-            logger.warning("Failed to close database pool: %s", e)
+            logger.warning("Failed to close database connection helper: %s", e)
 
         try:
             from services.job_queue import stop_job_worker

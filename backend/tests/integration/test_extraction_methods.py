@@ -139,8 +139,6 @@ def upload_file(client, file_path: str, headers: dict) -> str:
         ".png": "image/png",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ".wav": "audio/wav",
-        ".mp3": "audio/mpeg",
     }
     mime = mime_map.get(suffix, "application/octet-stream")
     with open(file_path, "rb") as f:
@@ -374,7 +372,13 @@ class TestTranscription:
 
     def test_docx_transcription(self, client, temp_db_env):
         mock = AsyncMock(return_value=_make_extraction_result(MOCK_TRANSCRIPTION_TEXT))
-        with patch("services.gemini.GeminiProvider.process_text", mock):
+        with (
+            patch(
+                "services.provider_catalog.resolve_provider_api_key",
+                return_value="test-api-key",
+            ),
+            patch("services.gemini.GeminiProvider.process_text", mock),
+        ):
             file_id = upload_file(client, fixture_path("sample.docx"), auth_header())
             resp = client.post(
                 "/api/process/",
@@ -544,7 +548,7 @@ class TestExtractionErrors:
 
 class TestFileTypeRouting:
     def test_pdf_type_detection(self, client, temp_db_env):
-        file_id = upload_file(client, fixture_path("searchable.pdf"), auth_header())
+        upload_file(client, fixture_path("searchable.pdf"), auth_header())
         resp = client.get("/api/jobs?limit=1", headers=auth_header())
         assert resp.status_code == 200
 
@@ -580,6 +584,7 @@ class TestExtractSettingsEndpoint:
         assert len(data["extraction_methods"]) == 7
         assert "defaults" in data
         assert data["defaults"]["max_tokens"]["default"] == 8192
+        assert data["defaults"]["prompt_max_length"] == 10000
         assert "file_type_methods" in data
         assert "schema_templates" in data
 

@@ -3,11 +3,20 @@ import logging
 import yaml
 
 from config import get_settings
-from services.provider_utils import resolve_provider_api_key
+from services.gemini import GeminiProvider
+from services.litellm_provider import LiteLLMProvider
+from services.openrouter import OpenRouterProvider
+from services import provider_utils
 
 logger = logging.getLogger(__name__)
 
 PROVIDERS_YAML = Path(__file__).parent.parent / "config" / "providers.yaml"
+PROVIDER_CLASSES = {
+    "openrouter": OpenRouterProvider,
+    "gemini": GeminiProvider,
+    "litellm": LiteLLMProvider,
+}
+resolve_provider_api_key = provider_utils.resolve_provider_api_key
 
 
 def load_providers_config() -> dict:
@@ -28,7 +37,7 @@ def list_provider_catalog() -> list[dict]:
             settings.openrouter_api_key and settings.openrouter_api_key.strip()
         ),
         "gemini": bool(settings.gemini_api_key and settings.gemini_api_key.strip()),
-        "litellm": bool(resolve_provider_api_key("litellm").strip()),
+        "litellm": bool(provider_utils.resolve_provider_api_key("litellm").strip()),
     }
 
     providers: list[dict] = []
@@ -51,22 +60,27 @@ def list_provider_catalog() -> list[dict]:
     return providers
 
 
-from services.openrouter import OpenRouterProvider
-from services.gemini import GeminiProvider
-from services.litellm_provider import LiteLLMProvider
-
-PROVIDER_CLASSES = {
-    "openrouter": OpenRouterProvider,
-    "gemini": GeminiProvider,
-    "litellm": LiteLLMProvider,
-}
-
-
 async def get_provider(provider_name: str, api_key: str):
     cls = PROVIDER_CLASSES.get(provider_name)
     if not cls:
         raise ValueError(f"Unknown provider: {provider_name}")
     return cls(api_key=api_key)
+
+
+def create_provider(provider_name: str, api_key: str | None = None):
+    cls = PROVIDER_CLASSES.get(provider_name)
+    if not cls:
+        raise ValueError(f"Unknown provider: {provider_name}")
+
+    resolved_api_key = (
+        api_key
+        if api_key is not None
+        else provider_utils.resolve_provider_api_key(provider_name)
+    )
+    if not resolved_api_key:
+        raise ValueError(f"No API key configured for {provider_name}")
+
+    return cls(api_key=resolved_api_key)
 
 
 def _default_model(provider_name: str) -> str:

@@ -49,7 +49,7 @@ export default function BenchmarksPage() {
   const loadRuns = async () => {
     try {
       setRunsError(null);
-      const data = await listBenchmarkRuns(100);
+      const data = await listBenchmarkRuns(100, datasetFilter);
       setRuns(data);
     } catch (err) {
       console.error('Failed to load runs:', err);
@@ -94,6 +94,13 @@ export default function BenchmarksPage() {
     if (accuracy >= 0.7) return 'text-green-600';
     if (accuracy >= 0.5) return 'text-yellow-600';
     return 'text-red-600';
+  };
+
+  const getTotalTokensLabel = (model: ModelComparison) => {
+    if (model.total_prompt_tokens == null || model.total_completion_tokens == null) {
+      return 'N/A';
+    }
+    return (model.total_prompt_tokens + model.total_completion_tokens).toLocaleString();
   };
 
   return (
@@ -363,7 +370,7 @@ export default function BenchmarksPage() {
                 </svg>
                 <p className="mt-2 text-gray-500">No benchmark data available</p>
                 <p className="text-sm text-gray-400 mt-1">
-                  Run benchmarks using: <code className="bg-gray-100 px-2 py-1 rounded">uv run python cli.py run-benchmark</code>
+                  Run benchmarks using: <code className="bg-gray-100 px-2 py-1 rounded">uv run -m backend.cli run-benchmark</code>
                 </p>
               </div>
             ) : (
@@ -427,10 +434,10 @@ export default function BenchmarksPage() {
                           {model.total_cost !== null ? `$${model.total_cost.toFixed(4)}` : 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-gray-600">
-                          {model.sample_count}
+                          {model.sample_count ?? 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-gray-600">
-                          {(model.total_prompt_tokens + model.total_completion_tokens).toLocaleString()}
+                          {getTotalTokensLabel(model)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {model.started_at ? new Date(model.started_at).toLocaleDateString() : 'N/A'}

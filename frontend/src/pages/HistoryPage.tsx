@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listJobs, getJob, deleteJob, listProviders } from '../lib/api';
+import { listJobs, getJob, deleteJob, getExtractSettings } from '../lib/api';
 import type { Job, Provider } from '../lib/api';
 import ResultsDisplay from '../components/ResultsDisplay';
 import { SkeletonList } from '@/components/LoadingSpinner';
@@ -29,8 +29,8 @@ export default function HistoryPage({ isAuthenticated }: HistoryPageProps) {
 
   const loadProviders = async () => {
     try {
-      const data = await listProviders();
-      setProviders(data.filter(p => p.has_api_key));
+      const settings = await getExtractSettings();
+      setProviders(settings.providers.filter((provider) => provider.has_api_key));
     } catch {
       setProviders([]);
     }

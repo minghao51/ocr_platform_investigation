@@ -11,7 +11,7 @@ Check:
 Useful command:
 
 ```bash
-uv run python -m backend.cli list-users
+uv run -m backend.cli list-users
 ```
 
 ## Upload Returns 401 or 403
@@ -25,7 +25,16 @@ Current upload route accepts:
 - `.jpg`
 - `.jpeg`
 - `.png`
+- `.gif`
+- `.webp`
 - `.pdf`
+- `.docx`
+- `.pptx`
+- `.txt`
+- `.md`
+- `.html`
+
+Audio uploads (`.mp3`, `.wav`, `.m4a`, `.ogg`, `.flac`) are not accepted. The previous audio ingestion path was removed until a real provider-backed transcription pipeline lands.
 
 If you need another format, convert it before upload or extend [backend/routers/upload.py](/Users/minghao/Desktop/personal/ocr_platform_testdrive/backend/routers/upload.py).
 
@@ -43,7 +52,7 @@ Relevant settings:
 Check whether the account is intentionally limited:
 
 ```bash
-uv run python -m backend.cli list-users
+uv run -m backend.cli list-users
 ```
 
 Notes:
@@ -89,7 +98,7 @@ The dedicated text route only supports PDFs. Use the main smart extraction flow 
 
 Check:
 
-- backend is running on `http://localhost:8000`
+- backend is running on `http://localhost:8001`
 - `CORS_ORIGINS` includes your frontend origin
 - the frontend is not pointing at a stale backend session
 

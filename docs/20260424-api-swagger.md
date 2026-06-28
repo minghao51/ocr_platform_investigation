@@ -1,4 +1,13 @@
-# OCR Platform API Documentation
+# OCR Platform API Documentation (Archived Snapshot — 2026-04-24)
+
+> **Archived.** This is a point-in-time snapshot of the API surface from 2026-04-24
+> and is preserved for historical reference only. It does **not** reflect the current
+> upload contract or processing routes. In particular, audio uploads (`.mp3`, `.wav`,
+> `.m4a`, `.ogg`, `.flac`) and the `file_type: "audio"` value are no longer accepted.
+> For the live contract, see [docs/reference/api.md](../reference/api.md) and
+> [docs/guides/user-guide.md](../guides/user-guide.md).
+
+---
 
 **Base URL:** `/api`  
 **Version:** 1.0.0  

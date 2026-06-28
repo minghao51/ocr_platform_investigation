@@ -64,25 +64,7 @@ async def compare_models(
     if not comparison:
         return {"message": "No benchmark data available", "runs": []}
 
-    runs = []
-    for row in comparison:
-        runs.append(
-            {
-                "provider": row["provider"],
-                "model": row["model"],
-                "processing_method": "vision",
-                "sample_count": None,
-                "overall_accuracy": row["avg_accuracy"],
-                "avg_latency": None,
-                "total_cost": None,
-                "total_prompt_tokens": None,
-                "total_completion_tokens": None,
-                "success_rate": None,
-                "started_at": None,
-            }
-        )
-
-    return {"runs": runs[:limit]}
+    return {"runs": comparison[:limit]}
 
 
 @router.get("/models")

@@ -5,7 +5,7 @@ from config import get_settings
 from database import crud
 from dependencies import get_optional_user
 from limiter import limiter, get_rate_limit_value
-from routers.shared import ensure_file_access
+from routers.shared import get_accessible_file
 import uuid
 import secrets
 from paths import UPLOAD_DIR
@@ -15,8 +15,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".pptx", ".txt", ".md", ".html"}
-AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
-ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS | AUDIO_EXTENSIONS
+ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS
 
 CONTENT_TYPE_MAP = {
     ".pdf": "application/pdf",
@@ -30,11 +29,6 @@ CONTENT_TYPE_MAP = {
     ".txt": "text/plain",
     ".md": "text/markdown",
     ".html": "text/html",
-    ".mp3": "audio/mpeg",
-    ".wav": "audio/wav",
-    ".m4a": "audio/mp4",
-    ".ogg": "audio/ogg",
-    ".flac": "audio/flac",
 }
 
 
@@ -92,8 +86,6 @@ async def upload_file(
         file_type = "image"
     elif file_ext == ".pdf":
         file_type = "pdf"
-    elif file_ext in AUDIO_EXTENSIONS:
-        file_type = "audio"
     else:
         file_type = "document"
     content_type = CONTENT_TYPE_MAP.get(file_ext, "application/octet-stream")
@@ -130,16 +122,10 @@ async def upload_file(
 @router.post("/analyze-pdf/{file_id}")
 @limiter.limit("3/minute")
 async def analyze_pdf(
-    file_id: str,
     request: Request,
-    current_user: dict | None = Depends(get_optional_user),
+    file_id: str,
+    file_record: dict = Depends(get_accessible_file),
 ):
-    """Quick PDF text-layer detection for frontend method auto-selection."""
-    file_record = await crud.get_uploaded_file(file_id)
-    if not file_record:
-        raise HTTPException(status_code=404, detail="File not found")
-    ensure_file_access(file_record, current_user, request.headers.get("X-Guest-Token"))
-
     file_path = Path(file_record["file_path"])
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File has been deleted or moved")

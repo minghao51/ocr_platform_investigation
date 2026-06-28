@@ -11,16 +11,17 @@ from typing import Any, Dict, List, Optional
 from PIL import Image
 import psutil
 
-from benchmarks.datasets import BenchmarkSample
-from benchmarks import datasets_extended
+from benchmarks.datasets import (
+    BenchmarkSample,
+    load_dataset as _load_dataset_from_registry,
+)
 from benchmarks.scoring import score_results, score_items_list
 from services.pricing import calculate_cost
 from database import crud
 
 
 def load_dataset(*args, **kwargs):
-    """Proxy dataset loading so tests can patch either runner or adapter module."""
-    return datasets_extended.load_dataset(*args, **kwargs)
+    return _load_dataset_from_registry(*args, **kwargs)
 
 
 def _measure_memory():

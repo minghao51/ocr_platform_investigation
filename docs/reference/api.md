@@ -140,7 +140,7 @@ Request fields:
 - `docling-parse` - Multi-format support (PDF, DOCX, PPTX, images), free extraction + cheap structuring
 - `docling-extract` - Local VLM extraction, best accuracy (86%), completely free, private
 - `hybrid` - Combined text + vision approach
-- `transcription` - Faithful Markdown output without JSON schema constraints
+- `transcription` - Faithful Markdown output for document-style files without JSON schema constraints
 
 **Extraction Method Comparison:**
 

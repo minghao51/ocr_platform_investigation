@@ -47,6 +47,7 @@ dependencies = [
     "nbconvert>=7.17.1",
     "nbclient>=0.10.4",
     "matplotlib>=3.10.9",
+    "cachetools>=7.1.4",
 ]
 
 [project.optional-dependencies]

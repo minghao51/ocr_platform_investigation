@@ -1,27 +1,10 @@
 import {
   API_BASE,
   AUTH_CHANGE_EVENT,
-  getAuthHeaders,
   getAccessHeaders,
   parseApiError,
 } from './client';
-import type { Provider, ExtractSettings, PdfAnalysis, QualityReport } from './types';
-
-export async function listProviders(): Promise<Provider[]> {
-  const response = await fetch(`${API_BASE}/providers/`, {
-    headers: getAuthHeaders()
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || `Failed to fetch providers: ${response.statusText}`);
-  }
-  const data = await response.json();
-  if (!Array.isArray(data)) {
-    if (data.error) throw new Error(data.error);
-    throw new Error(`Invalid response format: expected array, got ${typeof data}`);
-  }
-  return data;
-}
+import type { ExtractSettings, PdfAnalysis, QualityReport } from './types';
 
 let _settingsCache: ExtractSettings | null = null;
 let _settingsPromise: Promise<ExtractSettings> | null = null;
@@ -32,7 +15,7 @@ export async function getExtractSettings(): Promise<ExtractSettings> {
 
   _settingsPromise = (async () => {
     const response = await fetch(`${API_BASE}/extract/settings`, {
-      headers: getAuthHeaders(),
+      headers: getAccessHeaders(),
     });
     if (!response.ok) {
       throw new Error(`Failed to fetch extract settings: ${response.statusText}`);

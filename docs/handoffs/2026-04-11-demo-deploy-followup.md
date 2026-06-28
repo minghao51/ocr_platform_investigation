@@ -140,7 +140,7 @@ python -m cli list-users
 Notes:
 
 - `python -m cli ...` works from inside `backend/`
-- `python -m backend.cli ...` works from repo root
+- `uv run -m backend.cli ...` works from repo root
 - do not mix those contexts in docs/scripts without being explicit
 
 ### 3. Finish browser verification with Playwright MCP specifically

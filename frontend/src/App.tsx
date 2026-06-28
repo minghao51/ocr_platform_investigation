@@ -37,10 +37,6 @@ const navItems: Array<{
     to: '/methodology',
     label: 'Methodology',
   },
-  {
-    to: '/benchmarks',
-    label: 'Benchmarks',
-  },
 ];
 
 function App() {
@@ -107,6 +103,15 @@ function App() {
     setAuthMenuOpen(false);
   };
   const authenticated = authUser !== null;
+  const visibleNavItems = authUser?.is_admin
+    ? [
+        ...navItems,
+        {
+          to: '/benchmarks',
+          label: 'Benchmarks',
+        },
+      ]
+    : navItems;
 
   return (
     <ErrorBoundary>
@@ -120,7 +125,7 @@ function App() {
                   <h1 className="text-xl font-bold text-gray-900">OCR Platform</h1>
                 </div>
                 <div className="ml-6 hidden sm:flex space-x-8">
-                  {navItems.map((item) => (
+                  {visibleNavItems.map((item) => (
                     <NavLink
                       key={item.to}
                       to={item.to}
@@ -180,7 +185,7 @@ function App() {
               </div>
             </div>
             <div className="sm:hidden pb-3 flex gap-4 overflow-x-auto">
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <NavLink
                   key={`mobile-${item.to}`}
                   to={item.to}
@@ -224,7 +229,10 @@ function App() {
               }
             />
             <Route path="/methodology" element={<MethodologyPage />} />
-            <Route path="/benchmarks" element={<BenchmarksPage />} />
+            <Route
+              path="/benchmarks"
+              element={authUser?.is_admin ? <BenchmarksPage /> : <Navigate to="/" replace />}
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

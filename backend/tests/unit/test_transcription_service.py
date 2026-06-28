@@ -33,3 +33,18 @@ async def test_transcription_prompt_format():
     call_args = mock_provider.process_text.call_args
     prompt = call_args.kwargs.get("prompt") or call_args[1].get("prompt")
     assert "faithful" in prompt.lower() or "preserve" in prompt.lower()
+
+
+@pytest.mark.asyncio
+async def test_transcribe_supports_result_objects():
+    mock_provider = MagicMock()
+    mock_provider.process_text = AsyncMock(
+        return_value=type(
+            "ProviderResult", (), {"error": None, "content": "## Markdown"}
+        )()
+    )
+
+    service = TranscriptionService()
+    result = await service.transcribe("Raw markdown", mock_provider, "gpt-4o")
+
+    assert result == "## Markdown"

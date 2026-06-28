@@ -2,9 +2,7 @@ import pytest
 
 from services.prompt_optimizer import PromptOptimizer, PromptResult
 from services.prompt_templates import (
-    COT_INSTRUCTION,
     DOC_TYPE_TEMPLATES,
-    RAW_OUTPUT_TEMPLATE,
     classify_doc_type_hint,
     get_doc_type_template,
 )
@@ -50,22 +48,43 @@ class TestClassifyDocTypeHint:
         assert classify_doc_type_hint("National ID Card", None) == "id"
 
     def test_none_name_invoice_schema_props(self):
-        schema = {"type": "object", "properties": {"invoice_number": {"type": "string"}, "items": {"type": "array"}}}
+        schema = {
+            "type": "object",
+            "properties": {
+                "invoice_number": {"type": "string"},
+                "items": {"type": "array"},
+            },
+        }
         assert classify_doc_type_hint(None, schema) == "invoice"
 
     def test_none_name_receipt_schema_props(self):
-        schema = {"type": "object", "properties": {"merchant": {"type": "string"}, "payment_method": {"type": "string"}}}
+        schema = {
+            "type": "object",
+            "properties": {
+                "merchant": {"type": "string"},
+                "payment_method": {"type": "string"},
+            },
+        }
         assert classify_doc_type_hint(None, schema) == "receipt"
 
     def test_none_name_id_schema_props(self):
-        schema = {"type": "object", "properties": {"document_number": {"type": "string"}, "full_name": {"type": "string"}}}
+        schema = {
+            "type": "object",
+            "properties": {
+                "document_number": {"type": "string"},
+                "full_name": {"type": "string"},
+            },
+        }
         assert classify_doc_type_hint(None, schema) == "id"
 
     def test_none_name_none_schema_returns_generic(self):
         assert classify_doc_type_hint(None, None) == "generic"
 
     def test_none_name_empty_schema_returns_generic(self):
-        assert classify_doc_type_hint(None, {"type": "object", "properties": {}}) == "generic"
+        assert (
+            classify_doc_type_hint(None, {"type": "object", "properties": {}})
+            == "generic"
+        )
 
 
 class TestGetDocTypeTemplate:
@@ -112,7 +131,10 @@ class TestEnrichSchemaDescriptions:
         result = await optimizer.optimize_prompt(
             "Extract data", schema, schema_name="test"
         )
-        assert result.enriched_schema["properties"]["custom_field"]["description"] == "My custom desc"
+        assert (
+            result.enriched_schema["properties"]["custom_field"]["description"]
+            == "My custom desc"
+        )
 
     @pytest.mark.asyncio
     async def test_unknown_field_gets_no_auto_description(self, optimizer):
@@ -125,7 +147,10 @@ class TestEnrichSchemaDescriptions:
         result = await optimizer.optimize_prompt(
             "Extract data", schema, schema_name="test"
         )
-        assert "description" not in result.enriched_schema["properties"]["obscure_xyz_field"]
+        assert (
+            "description"
+            not in result.enriched_schema["properties"]["obscure_xyz_field"]
+        )
 
     @pytest.mark.asyncio
     async def test_none_schema_stays_none(self, optimizer):
@@ -302,4 +327,7 @@ class TestPromptResultShape:
             doc_type="receipt",
         )
         assert result.doc_type_used == "receipt"
-        assert "retail" in result.system_prompt.lower() or "receipt" in result.system_prompt.lower()
+        assert (
+            "retail" in result.system_prompt.lower()
+            or "receipt" in result.system_prompt.lower()
+        )

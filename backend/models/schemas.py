@@ -1,20 +1,16 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, Literal, List
 
+from extraction_methods import EXTRACTION_METHODS_WITH_AUTO
+
 
 MAX_PROMPT_LENGTH = 10_000
 MAX_SCHEMA_DEPTH = 8
 MAX_SCHEMA_KEYS = 200
 MAX_TOKENS_LIMIT = 128_000
-EXTRACTION_METHODS = (
-    "text",
-    "vision",
-    "hybrid",
-    "docling-parse",
-    "docling-extract",
-    "transcription",
-)
-EXTRACTION_METHODS_WITH_AUTO = ("auto",) + EXTRACTION_METHODS
+PROCESSING_DEFAULT_TEMPERATURE = 0.1
+PROCESSING_DEFAULT_MAX_TOKENS = 8192
+PROCESSING_DEFAULT_QUALITY_THRESHOLD = 40.0
 
 
 def _count_schema_keys(value: Any, depth: int = 0) -> int:
@@ -42,10 +38,16 @@ class ProcessRequest(BaseModel):
         default="Extract all information from this document",
         max_length=MAX_PROMPT_LENGTH,
     )
-    temperature: Optional[float] = Field(default=0.1, ge=0.0, le=2.0)
-    max_tokens: Optional[int] = Field(default=8192, ge=1, le=MAX_TOKENS_LIMIT)
+    temperature: Optional[float] = Field(
+        default=PROCESSING_DEFAULT_TEMPERATURE, ge=0.0, le=2.0
+    )
+    max_tokens: Optional[int] = Field(
+        default=PROCESSING_DEFAULT_MAX_TOKENS, ge=1, le=MAX_TOKENS_LIMIT
+    )
     # Quality gate options
-    quality_threshold: Optional[float] = Field(default=40.0, ge=0.0, le=100.0)
+    quality_threshold: Optional[float] = Field(
+        default=PROCESSING_DEFAULT_QUALITY_THRESHOLD, ge=0.0, le=100.0
+    )
     auto_preprocess: Optional[bool] = True  # Auto-fix quality issues before VLM
     skip_quality: Optional[bool] = False  # Bypass quality gate entirely
 

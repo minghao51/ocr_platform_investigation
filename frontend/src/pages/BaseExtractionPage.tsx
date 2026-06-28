@@ -76,7 +76,9 @@ export default function BaseExtractionPage({
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
 
-    const requiresProvider = ['auto', 'text', 'vision', 'hybrid', 'docling-parse', 'transcription'].includes(extractionMethod);
+    const requiresProvider = (
+        settings?.provider_required_methods ?? ['auto', 'text', 'vision', 'hybrid', 'docling-parse', 'transcription']
+    ).includes(extractionMethod);
     const supportsRawSchemaMode = extractionMethod === 'docling-parse';
 
     const wsConnection = useRef<JobStatusWebSocket | null>(null);
@@ -120,8 +122,6 @@ export default function BaseExtractionPage({
                 setExtractionMethod(ftm[uploadedFileType || ''] as ExtractionMethod);
             } else if (uploadedFileType?.startsWith('image/') && ftm['image/*']) {
                 setExtractionMethod(ftm['image/*'] as ExtractionMethod);
-            } else if (uploadedFileType?.startsWith('audio/') && ftm['audio/*']) {
-                setExtractionMethod(ftm['audio/*'] as ExtractionMethod);
             } else {
                 setExtractionMethod('docling-parse');
             }
@@ -130,8 +130,6 @@ export default function BaseExtractionPage({
                 setExtractionMethod('docling-extract');
             } else if (uploadedFileType?.startsWith('image/')) {
                 setExtractionMethod('docling-extract');
-            } else if (uploadedFileType?.startsWith('audio/')) {
-                setExtractionMethod('transcription');
             } else {
                 setExtractionMethod('docling-parse');
             }
@@ -483,6 +481,7 @@ export default function BaseExtractionPage({
                         extractionMethod={extractionMethod}
                         fileType={fileType}
                         fileId={fileId}
+                        settings={settings}
                         onProviderChange={setProvider}
                         onModelChange={setModel}
                         onMethodChange={setExtractionMethod}

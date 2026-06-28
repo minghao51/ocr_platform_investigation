@@ -92,11 +92,12 @@ def test_logout_revokes_token(auth_lifecycle_client):
 
 
 def test_websocket_ticket_store_evicts_oldest_pending_ticket(monkeypatch):
+    from cachetools import TTLCache
     from routers import websocket
 
-    websocket._ticket_store.clear()
     monkeypatch.setattr(websocket, "TICKET_MAX_PENDING", 2)
     monkeypatch.setattr(websocket, "TICKET_TTL_SECONDS", 60)
+    monkeypatch.setattr(websocket, "_ticket_store", TTLCache(maxsize=2, ttl=60))
 
     first = websocket._create_ws_ticket({"user_id": 1, "is_admin": False})
     second = websocket._create_ws_ticket({"user_id": 2, "is_admin": False})
@@ -105,4 +106,4 @@ def test_websocket_ticket_store_evicts_oldest_pending_ticket(monkeypatch):
     assert websocket._consume_ws_ticket(first) is None
     assert websocket._consume_ws_ticket(second)["user_id"] == 2
     assert websocket._consume_ws_ticket(third)["user_id"] == 3
-    assert websocket._ticket_store == {}
+    assert len(websocket._ticket_store) == 0

@@ -49,13 +49,6 @@ def _create_test_pdf() -> io.BytesIO:
     return buffer
 
 
-def _create_test_audio() -> io.BytesIO:
-    buffer = io.BytesIO()
-    buffer.write(b"ID3\x04\x00\x00\x00\x00\x00\x00")
-    buffer.seek(0)
-    return buffer
-
-
 def test_guest_can_upload_process_and_read_own_job(
     client, temp_guest_env: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -149,6 +142,18 @@ def test_guest_can_queue_transcription_for_docx(
     process_data = process_response.json()
     assert process_data["job_id"]
     assert process_data["guest_token"] == upload_data["guest_token"]
+
+
+def test_audio_upload_is_rejected(client, temp_guest_env: Path):
+    _ = temp_guest_env
+
+    response = client.post(
+        "/api/upload",
+        files={"file": ("guest-sample.mp3", io.BytesIO(b"ID3"), "audio/mpeg")},
+    )
+
+    assert response.status_code == 400
+    assert "Invalid file type" in response.json()["detail"]
 
 
 def test_document_rejects_vision_processing(
@@ -347,36 +352,19 @@ def test_auto_requires_provider_model_when_pdf_routes_to_provider_method(
     assert success_response.json()["job_id"] > 0
 
 
-@pytest.mark.parametrize(
-    ("filename", "mime_type", "payload"),
-    [
-        (
-            "sample.png",
-            "image/png",
-            {"schema_definition": {"type": "object", "properties": {}}},
-        ),
-        ("sample.mp3", "audio/mpeg", {}),
-    ],
-)
-def test_auto_with_provider_model_supports_image_and_audio_paths(
+def test_auto_with_provider_model_supports_image_path(
     client,
     temp_guest_env: Path,
     monkeypatch: pytest.MonkeyPatch,
-    filename,
-    mime_type,
-    payload,
 ):
     async def _noop_processing(*_args, **_kwargs):
         return None
 
     monkeypatch.setattr("routers.processing.enqueue_processing_task", _noop_processing)
 
-    file_bytes = (
-        _create_test_image() if mime_type.startswith("image/") else _create_test_audio()
-    )
     upload_response = client.post(
         "/api/upload",
-        files={"file": (filename, file_bytes, mime_type)},
+        files={"file": ("sample.png", _create_test_image(), "image/png")},
     )
 
     assert upload_response.status_code == 200
@@ -390,7 +378,7 @@ def test_auto_with_provider_model_supports_image_and_audio_paths(
             "provider": "gemini",
             "model": "gemini-2.5-flash",
             "extraction_method": "auto",
-            **payload,
+            "schema_definition": {"type": "object", "properties": {}},
         },
         headers=guest_headers,
     )

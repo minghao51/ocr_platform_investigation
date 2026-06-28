@@ -5,8 +5,10 @@ from typing import Any, Dict, Optional
 
 from services.chunking_service import MarkdownSplitter
 from services.docling_service import DoclingService
+from services.provider_catalog import create_provider
 from services.processing_utils import parse_and_validate_response
 from services.processors.base import Processor
+from services.transcription_service import TranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,7 @@ class DoclingParseProcessor(Processor):
     def __init__(self, docling_parse_timeout_seconds: int = 30):
         self.chunking_service = MarkdownSplitter()
         self.docling_service = DoclingService()
+        self.transcription_service = TranscriptionService()
         self.docling_parse_timeout_seconds = max(1, int(docling_parse_timeout_seconds))
 
     def _extract_markdown_with_pymupdf(self, file_path: str) -> str:
@@ -226,9 +229,26 @@ class DoclingParseProcessor(Processor):
                         "metadata": {"extraction_method": "transcription"},
                     }
 
+                try:
+                    cleaned_markdown = await self.transcription_service.transcribe(
+                        markdown=markdown_content,
+                        provider=provider,
+                        model=model,
+                        prompt=prompt,
+                        temperature=kwargs.get("temperature", 0.1),
+                        max_tokens=kwargs.get("max_tokens", 16384),
+                        system_prompt=kwargs.get("system_prompt"),
+                    )
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"Transcription failed: {str(e)}",
+                        "metadata": {"extraction_method": "transcription"},
+                    }
+
                 return {
                     "success": True,
-                    "data": {"text": markdown_content},
+                    "data": {"text": cleaned_markdown},
                     "metadata": {
                         "extraction_method": "transcription",
                         "chunked": False,
@@ -337,16 +357,8 @@ class DoclingParseProcessor(Processor):
         prompt: str,
         **kwargs,
     ) -> Dict[str, Any]:
-        from services.provider_utils import resolve_provider_api_key
-        from services.provider_catalog import get_provider
-
         is_transcription = kwargs.pop("is_transcription", False)
-
-        api_key = resolve_provider_api_key(provider_name)
-        if not api_key:
-            raise ValueError(f"No API key configured for {provider_name}")
-
-        provider = await get_provider(provider_name, api_key)
+        provider = create_provider(provider_name)
 
         async with provider:
             return await self._run(

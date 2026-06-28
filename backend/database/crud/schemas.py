@@ -2,12 +2,12 @@ import aiosqlite
 import json
 from typing import Optional, List, Dict, Any
 from database.pool import connect
-from database.crud import _loads_if_json
+from database.crud._shared import loads_if_json
 
 
 def _deserialize_suggestion(row: dict) -> dict:
     for key in ("file_ids", "schema_definition", "field_descriptions"):
-        row[key] = _loads_if_json(row.get(key)) or ([] if key == "file_ids" else {})
+        row[key] = loads_if_json(row.get(key)) or ([] if key == "file_ids" else {})
     return row
 
 
@@ -186,7 +186,7 @@ async def list_job_corrections(job_id: int) -> List[Dict[str, Any]]:
                 "diff_summary",
                 "feedback_tags",
             ):
-                item[key] = _loads_if_json(item.get(key))
+                item[key] = loads_if_json(item.get(key))
             corrections.append(item)
         return corrections
 

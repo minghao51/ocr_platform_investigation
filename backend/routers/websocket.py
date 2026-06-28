@@ -2,6 +2,7 @@
 WebSocket router for real-time job status updates.
 """
 
+from cachetools import TTLCache
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status, Depends
 from typing import Dict, Set, Optional
 from database import crud
@@ -9,7 +10,6 @@ from routers.job_serialization import serialize_job
 from dependencies import get_current_user
 import logging
 import secrets
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -22,48 +22,20 @@ router = APIRouter(prefix="/api")
 TICKET_TTL_SECONDS = 60
 TICKET_MAX_PENDING = 1000
 
-_ticket_store: Dict[str, dict] = {}
-
-
-def _cleanup_expired_tickets():
-    now = time.time()
-    expired = [k for k, v in _ticket_store.items() if now > v["expires_at"]]
-    for k in expired:
-        _ticket_store.pop(k, None)
-
-
-def _trim_ticket_store() -> None:
-    overflow = len(_ticket_store) - TICKET_MAX_PENDING + 1
-    if overflow <= 0:
-        return
-
-    oldest_tickets = sorted(
-        _ticket_store,
-        key=lambda ticket: _ticket_store[ticket]["expires_at"],
-    )[:overflow]
-    for ticket in oldest_tickets:
-        _ticket_store.pop(ticket, None)
+_ticket_store: TTLCache = TTLCache(maxsize=TICKET_MAX_PENDING, ttl=TICKET_TTL_SECONDS)
 
 
 def _create_ws_ticket(user_payload: dict) -> str:
-    _cleanup_expired_tickets()
-    _trim_ticket_store()
     ticket = secrets.token_urlsafe(32)
     _ticket_store[ticket] = {
         "user_id": user_payload.get("user_id"),
         "is_admin": user_payload.get("is_admin", False),
-        "expires_at": time.time() + TICKET_TTL_SECONDS,
     }
     return ticket
 
 
 def _consume_ws_ticket(ticket: str) -> Optional[dict]:
-    data = _ticket_store.pop(ticket, None)
-    if data is None:
-        return None
-    if time.time() > data["expires_at"]:
-        return None
-    return data
+    return _ticket_store.pop(ticket, None)
 
 
 @router.post("/ws/ticket")

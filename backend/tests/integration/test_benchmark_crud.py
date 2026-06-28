@@ -291,3 +291,88 @@ class TestGetBenchmarkResults:
 
         results = await crud.get_benchmark_results(run_id)
         assert len(results) == 0
+
+
+class TestGetModelComparison:
+    """Test benchmark comparison aggregation."""
+
+    @pytest.mark.asyncio
+    async def test_get_model_comparison_returns_latest_run_per_combo(self, clean_db):
+        older_run = await crud.create_benchmark_run(
+            dataset="test_compare",
+            provider="gemini",
+            model="gemini-2.5-flash",
+            sample_count=2,
+            processing_method="vision",
+        )
+        await crud.add_benchmark_result(
+            run_id=older_run,
+            sample_index=0,
+            accuracy_score=0.25,
+            latency=1.5,
+            cost=0.01,
+        )
+        await crud.update_benchmark_run(
+            run_id=older_run,
+            overall_accuracy=0.25,
+            avg_latency=1.5,
+            total_cost=0.01,
+            total_prompt_tokens=100,
+            total_completion_tokens=50,
+        )
+
+        newer_run = await crud.create_benchmark_run(
+            dataset="test_compare",
+            provider="gemini",
+            model="gemini-2.5-flash",
+            sample_count=3,
+            processing_method="vision",
+        )
+        await crud.add_benchmark_result(
+            run_id=newer_run,
+            sample_index=0,
+            accuracy_score=0.75,
+            latency=0.8,
+            cost=0.02,
+        )
+        await crud.update_benchmark_run(
+            run_id=newer_run,
+            overall_accuracy=0.75,
+            avg_latency=0.8,
+            total_cost=0.02,
+            total_prompt_tokens=200,
+            total_completion_tokens=100,
+        )
+
+        hybrid_run = await crud.create_benchmark_run(
+            dataset="test_compare",
+            provider="gemini",
+            model="gemini-2.5-flash",
+            sample_count=1,
+            processing_method="hybrid",
+        )
+        await crud.add_benchmark_result(
+            run_id=hybrid_run,
+            sample_index=0,
+            accuracy_score=0.6,
+            latency=1.0,
+            cost=0.03,
+        )
+        await crud.update_benchmark_run(
+            run_id=hybrid_run,
+            overall_accuracy=0.6,
+            avg_latency=1.0,
+            total_cost=0.03,
+            total_prompt_tokens=150,
+            total_completion_tokens=75,
+        )
+
+        comparison = await crud.get_model_comparison(dataset="test_compare", limit=10)
+
+        assert {row["run_id"] for row in comparison} == {newer_run, hybrid_run}
+        assert all(row["provider"] == "gemini" for row in comparison)
+        assert all(row["model"] == "gemini-2.5-flash" for row in comparison)
+        assert all(row["sample_count"] in {1, 3} for row in comparison)
+        assert all(
+            row["processing_method"] in {"vision", "hybrid"} for row in comparison
+        )

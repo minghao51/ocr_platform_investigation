@@ -1,16 +1,3 @@
-import json
-from typing import Any
-
-
-def _loads_if_json(value: Any) -> Any:
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except json.JSONDecodeError:
-            return value
-    return value
-
-
 from database.crud.users import (
     create_user,
     get_user_by_username,

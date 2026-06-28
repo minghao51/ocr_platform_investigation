@@ -2,7 +2,7 @@
 CLI commands for OCR Platform administration.
 
 Usage:
-    uv run python -m backend.cli <command> [args]
+    uv run -m backend.cli <command> [args]
 
 Commands:
     create-admin <username> <password>  Create a new admin user
@@ -37,7 +37,7 @@ async def run_benchmark_cli():
     """Run a benchmark from CLI arguments."""
     import argparse
 
-    from benchmarks.datasets_extended import list_available_datasets
+    from benchmarks.datasets import list_available_datasets
 
     available_datasets = list_available_datasets()
 
@@ -126,7 +126,7 @@ async def list_benchmarks_cli():
     if not runs:
         print("No benchmark runs found.")
         print(
-            "Run: uv run python -m backend.cli run-benchmark --provider <name> --model <name>"
+            "Run: uv run -m backend.cli run-benchmark --provider <name> --model <name>"
         )
         return
 
@@ -230,7 +230,7 @@ async def export_benchmark_cli():
     """Export benchmark results to markdown."""
     import argparse
 
-    from benchmarks.datasets_extended import list_available_datasets
+    from benchmarks.datasets import list_available_datasets
 
     available_datasets = list_available_datasets()
 
@@ -450,18 +450,18 @@ def print_help():
     print("  show-benchmark <id>                Show detailed benchmark results")
     print("  export-benchmark --dataset <name>   Export results to markdown")
     print("\nExamples:")
-    print("  uv run python -m backend.cli create-admin admin1 securepass123")
-    print("  uv run python -m backend.cli create-demo testuser1 pass123")
-    print("  uv run python -m backend.cli create-demo-batch 10")
-    print("  uv run python -m backend.cli list-users")
-    print("  uv run python -m backend.cli change-password admin1 newpass456")
+    print("  uv run -m backend.cli create-admin admin1 securepass123")
+    print("  uv run -m backend.cli create-demo testuser1 pass123")
+    print("  uv run -m backend.cli create-demo-batch 10")
+    print("  uv run -m backend.cli list-users")
+    print("  uv run -m backend.cli change-password admin1 newpass456")
     print(
-        "  uv run python -m backend.cli run-benchmark --provider openrouter --model google/gemini-3-flash-preview"
+        "  uv run -m backend.cli run-benchmark --provider openrouter --model google/gemini-3-flash-preview"
     )
-    print("  uv run python -m backend.cli list-benchmarks")
-    print("  uv run python -m backend.cli show-benchmark 1")
+    print("  uv run -m backend.cli list-benchmarks")
+    print("  uv run -m backend.cli show-benchmark 1")
     print(
-        "  uv run python -m backend.cli export-benchmark --dataset cord -o docs/reference/benchmark-results-cord.md"
+        "  uv run -m backend.cli export-benchmark --dataset cord -o docs/reference/benchmark-results-cord.md"
     )
 
 
@@ -476,7 +476,7 @@ async def main():
     if command == "create-admin":
         if len(sys.argv) < 4:
             print("✗ Error: Username and password required.")
-            print("Usage: python -m backend.cli create-admin <username> <password>")
+            print("Usage: uv run -m backend.cli create-admin <username> <password>")
             sys.exit(1)
         username = sys.argv[2]
         password = sys.argv[3]
@@ -488,7 +488,7 @@ async def main():
     elif command == "delete-user":
         if len(sys.argv) < 3:
             print("✗ Error: Username required.")
-            print("Usage: python -m backend.cli delete-user <username>")
+            print("Usage: uv run -m backend.cli delete-user <username>")
             sys.exit(1)
         username = sys.argv[2]
         await delete_user(username)
@@ -497,7 +497,7 @@ async def main():
         if len(sys.argv) < 4:
             print("✗ Error: Username and new password required.")
             print(
-                "Usage: python -m backend.cli change-password <username> <new_password>"
+                "Usage: uv run -m backend.cli change-password <username> <new_password>"
             )
             sys.exit(1)
         username = sys.argv[2]
@@ -507,7 +507,7 @@ async def main():
     elif command == "set-admin":
         if len(sys.argv) < 4:
             print("✗ Error: Username and status required.")
-            print("Usage: python -m backend.cli set-admin <username> <true|false>")
+            print("Usage: uv run -m backend.cli set-admin <username> <true|false>")
             sys.exit(1)
         username = sys.argv[2]
         status = sys.argv[3]
@@ -516,7 +516,7 @@ async def main():
     elif command == "create-demo":
         if len(sys.argv) < 4:
             print("✗ Error: Username and password required.")
-            print("Usage: python -m backend.cli create-demo <username> <password>")
+            print("Usage: uv run -m backend.cli create-demo <username> <password>")
             sys.exit(1)
         username = sys.argv[2]
         password = sys.argv[3]
@@ -535,7 +535,7 @@ async def main():
     elif command == "set-limited":
         if len(sys.argv) < 4:
             print("✗ Error: Username and status required.")
-            print("Usage: python -m backend.cli set-limited <username> <true|false>")
+            print("Usage: uv run -m backend.cli set-limited <username> <true|false>")
             sys.exit(1)
         username = sys.argv[2]
         is_limited_str = sys.argv[3]
@@ -565,7 +565,7 @@ async def main():
     elif command == "show-benchmark":
         if len(sys.argv) < 3:
             print("✗ Error: Benchmark run ID required.")
-            print("Usage: python -m backend.cli show-benchmark <id>")
+            print("Usage: uv run -m backend.cli show-benchmark <id>")
             sys.exit(1)
         try:
             run_id = int(sys.argv[2])

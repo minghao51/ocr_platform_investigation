@@ -107,7 +107,7 @@ export default function LandingPage({ isAuthenticated, username }: LandingPagePr
           <h2 className="text-xl font-semibold text-gray-900">How it works</h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
             {[
-              ['1', 'Upload', 'PDFs, images, DOCX, PPTX, audio, and more are supported.'],
+              ['1', 'Upload', 'PDFs, images, DOCX, PPTX, and text-based documents are supported.'],
               ['2', 'Configure', 'Method is auto-detected. Select model + schema.'],
               ['3', 'Process', 'Track status and inspect structured results.'],
             ].map(([step, title, desc]) => (

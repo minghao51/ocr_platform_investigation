@@ -18,4 +18,4 @@ export { login, logout } from './auth';
 export { uploadFile, processDocument, getJobStatus, listJobs, getJob, deleteJob, listJobCorrections, createJobCorrection } from './jobs';
 export { listSchemas, getTemplates, getSchema, createSchema, suggestSchema, listSchemaSuggestions } from './schemas';
 export { listBenchmarkRuns, getBenchmarkRun, getBenchmarkResults, compareModels, getBenchmarkedModels, getUsageAnalytics } from './benchmarks';
-export { listProviders, getExtractSettings, clearExtractSettingsCache, analyzePdf, checkFileQuality, checkUploadedImageQuality } from './settings';
+export { getExtractSettings, clearExtractSettingsCache, analyzePdf, checkFileQuality, checkUploadedImageQuality } from './settings';

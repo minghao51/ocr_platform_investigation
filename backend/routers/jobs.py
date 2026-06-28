@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from database import crud
-from dependencies import get_current_user, get_optional_user
+from dependencies import get_current_user
 from routers.job_serialization import serialize_job
-from routers.shared import ensure_job_access
+from routers.shared import get_accessible_job, get_accessible_job_authenticated
 from models.schemas import JobCorrectionRequest
 from services.prompt_learning import PromptLearningService
 from typing import Any, Optional
@@ -92,7 +92,7 @@ def _diff_results(original: Any, corrected: Any, path: str = "") -> list[dict]:
 @router.get("/")
 async def list_jobs(
     status: Optional[str] = None,
-    provider: str = None,
+    provider: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     current_user: dict = Depends(get_current_user),
@@ -116,24 +116,13 @@ async def list_jobs(
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: int, current_user: dict = Depends(get_current_user)):
-    """Get job by ID"""
-    job = await crud.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    ensure_job_access(job, current_user)
-
+async def get_job(job: dict = Depends(get_accessible_job_authenticated)):
     return serialize_job(job)
 
 
 @router.delete("/{job_id}")
-async def delete_job(job_id: int, current_user: dict = Depends(get_current_user)):
-    """Delete job by ID"""
-    job = await crud.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    ensure_job_access(job, current_user)
-    success = await crud.delete_job(job_id)
+async def delete_job(job: dict = Depends(get_accessible_job_authenticated)):
+    success = await crud.delete_job(job["id"])
     if not success:
         raise HTTPException(status_code=404, detail="Job not found")
     return {"message": "Job deleted successfully"}
@@ -142,13 +131,8 @@ async def delete_job(job_id: int, current_user: dict = Depends(get_current_user)
 @router.get("/{job_id}/corrections")
 async def get_job_corrections(
     job_id: int,
-    request: Request,
-    current_user: dict | None = Depends(get_optional_user),
+    job: dict = Depends(get_accessible_job),
 ):
-    job = await crud.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    ensure_job_access(job, current_user, request.headers.get("X-Guest-Token"))
     return await crud.list_job_corrections(job_id)
 
 
@@ -156,12 +140,9 @@ async def get_job_corrections(
 async def create_job_correction(
     job_id: int,
     payload: JobCorrectionRequest,
+    job: dict = Depends(get_accessible_job_authenticated),
     current_user: dict = Depends(get_current_user),
 ):
-    job = await crud.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    ensure_job_access(job, current_user)
     if job.get("status") != "success":
         raise HTTPException(
             status_code=400, detail="Only successful jobs can be corrected"

@@ -7,7 +7,10 @@ import pytest
 import pytest_asyncio
 from unittest.mock import MagicMock, patch
 
-from benchmarks.runner import run_benchmark, _process_vision_sample as _process_single_sample
+from benchmarks.runner import (
+    run_benchmark,
+    _process_vision_sample as _process_single_sample,
+)
 from database.pool import connect
 from database.migrations import run_migrations
 
@@ -190,7 +193,7 @@ class TestRunBenchmark:
         fake_image = Image.new("RGB", (100, 100), color="white")
 
         # Mock load_dataset to return our fixtures
-        with patch("benchmarks.datasets_extended.load_dataset", return_value=samples):
+        with patch("benchmarks.runner.load_dataset", return_value=samples):
             # Create mock responses for each sample
             mock_responses = [
                 {
@@ -269,7 +272,7 @@ class TestRunBenchmark:
             async def process_image(self, *args, **kwargs):
                 return await mock_process(*args, **kwargs)
 
-        with patch("benchmarks.datasets_extended.load_dataset", return_value=samples):
+        with patch("benchmarks.runner.load_dataset", return_value=samples):
             mock_provider = _MockProvider()
 
             processing_service = MagicMock()
@@ -320,7 +323,7 @@ class TestRunBenchmark:
             },
         ]
 
-        with patch("benchmarks.datasets_extended.load_dataset", return_value=samples):
+        with patch("benchmarks.runner.load_dataset", return_value=samples):
             mock_provider = create_mock_provider(mock_responses)
 
             processing_service = MagicMock()

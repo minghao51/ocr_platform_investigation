@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
+from services.provider_catalog import create_provider
 from services.processing_utils import parse_and_validate_response
 from services.processors.base import Processor
 
@@ -21,8 +22,6 @@ class TextProcessor(Processor):
         **kwargs,
     ) -> Dict[str, Any]:
         from services.text_extraction import TextExtractionService
-        from services.provider_utils import resolve_provider_api_key
-        from services.provider_catalog import get_provider
         from services.schema_service import SchemaService
 
         text_service = TextExtractionService()
@@ -36,15 +35,11 @@ class TextProcessor(Processor):
                 "error": "This PDF appears to be image-based. Please use the Vision Extraction tab instead.",
             }
 
-        api_key = resolve_provider_api_key(provider_name)
-        if not api_key:
-            raise ValueError(f"No API key configured for {provider_name}")
-
         temperature = kwargs.get("temperature", 0.1)
         max_tokens = kwargs.get("max_tokens", 8192)
         system_prompt = kwargs.pop("system_prompt", None)
 
-        provider = await get_provider(provider_name, api_key)
+        provider = create_provider(provider_name)
 
         async with provider:
             provider_kwargs: dict = {

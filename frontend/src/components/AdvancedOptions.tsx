@@ -48,11 +48,11 @@ export default function AdvancedOptions({
   const tempMax = settings?.temperature?.max ?? 1;
   const tempStep = settings?.temperature?.step ?? 0.1;
   const tokensMin = settings?.max_tokens?.min ?? 256;
-  const tokensMax = settings?.max_tokens?.max ?? 32768;
+  const tokensMax = settings?.max_tokens?.max ?? 128000;
   const qualityMin = settings?.quality_threshold?.min ?? 0;
   const qualityMax = settings?.quality_threshold?.max ?? 80;
   const qualityStep = settings?.quality_threshold?.step ?? 5;
-  const promptMaxLen = settings?.prompt_max_length ?? 2000;
+  const promptMaxLen = settings?.prompt_max_length ?? 10000;
 
   const handleTemperatureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);

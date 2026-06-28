@@ -209,6 +209,7 @@ export interface UsageAnalytics {
 export interface ExtractSettings {
   providers: Provider[];
   extraction_methods: { id: string; name: string; description: string }[];
+  provider_required_methods: string[];
   schema_modes: { id: string; label: string; available_for: string[] | null }[];
   schema_templates: Record<string, Record<string, unknown>>;
   defaults: {
@@ -220,6 +221,7 @@ export interface ExtractSettings {
     prompt_max_length: number;
   };
   file_type_methods: Record<string, string>;
+  available_methods_by_file_type: Record<string, string[]>;
 }
 
 export interface BenchmarkRun {
@@ -261,12 +263,12 @@ export interface ModelComparison {
   provider: string;
   model: string;
   processing_method?: string;
-  sample_count: number;
+  sample_count: number | null;
   overall_accuracy: number;
-  avg_latency: number;
-  total_cost: number;
-  total_prompt_tokens: number;
-  total_completion_tokens: number;
+  avg_latency: number | null;
+  total_cost: number | null;
+  total_prompt_tokens: number | null;
+  total_completion_tokens: number | null;
   success_rate: number | null;
   started_at: string | null;
 }

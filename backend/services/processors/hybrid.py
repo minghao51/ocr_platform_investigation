@@ -8,6 +8,7 @@ import fitz
 from PIL import Image, ImageOps
 
 from services.image_service import ImageService
+from services.provider_catalog import create_provider
 from services.processing_utils import parse_and_validate_response
 from services.processors.base import Processor
 
@@ -222,14 +223,7 @@ class HybridProcessor(Processor):
         prompt: str,
         **kwargs,
     ) -> Dict[str, Any]:
-        from services.provider_utils import resolve_provider_api_key
-        from services.provider_catalog import get_provider
-
-        api_key = resolve_provider_api_key(provider_name)
-        if not api_key:
-            raise ValueError(f"No API key configured for {provider_name}")
-
-        provider = await get_provider(provider_name, api_key)
+        provider = create_provider(provider_name)
 
         async with provider:
             return await self.process_pdf(

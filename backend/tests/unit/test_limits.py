@@ -110,6 +110,28 @@ async def test_limited_demo_user_is_allowed_below_daily_cap(temp_user_db: Path):
 
 
 @pytest.mark.asyncio
+async def test_limited_demo_user_new_day_resets_counter_to_one(temp_user_db: Path):
+    _insert_user(
+        temp_user_db,
+        user_id=11,
+        username="guest-reset",
+        is_limited=True,
+        daily_requests=5,
+        last_request_date="2000-01-01",
+    )
+
+    current_user = {"user_id": 11, "username": "guest-reset", "is_admin": False}
+    assert await check_and_increment_daily_limit(current_user) == current_user
+
+    with sqlite3.connect(temp_user_db) as db:
+        requests, last_request_date = db.execute(
+            "SELECT daily_requests, last_request_date FROM users WHERE id = 11"
+        ).fetchone()
+    assert requests == 1
+    assert last_request_date == date.today().isoformat()
+
+
+@pytest.mark.asyncio
 async def test_limited_demo_user_hits_daily_cap(temp_user_db: Path):
     _insert_user(
         temp_user_db,
@@ -188,6 +210,14 @@ def test_rate_limit_uses_user_identity_and_exempts_admin():
 
     assert get_rate_limit_key(request) == "admin:99"
     assert should_exempt_rate_limit(request) is True
+
+
+def test_rate_limit_uses_user_identity_for_non_admin():
+    user_token = create_access_token(user_id=101, username="member", is_admin=False)
+    request = _build_request(user_token, client_host="10.0.0.5")
+
+    assert get_rate_limit_key(request) == "user:101"
+    assert should_exempt_rate_limit(request) is False
 
 
 def test_rate_limit_falls_back_to_ip_for_guests():

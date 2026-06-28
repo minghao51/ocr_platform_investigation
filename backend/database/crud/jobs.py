@@ -3,24 +3,12 @@ import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from database.pool import connect
-from database.validators import validate_update_columns
 
 
 def _json_default(value: Any) -> Any:
     if hasattr(value, "item"):
         return value.item()
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
-
-
-def _build_update_sql(
-    table: str, fields: dict, where_col: str = "id"
-) -> tuple[str, tuple]:
-    validate_update_columns(set(fields.keys()))
-    set_clause = ", ".join(f"{k} = ?" for k in fields)
-    return (
-        f"UPDATE {table} SET {set_clause} WHERE {where_col} = ?",
-        tuple(fields.values()),
-    )
 
 
 async def create_job(
@@ -97,27 +85,68 @@ async def update_job_status(
         completed_at = (
             datetime.now().isoformat() if status in ("success", "error") else None
         )
-        update_fields = {
-            "status": status,
-            "processing_time_seconds": processing_time,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens,
-            "estimated_cost": estimated_cost,
-        }
-        if correction_status is not None:
-            update_fields["correction_status"] = correction_status
+
         if status == "success":
-            update_fields["result"] = json.dumps(result) if result else None
-            update_fields["completed_at"] = completed_at
+            await db.execute(
+                """UPDATE processing_jobs
+                   SET status = ?, result = ?, processing_time_seconds = ?,
+                       prompt_tokens = ?, completion_tokens = ?, total_tokens = ?,
+                       estimated_cost = ?, completed_at = ?,
+                       correction_status = COALESCE(?, correction_status)
+                   WHERE id = ?""",
+                (
+                    status,
+                    json.dumps(result) if result else None,
+                    processing_time,
+                    prompt_tokens,
+                    completion_tokens,
+                    total_tokens,
+                    estimated_cost,
+                    completed_at,
+                    correction_status,
+                    job_id,
+                ),
+            )
         elif status == "error":
-            update_fields["error_message"] = error_message
-            update_fields["completed_at"] = completed_at
-
-        validate_update_columns(set(update_fields.keys()))
-
-        sql, params_tuple = _build_update_sql("processing_jobs", update_fields)
-        await db.execute(sql, (*params_tuple, job_id))
+            await db.execute(
+                """UPDATE processing_jobs
+                   SET status = ?, error_message = ?, processing_time_seconds = ?,
+                       prompt_tokens = ?, completion_tokens = ?, total_tokens = ?,
+                       estimated_cost = ?, completed_at = ?,
+                       correction_status = COALESCE(?, correction_status)
+                   WHERE id = ?""",
+                (
+                    status,
+                    error_message,
+                    processing_time,
+                    prompt_tokens,
+                    completion_tokens,
+                    total_tokens,
+                    estimated_cost,
+                    completed_at,
+                    correction_status,
+                    job_id,
+                ),
+            )
+        else:
+            await db.execute(
+                """UPDATE processing_jobs
+                   SET status = ?, processing_time_seconds = ?,
+                       prompt_tokens = ?, completion_tokens = ?, total_tokens = ?,
+                       estimated_cost = ?,
+                       correction_status = COALESCE(?, correction_status)
+                   WHERE id = ?""",
+                (
+                    status,
+                    processing_time,
+                    prompt_tokens,
+                    completion_tokens,
+                    total_tokens,
+                    estimated_cost,
+                    correction_status,
+                    job_id,
+                ),
+            )
         await db.commit()
 
         cursor = await db.execute(
@@ -238,25 +267,26 @@ async def update_quality_info(
     quality_checks: Optional[Dict[str, Any]] = None,
     preprocessing_applied: Optional[list[str]] = None,
 ) -> None:
-    update_fields = {}
+    sets: List[str] = []
+    params: List[Any] = []
 
     if quality_score is not None:
-        update_fields["quality_score"] = quality_score
+        sets.append("quality_score = ?")
+        params.append(quality_score)
     if quality_checks is not None:
-        update_fields["quality_checks"] = json.dumps(
-            quality_checks, default=_json_default
-        )
+        sets.append("quality_checks = ?")
+        params.append(json.dumps(quality_checks, default=_json_default))
     if preprocessing_applied is not None:
-        update_fields["preprocessing_applied"] = json.dumps(
-            preprocessing_applied, default=_json_default
-        )
+        sets.append("preprocessing_applied = ?")
+        params.append(json.dumps(preprocessing_applied, default=_json_default))
 
-    if not update_fields:
+    if not sets:
         return
 
-    sql, params_tuple = _build_update_sql("processing_jobs", update_fields)
+    params.append(job_id)
+    sql = f"UPDATE processing_jobs SET {', '.join(sets)} WHERE id = ?"
     async with connect() as db:
-        await db.execute(sql, (*params_tuple, job_id))
+        await db.execute(sql, params)
         await db.commit()
 
 

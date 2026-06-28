@@ -29,9 +29,9 @@ From a shell in the deployed service:
 
 ```bash
 cd /app
-python -m cli create-admin demo-master strong-password
-python -m cli create-demo guest1 guest-password
-python -m cli list-users
+uv run -m backend.cli create-admin demo-master strong-password
+uv run -m backend.cli create-demo guest1 guest-password
+uv run -m backend.cli list-users
 ```
 
 ## Demo-Safe Defaults

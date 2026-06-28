@@ -7,13 +7,10 @@ This script creates sample documents for testing all extraction methods:
 - searchable.pdf, image_only.pdf, large_pdf.pdf (docling-parse / vision / text)
 - invoice.pdf (structured extraction target)
 - receipt.jpg (image-based vision extraction)
-- sample_audio.wav (transcription)
 """
 
 import importlib.util
-import struct
 import sys
-import wave
 from pathlib import Path
 
 
@@ -75,16 +72,12 @@ def create_sample_pptx(output_path):
     content_slide = prs.slides.add_slide(prs.slide_layouts[1])
     content_slide.shapes.title.text = "Budget Overview"
     body = content_slide.placeholders[1]
-    body.text_frame.text = (
-        "Allocated: $500,000\nSpent: $425,000\nRemaining: $75,000"
-    )
+    body.text_frame.text = "Allocated: $500,000\nSpent: $425,000\nRemaining: $75,000"
 
     content_slide2 = prs.slides.add_slide(prs.slide_layouts[1])
     content_slide2.shapes.title.text = "Timeline"
     body2 = content_slide2.placeholders[1]
-    body2.text_frame.text = (
-        "Phase 1: Complete (Jan-Mar)\nPhase 2: In Progress (Apr-Jun)\nPhase 3: Planned (Jul-Sep)"
-    )
+    body2.text_frame.text = "Phase 1: Complete (Jan-Mar)\nPhase 2: In Progress (Apr-Jun)\nPhase 3: Planned (Jul-Sep)"
 
     prs.save(output_path)
     print(f"Created: {output_path}")
@@ -99,7 +92,9 @@ def create_searchable_pdf(output_path):
     styles = getSampleStyleSheet()
     story = [
         Paragraph("Searchable PDF Document", styles["Heading1"]),
-        Paragraph("This is a test paragraph for searchable PDF parsing.", styles["Normal"]),
+        Paragraph(
+            "This is a test paragraph for searchable PDF parsing.", styles["Normal"]
+        ),
         Paragraph("Another paragraph with searchable text content.", styles["Normal"]),
         Paragraph("This PDF should be parsed without OCR.", styles["Normal"]),
     ]
@@ -122,7 +117,9 @@ def create_image_only_pdf(output_path):
 
     draw.text((50, 50), "Image-Only PDF", fill="black", font=font)
     draw.text((50, 100), "This text is embedded in an image", fill="black", font=font)
-    draw.text((50, 150), "OCR is required to extract this text", fill="black", font=font)
+    draw.text(
+        (50, 150), "OCR is required to extract this text", fill="black", font=font
+    )
     img.save(output_path, "PDF")
     print(f"Created: {output_path}")
 
@@ -137,8 +134,16 @@ def create_large_pdf(output_path, num_pages=50):
     story = []
     for i in range(num_pages):
         story.append(Paragraph(f"Chapter {i + 1}", styles["Heading1"]))
-        story.append(Paragraph(f"This is the content for chapter {i + 1}. " * 20, styles["Normal"]))
-        story.append(Paragraph(f"Additional details for section {i + 1}. " * 10, styles["Normal"]))
+        story.append(
+            Paragraph(
+                f"This is the content for chapter {i + 1}. " * 20, styles["Normal"]
+            )
+        )
+        story.append(
+            Paragraph(
+                f"Additional details for section {i + 1}. " * 10, styles["Normal"]
+            )
+        )
         if i < num_pages - 1:
             story.append(PageBreak())
     doc.build(story)
@@ -149,7 +154,13 @@ def create_invoice_pdf(output_path):
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer,
+        Table,
+        TableStyle,
+    )
     from reportlab.lib import colors
 
     doc = SimpleDocTemplate(str(output_path), pagesize=letter)
@@ -165,20 +176,33 @@ def create_invoice_pdf(output_path):
         ["Due Date:", "December 15, 2024"],
     ]
     info_table = Table(info_data, colWidths=[1.5 * inch, 3 * inch])
-    info_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    info_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
     story.append(info_table)
     story.append(Spacer(1, 0.3 * inch))
 
     story.append(Paragraph("Bill To:", styles["Heading3"]))
-    story.append(Paragraph("Acme Corporation\n123 Business Ave\nSan Francisco, CA 94102", styles["Normal"]))
+    story.append(
+        Paragraph(
+            "Acme Corporation\n123 Business Ave\nSan Francisco, CA 94102",
+            styles["Normal"],
+        )
+    )
     story.append(Spacer(1, 0.3 * inch))
 
     story.append(Paragraph("Vendor:", styles["Heading3"]))
-    story.append(Paragraph("CloudSync Solutions\n456 Tech Blvd\nAustin, TX 78701", styles["Normal"]))
+    story.append(
+        Paragraph(
+            "CloudSync Solutions\n456 Tech Blvd\nAustin, TX 78701", styles["Normal"]
+        )
+    )
     story.append(Spacer(1, 0.3 * inch))
 
     line_data = [
@@ -188,16 +212,22 @@ def create_invoice_pdf(output_path):
         ["Data Migration Service", "3", "$400.00", "$1,200.00"],
         ["Training Sessions (8hrs)", "2", "$350.00", "$700.00"],
     ]
-    line_table = Table(line_data, colWidths=[2.5 * inch, 0.7 * inch, 1.2 * inch, 1.2 * inch])
-    line_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.2, 0.4, 0.8)),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    line_table = Table(
+        line_data, colWidths=[2.5 * inch, 0.7 * inch, 1.2 * inch, 1.2 * inch]
+    )
+    line_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.2, 0.4, 0.8)),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
     story.append(line_table)
     story.append(Spacer(1, 0.2 * inch))
 
@@ -207,13 +237,17 @@ def create_invoice_pdf(output_path):
         ["Total:", "$8,768.25"],
     ]
     totals_table = Table(totals_data, colWidths=[4.2 * inch, 1.4 * inch])
-    totals_table.setStyle(TableStyle([
-        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 11),
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LINEABOVE", (0, -1), (-1, -1), 1, colors.black),
-    ]))
+    totals_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 11),
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LINEABOVE", (0, -1), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
     story.append(totals_table)
 
     doc.build(story)
@@ -281,20 +315,6 @@ def create_receipt_image(output_path):
     print(f"Created: {output_path}")
 
 
-def create_sample_audio(output_path):
-    sample_rate = 22050
-    duration = 2
-    num_samples = sample_rate * duration
-
-    with wave.open(str(output_path), "w") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        frames = struct.pack("<" + "h" * num_samples, *([0] * num_samples))
-        wf.writeframes(frames)
-    print(f"Created: {output_path} ({duration}s silence)")
-
-
 def create_multi_page_searchable_pdf(output_path):
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet
@@ -305,9 +325,18 @@ def create_multi_page_searchable_pdf(output_path):
     story = []
 
     pages = [
-        ("Contract Agreement", "This Master Service Agreement is entered into on January 10, 2025 between TechCorp Inc. (Client) and DataFlow Solutions (Provider)."),
-        ("Scope of Work", "The Provider shall deliver data pipeline automation services including ETL development, API integration, and real-time monitoring dashboards."),
-        ("Payment Terms", "Total contract value: $45,000. Payment schedule: 30% upon signing, 40% at midpoint review, 30% upon completion. Net 30 payment terms."),
+        (
+            "Contract Agreement",
+            "This Master Service Agreement is entered into on January 10, 2025 between TechCorp Inc. (Client) and DataFlow Solutions (Provider).",
+        ),
+        (
+            "Scope of Work",
+            "The Provider shall deliver data pipeline automation services including ETL development, API integration, and real-time monitoring dashboards.",
+        ),
+        (
+            "Payment Terms",
+            "Total contract value: $45,000. Payment schedule: 30% upon signing, 40% at midpoint review, 30% upon completion. Net 30 payment terms.",
+        ),
     ]
     for title, content in pages:
         story.append(Paragraph(title, styles["Heading1"]))
@@ -335,7 +364,6 @@ def main():
         ("large_pdf.pdf", lambda p: create_large_pdf(p)),
         ("invoice.pdf", lambda p: create_invoice_pdf(p)),
         ("receipt.jpg", lambda p: create_receipt_image(p)),
-        ("sample_audio.wav", lambda p: create_sample_audio(p)),
         ("multi_page.pdf", lambda p: create_multi_page_searchable_pdf(p)),
     ]
 
@@ -347,15 +375,15 @@ def main():
         print(f"Fixture directory: {fixtures_dir}")
         print("\nGenerated files:")
         for fp in sorted(fixtures_dir.iterdir()):
-            if fp.is_file() and fp.suffix in (".pdf", ".docx", ".pptx", ".jpg", ".wav", ".py"):
+            if fp.is_file() and fp.suffix in (".pdf", ".docx", ".pptx", ".jpg", ".py"):
                 print(f"  {fp.name:30s} {fp.stat().st_size:>10,} bytes")
     except Exception as e:
         print(f"\nError generating fixtures: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
-

@@ -258,7 +258,7 @@ ocr_platform_testdrive/
 
 | Aspect | Convention |
 |--------|-----------|
-| Runner | `uv run pytest backend/tests/` from repo root |
+| Runner | `cd backend && uv run pytest tests/` |
 | Config | `pyproject.toml`: `testpaths = ["tests"]`, `python_files = ["test_*.py"]`, `asyncio_mode = "auto"` |
 | Async | `@pytest.mark.asyncio` on test functions |
 | Fixtures | `conftest.py` at `tests/`: `client` (TestClient), `auth_header` (admin token), `test_user_auth_header` |
@@ -301,10 +301,10 @@ ocr_platform_testdrive/
 ```
 # Backend
 uv sync                                         → Install Python deps
-uv run python backend/main.py                   → Start FastAPI dev server (uvicorn)
-uv run python backend/cli.py                    → Run CLI tools
-uv run pytest backend/tests/                    → Run all backend tests
-uv run pytest backend/tests/ -m "not slow"      → Run unit tests only (skip integration/e2e)
+cd backend && uv run uvicorn main:app --reload --port 8001  → Start FastAPI dev server
+cd backend && uv run -m backend.cli                          → Run CLI tools
+cd backend && uv run pytest tests/                           → Run all backend tests
+cd backend && uv run pytest tests/ -m "not slow"             → Run unit tests only (skip integration/e2e)
 
 # Frontend
 npm install                                     → Install JS deps

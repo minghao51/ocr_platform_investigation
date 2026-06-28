@@ -39,7 +39,6 @@ export const PROVIDER_REQUIRED_METHODS: ExtractionMethod[] = [
 
 export const FILE_TYPE_METHODS: Record<string, ExtractionMethod[]> = {
   image: ['docling-extract', 'vision'],
-  audio: ['transcription'],
   document: ['docling-parse', 'transcription'],
 };
 

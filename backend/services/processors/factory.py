@@ -3,6 +3,7 @@ import logging
 from services.processors.base import Processor
 from services.processors.docling_parse import DoclingParseProcessor
 from services.processors.docling_extract import DoclingExtractProcessor
+from services.processors.transcription import TranscriptionProcessor
 from services.processors.vision import VisionProcessor
 from services.processors.text import TextProcessor
 
@@ -25,6 +26,10 @@ class ProcessorFactory:
     def get_processor(self, extraction_method: str, file_type: str) -> Processor:
         if extraction_method == "docling-parse":
             return DoclingParseProcessor(
+                docling_parse_timeout_seconds=self.docling_parse_timeout_seconds
+            )
+        elif extraction_method == "transcription":
+            return TranscriptionProcessor(
                 docling_parse_timeout_seconds=self.docling_parse_timeout_seconds
             )
         elif extraction_method == "docling-extract":
